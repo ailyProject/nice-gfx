@@ -1,0 +1,3 @@
+X11 Misc Fixed 6x13
+Copyright string in 6x13.bdf:
+Public domain font.  Share and enjoy.

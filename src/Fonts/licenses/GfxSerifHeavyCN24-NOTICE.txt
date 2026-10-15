@@ -1,0 +1,6 @@
+GfxSerifHeavyCN24 is a modified bitmap font derived from Source Han Serif CN Heavy 2.003R.
+Source: https://raw.githubusercontent.com/adobe-fonts/source-han-serif/7889f11bf31170b5d092a083b357c8c8130f89e0/SubsetOTF/CN/SourceHanSerifCN-Heavy.otf
+SHA-256: 053e911fdb1a55d4d8512a1f11203f1fb9a7291e34bc260474b8c80358c69fa6
+License: SIL OFL 1.1; retain SourceHanSerif-OFL-1.1.txt with this notice.
+Modified by NICE_GFX: monochrome outline rasterization, fixed advance, 9,000 BMP Han glyphs plus GB2312 non-Han and ASCII.
+The new primary font names do not use the upstream Reserved Font Names.

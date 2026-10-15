@@ -1,0 +1,76 @@
+#pragma once
+#include "../../../Display/VideoControllerTypes.h"
+
+namespace nice_gfx { namespace video {
+static const uint8_t ST7701_RGB_data_0[] = {0x77, 0x01, 0x00, 0x00, 0x13};
+static const uint8_t ST7701_RGB_data_1[] = {0x08};
+static const uint8_t ST7701_RGB_data_2[] = {0x77, 0x01, 0x00, 0x00, 0x10};
+static const uint8_t ST7701_RGB_data_3[] = {0x3B, 0x00};
+static const uint8_t ST7701_RGB_data_4[] = {0x10, 0x02};
+static const uint8_t ST7701_RGB_data_5[] = {0x20, 0x06};
+static const uint8_t ST7701_RGB_data_6[] = {0x10};
+static const uint8_t ST7701_RGB_data_7[] = {0x00, 0x13, 0x5A, 0x0F, 0x12, 0x07, 0x09, 0x08, 0x08, 0x24, 0x07, 0x13, 0x12, 0x6B, 0x73, 0xFF};
+static const uint8_t ST7701_RGB_data_8[] = {0x00, 0x13, 0x5A, 0x0F, 0x12, 0x07, 0x09, 0x08, 0x08, 0x24, 0x07, 0x13, 0x12, 0x6B, 0x73, 0xFF};
+static const uint8_t ST7701_RGB_data_9[] = {0x77, 0x01, 0x00, 0x00, 0x11};
+static const uint8_t ST7701_RGB_data_10[] = {0x8D};
+static const uint8_t ST7701_RGB_data_11[] = {0x48};
+static const uint8_t ST7701_RGB_data_12[] = {0x89};
+static const uint8_t ST7701_RGB_data_13[] = {0x80};
+static const uint8_t ST7701_RGB_data_14[] = {0x49};
+static const uint8_t ST7701_RGB_data_15[] = {0x85};
+static const uint8_t ST7701_RGB_data_16[] = {0x32};
+static const uint8_t ST7701_RGB_data_17[] = {0x78};
+static const uint8_t ST7701_RGB_data_18[] = {0x78};
+static const uint8_t ST7701_RGB_data_19[] = {0x88};
+static const uint8_t ST7701_RGB_data_20[] = {0x00, 0x00, 0x02};
+static const uint8_t ST7701_RGB_data_21[] = {0x05, 0xC0, 0x07, 0xC0, 0x04, 0xC0, 0x06, 0xC0, 0x00, 0x44, 0x44};
+static const uint8_t ST7701_RGB_data_22[] = {0x00, 0x00, 0x33, 0x33, 0x01, 0xC0, 0x00, 0x00, 0x01, 0xC0, 0x00, 0x00, 0x00};
+static const uint8_t ST7701_RGB_data_23[] = {0x00, 0x00, 0x11, 0x11};
+static const uint8_t ST7701_RGB_data_24[] = {0x44, 0x44};
+static const uint8_t ST7701_RGB_data_25[] = {0x0D, 0xF1, 0x10, 0x98, 0x0F, 0xF3, 0x10, 0x98, 0x09, 0xED, 0x10, 0x98, 0x0B, 0xEF, 0x10, 0x98};
+static const uint8_t ST7701_RGB_data_26[] = {0x00, 0x00, 0x11, 0x11};
+static const uint8_t ST7701_RGB_data_27[] = {0x44, 0x44};
+static const uint8_t ST7701_RGB_data_28[] = {0x0C, 0xF0, 0x10, 0x98, 0x0E, 0xF2, 0x10, 0x98, 0x08, 0xEC, 0x10, 0x98, 0x0A, 0xEE, 0x10, 0x98};
+static const uint8_t ST7701_RGB_data_29[] = {0x00, 0x01, 0xE4, 0xE4, 0x44, 0x88, 0x00};
+static const uint8_t ST7701_RGB_data_30[] = {0xFF, 0x04, 0x56, 0x7F, 0xBA, 0x2F, 0xFF, 0xFF, 0xFF, 0xFF, 0xF2, 0xAB, 0xF7, 0x65, 0x40, 0xFF};
+static const uint8_t ST7701_RGB_data_31[] = {0x10, 0x0D, 0x04, 0x08, 0x3F, 0x1F};
+static const uint8_t ST7701_RGB_data_32[] = {0x77, 0x01, 0x00, 0x00, 0x00};
+static const InitCommand ST7701_RGB_Init[] = {
+  {0xFF, ST7701_RGB_data_0, 5, 0},
+  {0xEF, ST7701_RGB_data_1, 1, 0},
+  {0xFF, ST7701_RGB_data_2, 5, 0},
+  {0xC0, ST7701_RGB_data_3, 2, 0},
+  {0xC1, ST7701_RGB_data_4, 2, 0},
+  {0xC2, ST7701_RGB_data_5, 2, 0},
+  {0xCC, ST7701_RGB_data_6, 1, 0},
+  {0xB0, ST7701_RGB_data_7, 16, 0},
+  {0xB1, ST7701_RGB_data_8, 16, 0},
+  {0xFF, ST7701_RGB_data_9, 5, 0},
+  {0xB0, ST7701_RGB_data_10, 1, 0},
+  {0xB1, ST7701_RGB_data_11, 1, 0},
+  {0xB2, ST7701_RGB_data_12, 1, 0},
+  {0xB3, ST7701_RGB_data_13, 1, 0},
+  {0xB5, ST7701_RGB_data_14, 1, 0},
+  {0xB7, ST7701_RGB_data_15, 1, 0},
+  {0xB8, ST7701_RGB_data_16, 1, 0},
+  {0xC1, ST7701_RGB_data_17, 1, 0},
+  {0xC2, ST7701_RGB_data_18, 1, 0},
+  {0xD0, ST7701_RGB_data_19, 1, 100},
+  {0xE0, ST7701_RGB_data_20, 3, 0},
+  {0xE1, ST7701_RGB_data_21, 11, 0},
+  {0xE2, ST7701_RGB_data_22, 13, 0},
+  {0xE3, ST7701_RGB_data_23, 4, 0},
+  {0xE4, ST7701_RGB_data_24, 2, 0},
+  {0xE5, ST7701_RGB_data_25, 16, 0},
+  {0xE6, ST7701_RGB_data_26, 4, 0},
+  {0xE7, ST7701_RGB_data_27, 2, 0},
+  {0xE8, ST7701_RGB_data_28, 16, 0},
+  {0xEB, ST7701_RGB_data_29, 7, 0},
+  {0xED, ST7701_RGB_data_30, 16, 0},
+  {0xEF, ST7701_RGB_data_31, 6, 0},
+  {0xFF, ST7701_RGB_data_32, 5, 0},
+  {0x11, nullptr, 0, 120},
+  {0x29, nullptr, 0, 0},
+};
+static constexpr VideoInitProgram ST7701_RGB_Program(ST7701_RGB_Init, sizeof(ST7701_RGB_Init) / sizeof(InitCommand));
+} } // namespace nice_gfx::video

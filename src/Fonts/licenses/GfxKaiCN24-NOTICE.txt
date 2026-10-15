@@ -1,0 +1,6 @@
+GfxKaiCN24 is a modified bitmap font derived from LXGW WenKai Regular 1.522.
+Source: https://raw.githubusercontent.com/lxgw/LxgwWenKai/a22e2a064f471fffd194af2a69072944bbe218dc/fonts/TTF/LXGWWenKai-Regular.ttf
+SHA-256: 39ad71264b588165b469e35e6afb162a378dacd1f95348160240ba9038ac3009
+License: SIL OFL 1.1; retain LXGWWenKai-OFL-1.1.txt with this notice.
+Modified by NICE_GFX: monochrome outline rasterization, fixed advance, 9,000 BMP Han glyphs plus GB2312 non-Han and ASCII.
+The new primary font names do not use the upstream Reserved Font Names.

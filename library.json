@@ -1,0 +1,19 @@
+{
+  "name": "NICE_GFX",
+  "version": "1.0.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ailyProject/nice-gfx.git"
+  },
+  "keywords": "Arduino, gfx, display, ttgo, LilyPi, WT32-SC01, OLED, Pico, RP2040 Nano Connect, RP2040, STM32, ESP8266, NodeMCU, ESP32, ESP32-C5, ESP32-C6, ESP32-H2, ESP32-P4, M5Stack, AXS15231B, CH13613, CO5300, GC9106, GC9107, GC9A01, GC9C01, GC9D01, HX8347C, HX8347D, HX8352C, HX8357A, HX8357D, HX8369A, ILI9163, ILI9225, ILI9331, ILI9341, ILI9481, ILI9486, ILI9488, ILI9806, JBT6K71, JD9613, NT35310, NT35510, NT39125, NV3001B, NV3007, NV3023, NV3041A, OTM8009A, R61529, R61581, RM67162, RM68140, RM690B0, S6D02A1, SEPS525, SH8601, SPD2010, SSD1283A, SSD1331, SSD1351, SSD1357, SSD1963, ST7735, ST7789, ST77916, ST7796, WEA2012",
+  "description": "Arduino color display graphics with partial refresh, DMA and compiled HTML/CSS UI ABI 15: media, gradients, instruments, charts, text input, keyframe motion and physical keys.",
+  "authors": [
+    {
+      "name": "NICE_GFX contributors",
+      "maintainer": true
+    }
+  ],
+  "frameworks": "arduino",
+  "platforms": "*",
+  "headers": "NICE_GFX.h"
+}

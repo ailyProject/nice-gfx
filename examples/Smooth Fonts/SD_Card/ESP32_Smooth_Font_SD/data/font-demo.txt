@@ -1,0 +1,3 @@
+UTF-8 text from an SD card
+中文显示
+温度 25 度

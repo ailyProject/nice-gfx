@@ -1,0 +1,81 @@
+{
+  "version": 1,
+  "name": "DynamicImageDemo",
+  "width": 480,
+  "height": 480,
+  "initialRoute": "/",
+  "hardware": {
+    "preset": "oj-ojoy",
+    "board": "esp32:esp32:esp32s3:FlashMode=qio,FlashSize=16M,PartitionScheme=custom,PSRAM=opi,USBMode=hwcdc,CDCOnBoot=cdc",
+    "display": "CH13613_480x480_QSPI",
+    "cs": "45",
+    "dc": "-1",
+    "reset": "7",
+    "te": "-1",
+    "sck": "17",
+    "mosi": "8",
+    "miso": "-1",
+    "backlight": "-1",
+    "frequency": 40000000,
+    "rotation": 0,
+    "bufferLines": 16,
+    "edgeBack": false,
+    "swipeHome": false,
+    "wr": "-1",
+    "rd": "-1",
+    "dataPins": [
+      "8",
+      "16",
+      "15",
+      "18"
+    ],
+    "touch": "chsc6417",
+    "touchCs": "-1",
+    "touchIrq": "10",
+    "touchClock": "-1",
+    "touchMosi": "-1",
+    "touchMiso": "-1",
+    "touchSda": "21",
+    "touchScl": "47",
+    "touchReset": "48",
+    "touchAddress": 46,
+    "calibration": [
+      300,
+      3600,
+      300,
+      3600,
+      3
+    ]
+  },
+  "media": [
+    {
+      "id": "demo-checker",
+      "name": "Default checker",
+      "width": 2,
+      "height": 2,
+      "fps": 1,
+      "frameCount": 1,
+      "format": "rgb565",
+      "data": "+AAAHwfg//8="
+    },
+    {
+      "id": "demo-stripes",
+      "name": "Runtime resource",
+      "width": 2,
+      "height": 2,
+      "fps": 1,
+      "frameCount": 1,
+      "format": "rgb565",
+      "data": "/+D/4Af/B/8="
+    }
+  ],
+  "pages": [
+    {
+      "id": "home",
+      "name": "Images",
+      "path": "/",
+      "html": "<main id=\"home\" style=\"width:100%;height:100%;padding:24px;gap:12px\">\n  <p id=\"title\">Device image updates</p>\n  <gfx-media id=\"photo\" data-media=\"demo-checker\" data-media-dynamic=\"true\" style=\"width:100%;height:240px\"></gfx-media>\n  <p id=\"status\">Authored fallback</p>\n  <div style=\"flex-direction:row;gap:8px;height:44px\">\n    <button id=\"dynamic\" data-on-click=\"startDynamic\" style=\"width:50%\">Generate</button>\n    <button id=\"resource\" data-on-click=\"switchResource\" style=\"width:50%\">Resource</button>\n  </div>\n  <div style=\"flex-direction:row;gap:8px;height:44px\">\n    <button id=\"clear\" data-on-click=\"clearPhoto\" style=\"width:50%\">Clear</button>\n    <button id=\"reset\" data-on-click=\"resetPhoto\" style=\"width:50%\">Reset</button>\n  </div>\n</main>",
+      "css": "p { height:24px; }"
+    }
+  ]
+}
