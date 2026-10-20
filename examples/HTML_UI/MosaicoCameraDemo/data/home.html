@@ -1,0 +1,20 @@
+<main id="home">
+  <p id="title">MOSAICO CAMERA</p>
+  <p id="status">Waiting for camera...</p>
+  <p id="fps">0 FPS</p>
+  <div id="preview-frame"></div>
+  <gfx-media id="preview" data-media-dynamic="true"></gfx-media>
+  <gfx-rect id="box0" fill="none" stroke="#ff5a68" stroke-width="2" data-visible="false"></gfx-rect>
+  <p id="label0" class="object-label red" data-visible="false">RED</p>
+  <gfx-rect id="box1" fill="none" stroke="#54ed96" stroke-width="2" data-visible="false"></gfx-rect>
+  <p id="label1" class="object-label green" data-visible="false">GREEN</p>
+  <gfx-rect id="box2" fill="none" stroke="#55aaff" stroke-width="2" data-visible="false"></gfx-rect>
+  <p id="label2" class="object-label blue" data-visible="false">BLUE</p>
+  <gfx-rect id="box3" fill="none" stroke="#ffe36a" stroke-width="2" data-visible="false"></gfx-rect>
+  <p id="label3" class="object-label yellow" data-visible="false">YELLOW</p>
+  <div id="detect-panel"></div>
+  <label id="detect-title" for="detect">COLOR DETECTION</label>
+  <gfx-switch id="detect" checked data-on-change="detectChanged"></gfx-switch>
+  <p id="legend">RED / GREEN / BLUE / YELLOW</p>
+  <p id="help">Live RGB565 + color bounding boxes</p>
+</main>

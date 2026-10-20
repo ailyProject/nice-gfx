@@ -18,6 +18,7 @@ uint32_t surfaceMutationEpoch=0;
 uint16_t *tileBuffers[2]={nullptr,nullptr};
 size_t surfacePixels=0;
 uint64_t surfaceClock=0;
+size_t surfaceWarmNext=0;
 RenderCacheStats surfaceStats;
 const Surface *snapshotSurface=nullptr,*previewSurface=nullptr;
 bool buildingSurface=false;
@@ -51,10 +52,26 @@ static bool sameSurfaceState(const std::vector<State> &a,const std::vector<State
   for(size_t i=0;i<a.size();++i)if(!sameSurfaceNode(a[i],b[i]))return false;
   return true;
 }
+static bool surfaceImageOnlyChange(State &old,const State &live) {
+  if(old.image.impl_==live.image.impl_&&old.imageOverride==live.imageOverride)return false;
+  Image retained=old.image;const bool overrideSource=old.imageOverride;
+  old.image=live.image;old.imageOverride=live.imageOverride;
+  const bool equal=sameSurfaceNode(old,live);
+  old.image=std::move(retained);old.imageOverride=overrideSource;
+  return equal;
+}
+bool fastSurfaceImageRepair(uint16_t index,const Geometry &geometry) const {
+  const auto &node=snapshotPage->nodes[index];const auto &value=snapshot[index];
+  if(node.kind!=Kind::Media||node.motion||geometry.alpha!=255||!value.imageOverride||!value.image.impl_)return false;
+  const auto &image=*value.image.impl_;const auto &style=styleFor(*snapshotPage,snapshot,index);
+  return !image.flash&&image.source.format==ImageFormat::RGB565&&!(image.source.strideBytes&1)&&
+    image.media.width==geometry.rect.width&&image.media.height==geometry.rect.height&&
+    !style.borderWidth&&!style.radius&&!style.paddingTop&&!style.paddingRight&&!style.paddingBottom&&!style.paddingLeft;
+}
 
-// Repair small visual changes in a retained surface instead of discarding all
-// its static gradients, labels and shapes. The budget is bounded by four tiles;
-// large changes continue through ordinary rendering and idle cache warming.
+// Repair visual changes without discarding a retained page's static content.
+// Ordinary changes have a four-tile budget; full-size opaque RAM image updates
+// may repair at most one page through the same renderer, preserving overlays.
 Surface *patchSurface(bool &geometryPrepared) {
   if(down||snapshotInput||snapshotKeyboard.visible)return nullptr;
   Surface *slot=nullptr;
@@ -63,10 +80,15 @@ Surface *patchSurface(bool &geometryPrepared) {
   bool visualOnly=true;
   for(size_t i=0;i<snapshot.size();++i)if(!sameSurfaceGeometry(slot->key[i],snapshot[i])){visualOnly=false;break;}
   if(!visualOnly){prepareCache(*snapshotPage,snapshot,snapshotCache);geometryPrepared=true;}
-  DirtyRegions<16> damage(0);
+  DirtyRegions<16> damage(0),ordinaryDamage(0);
+  bool fastImage=false;
   for(uint16_t i=0;i<snapshot.size();++i)if(!sameSurfaceNode(slot->key[i],snapshot[i])) {
     if(visualOnly){const auto &g=slot->geometry.nodes[i];
-      if(g.visible&&g.alpha){const Rect r=intersect(g.rect,g.clip);damage.add(DirtyRect(r.x,r.y,r.width,r.height),snapshotPage->width,snapshotPage->height);}continue;
+      if(g.visible&&g.alpha){const Rect r=intersect(g.rect,g.clip);const DirtyRect changed(r.x,r.y,r.width,r.height);
+        damage.add(changed,snapshotPage->width,snapshotPage->height);
+        if(fastSurfaceImageRepair(i,g)&&surfaceImageOnlyChange(slot->key[i],snapshot[i]))fastImage=true;
+        else ordinaryDamage.add(changed,snapshotPage->width,snapshotPage->height);
+      }continue;
     }
     for(uint16_t k=i;k<snapshot.size();++k){
       int a=k;while(a>=0&&a!=i)a=snapshotPage->nodes[a].parent==NoParent?-1:snapshotPage->nodes[a].parent;
@@ -77,9 +99,31 @@ Surface *patchSurface(bool &geometryPrepared) {
       }
     }
   }
+  // Selection and disclosure arrows borrow state from a component root,
+  // pager or panel. Their buttons can lie outside that owner's rectangle.
+  // Compare those visual dependencies before repairing the retained pixels.
+  if(componentCount)for(uint16_t i=0;i<snapshot.size();++i)if(snapshotPage->nodes[i].kind==Kind::Button){
+    const Id id=snapshotPage->nodes[i].id;
+    const auto previous=componentPaint(*snapshotPage,slot->key,id),current=componentPaint(*snapshotPage,snapshot,id);
+    if(previous.selected==current.selected&&previous.expanded==current.expanded)continue;
+    for(const auto *geometry:{&slot->geometry,visualOnly?&slot->geometry:&snapshotCache}){
+      const auto &g=geometry->nodes[i];if(!g.visible||!g.alpha)continue;
+      const Rect r=intersect(g.rect,g.clip);damage.add(DirtyRect(r.x,r.y,r.width,r.height),snapshotPage->width,snapshotPage->height);
+      ordinaryDamage.add(DirtyRect(r.x,r.y,r.width,r.height),snapshotPage->width,snapshotPage->height);
+    }
+  }
   uint64_t pixels=0;for(size_t i=0;i<damage.size();++i)pixels+=damage[i].pixels();
   surfaceStats.lastRepairPixels=pixels;
-  if(pixels>uint64_t(capacity)*4)return nullptr;
+  const uint64_t smallBudget=uint64_t(capacity)*4;
+  if(pixels>smallBudget){
+    uint64_t ordinaryPixels=0;for(size_t i=0;i<ordinaryDamage.size();++i)ordinaryPixels+=ordinaryDamage[i].pixels();
+    // Full-size opaque RAM images use clipped row copies. Repair their changed
+    // rectangle once in the retained page, including unchanged overlay chrome,
+    // instead of discarding a complete surface for every incoming map frame.
+    // Other visual changes retain the old four-tile limit. Work never exceeds
+    // one page, and geometry/alpha/scale/flash-image changes use normal fallback.
+    if(!visualOnly||!fastImage||ordinaryPixels>smallBudget||pixels>uint64_t(snapshotPage->width)*snapshotPage->height)return nullptr;
+  }
   if(visualOnly){prepareVisualCache(*snapshotPage,snapshot,slot->key,slot->geometry,snapshotCache);geometryPrepared=true;}
   const uint64_t savedTiles=stats.renderedTiles,savedPixels=stats.renderedPixels;
   FrameCache *savedPaint=paintCache;const bool savedBuilding=buildingSurface;
@@ -111,7 +155,7 @@ void clearSurfacePage(const PageDesc *p) {
   for(auto &entry:surfaces)if(entry.page==p){entry.page=nullptr;entry.key.clear();entry.geometry=FrameCache{};entry.ready=false;entry.row=entry.column=0;}
 }
 void clearSurfaces() {
-  surfaces.clear();surfacePixels=0;surfaceClock=0;surfaceStats=RenderCacheStats{};
+  surfaces.clear();surfacePixels=0;surfaceClock=0;surfaceWarmNext=0;surfaceStats=RenderCacheStats{};
   std::vector<int>().swap(surfaceWanted);std::vector<int>().swap(surfacePrewarm);surfaceWarmPending=false;
   snapshotSurface=previewSurface=nullptr;
 }
@@ -159,11 +203,14 @@ bool canCompleteMediaWarm(Surface &slot,const PageDesc &p,const std::vector<Stat
   uint64_t pixels=0;for(size_t i=0;i<damage.size();++i)pixels+=damage[i].pixels();
   return changed&&pixels<=uint64_t(capacity)*4;
 }
-bool activeWarmProducer(int index) const {
+bool activeWarmProducer(int index,const Surface *slot=nullptr) const {
   if(index!=history.back())return false;
   if(animationsRunning())return true;
   ensureTickNodes();
   for(uint16_t i:mediaNodes){
+    if(slot&&slot->key.size()==state().size()&&
+       (slot->key[i].image.impl_!=state()[i].image.impl_||slot->key[i].imageOverride!=state()[i].imageOverride)&&
+       visible(page(),state(),i))return true;
     const auto *source=media(page().nodes[i],state()[i]);
     if(source&&source->frames>1&&visible(page(),state(),i))return true;
   }
@@ -188,7 +235,11 @@ void warmSurfaceTile(uint32_t now) {
   // Without route groups, retain recently visited pages rather than eagerly
   // initializing unrelated routes. Group warming is explicitly opted into.
   for(uint16_t i=0;i<project->count;++i)if(!pages[i].empty())add(i);
-  for(int index:wanted){
+  // A continuously updated first page must not monopolize the idle budget.
+  // Rotate after each successful tile; exact immutable keys still decide hits.
+  const size_t count=wanted.size(),first=count?surfaceWarmNext%count:0;
+  for(size_t offset=0;offset<count;++offset){
+    const size_t wantedAt=(first+offset)%count;const int index=wanted[wantedAt];
     initializePage(uint16_t(index));const PageDesc &p=project->pages[index];auto &state=pages[index];
     if(surfaceReady(index))continue;
     Surface *slot=nullptr;
@@ -200,7 +251,7 @@ void warmSurfaceTile(uint32_t now) {
     if(!slot)return;
     bool resumed=false;
     if(slot->paused){
-      if(!activeWarmProducer(index)){slot->paused=false;resumed=true;}
+      if(!activeWarmProducer(index,slot)){slot->paused=false;resumed=true;}
       else {
         if(slot->pauseEpoch!=surfaceMutationEpoch){slot->pauseEpoch=surfaceMutationEpoch;slot->quietAt=now;}
         if(uint32_t(now-slot->quietAt)<100)continue;
@@ -212,7 +263,7 @@ void warmSurfaceTile(uint32_t now) {
     if(!same&&!carry){
       // Continuous changes cannot finish a page-sized warm. Keep a completed
       // old key available for exact hits/repairs; retry once state is quiet.
-      if(!resumed&&slot->page==&p&&(slot->ready||slot->row||slot->column)&&activeWarmProducer(index)){
+      if(!resumed&&slot->page==&p&&(slot->ready||slot->row||slot->column)&&activeWarmProducer(index,slot)){
         slot->paused=true;slot->pauseEpoch=surfaceMutationEpoch;slot->quietAt=now;continue;
       }
       slot->page=&p;slot->key=state;slot->row=slot->column=0;slot->ready=slot->paused=false;
@@ -239,6 +290,7 @@ void warmSurfaceTile(uint32_t now) {
     ++surfaceStats.warmedTiles;slot->used=++surfaceClock;
     slot->column+=width;if(slot->column==p.width){slot->column=0;slot->row+=height;}
     if(slot->row==p.height){slot->ready=true;releaseSurfaceText(*slot);}
+    surfaceWarmNext=(wantedAt+1)%count;
     return;
   }
   surfaceWarmPending=false;

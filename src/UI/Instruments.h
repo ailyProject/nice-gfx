@@ -53,6 +53,11 @@ inline bool validInstrument(const NodeDesc &n) {
     if(a->capacity<2||a->capacity>512||!a->seriesCount||a->seriesCount>4||!a->series||a->labelCount>a->capacity||(a->labelCount&&!a->labels)||a->grid>10)return false;
     for(int s=0;s<a->seriesCount;++s)if(!a->series[s].name||a->series[s].count>a->capacity||(a->series[s].count&&!a->series[s].values))return false;
     for(int j=0;j<a->labelCount;++j)if(!a->labels[j])return false;
+    if(a->chartStyle){const auto &c=*a->chartStyle;
+      if(c.lineWidth<1||c.lineWidth>6||c.fillMode>2||c.fillOpacity>100||c.gridX>24||c.minorGrid>5||c.pointMode>2||c.pointRadius<1||c.pointRadius>6||c.lineMode>1||c.barMode>1||c.barRadius>12||c.barGap>12||c.referenceCount>4||(c.referenceCount&&!c.references))return false;
+      if(c.fillMode&&((n.flags&Transparent)||n.style.gradient))return false;
+      for(int i=0;i<c.referenceCount;i++){const auto &ref=c.references[i];if(ref.value<n.minimum||ref.value>n.maximum||ref.dash>16||!ref.label||strlen(ref.label)>72)return false;}
+    }
   } else if(a->seriesCount||a->capacity||a->labelCount)return false;
   return true;
 }
@@ -78,8 +83,10 @@ template<class Canvas> void instrumentArc(Canvas &c,int x,int y,int radius,int w
   }
   if(caps&&sweep>0&&sweep<360){const int middle=radius-width/2;c.fillCircle(instrumentX(x,middle,start),instrumentY(y,middle,start),width/2,color);c.fillCircle(instrumentX(x,middle,start+sweep),instrumentY(y,middle,start+sweep),width/2,color);}
 }
+#include "ChartRendering.inc.h"
+
 template<class Canvas> void renderInstrument(Canvas &c,const NodeDesc &n,const InstrumentState &state,int32_t value,Rect r) {
-  const auto &a=*n.instrument;const auto &s=n.style;const int fh=s.font->height*s.fontSize,fw=s.font->width*s.fontSize;
+  const auto &a=*n.instrument;const auto &s=n.style;const int fh=s.font->height*s.fontSize;
   c.setAntialiasing(!(n.flags&NoAntialias));
   c.setFont(s.font);c.setTextSize(s.fontSize);c.setTextColor(s.color);c.setTextDatum(TL_DATUM);c.setTextPadding(0);
   auto label=[&](const char *text,int x,int y,int width,int align){const int pixels=c.textWidth(text);
@@ -89,8 +96,8 @@ template<class Canvas> void renderInstrument(Canvas &c,const NodeDesc &n,const I
   if(n.kind==Kind::Spinbox) {
     const int button=std::min(r.height,r.width/3),cy=r.y+r.height/2,half=std::max(2,std::min(6,button/5));
     c.drawFastVLine(r.x+button,r.y+8,std::max<int32_t>(0,r.height-16),s.trackColor);c.drawFastVLine(r.x+r.width-button,r.y+8,std::max<int32_t>(0,r.height-16),s.trackColor);
-    c.fillRect(r.x+button/2-half,cy-1,half*2+1,2,value<=n.minimum?s.trackColor:s.fillColor);
-    const uint16_t plus=value>=n.maximum?s.trackColor:s.fillColor;c.fillRect(r.x+r.width-button/2-half,cy-1,half*2+1,2,plus);c.fillRect(r.x+r.width-button/2-1,cy-half,2,half*2+1,plus);
+    c.fillRect(r.x+button/2-half,cy-1,half*2,2,value<=n.minimum?s.trackColor:s.fillColor);
+    const uint16_t plus=value>=n.maximum?s.trackColor:s.fillColor;c.fillRect(r.x+r.width-button/2-half,cy-1,half*2,2,plus);c.fillRect(r.x+r.width-button/2-1,cy-half,2,half*2,plus);
     label(formatted,r.x+button,r.y+(r.height-fh)/2,r.width-button*2,1);return;
   }
   if(n.kind==Kind::Gauge||n.kind==Kind::Ring) {
@@ -104,21 +111,6 @@ template<class Canvas> void renderInstrument(Canvas &c,const NodeDesc &n,const I
     instrumentFormat(formatted,sizeof(formatted),state.visual,a.decimals,a.unit);label(formatted,r.x,cy+(n.kind==Kind::Gauge?radius/3:-fh/2),r.width,1);
     if(n.kind==Kind::Gauge){instrumentFormat(formatted,sizeof(formatted),n.minimum,a.decimals);label(formatted,r.x,r.y+r.height-fh,r.width/2,0);instrumentFormat(formatted,sizeof(formatted),n.maximum,a.decimals);label(formatted,r.x+r.width/2,r.y+r.height-fh,r.width/2,2);}return;
   }
-  const bool legend=a.seriesCount>1||*a.series[0].name;int top=r.y+(legend?fh+4:0);
-  if(legend)for(int j=0;j<a.seriesCount;++j){int w=r.width/a.seriesCount,x=r.x+j*w;c.fillRect(x,r.y+fh/2-2,5,5,a.series[j].color);label(a.series[j].name,x+8,r.y,w-8,0);}
-  const int left=r.x+std::min<int32_t>(r.width/3,fw*(a.decimals?5:3)+4),bottom=r.y+r.height-fh-4,pw=std::max<int32_t>(0,r.x+r.width-left-1),ph=std::max(0,bottom-top);if(!pw||!ph)return;
-  for(int k=0;k<=a.grid;++k){if(!a.grid)break;if(a.horizontal)c.drawFastVLine(left+pw*k/a.grid,top,ph,s.trackColor);else c.drawFastHLine(left,top+ph*k/a.grid,pw,s.trackColor);}
-  if(a.horizontal){instrumentFormat(formatted,sizeof(formatted),n.minimum,a.decimals,a.unit);label(formatted,left,bottom+4,pw/2,0);instrumentFormat(formatted,sizeof(formatted),n.maximum,a.decimals,a.unit);label(formatted,left+pw/2,bottom+4,pw/2,2);}else{instrumentFormat(formatted,sizeof(formatted),n.maximum,a.decimals,a.unit);label(formatted,r.x,top,left-r.x-4,2);instrumentFormat(formatted,sizeof(formatted),n.minimum,a.decimals,a.unit);label(formatted,r.x,bottom-fh,left-r.x-4,2);}
-  int count=0;for(int j=0;j<a.seriesCount;++j)count=std::max(count,int(state.count[j]));if(!count)return;
-  for(int j=0;j<a.seriesCount;++j){int oldX=0,oldY=0;bool previous=false;for(int k=0;k<count;++k){int32_t v=state.value(a,j,k);if(v==ChartNone){previous=false;continue;}
-    if(n.kind==Kind::LineChart){int x=left+(count>1?pw*k/(count-1):pw/2),y=bottom-fraction(v,ph);if(previous)c.drawLine(oldX,oldY,x,y,a.series[j].color);else c.fillCircle(x,y,2,a.series[j].color);oldX=x;oldY=y;previous=true;}
-    else {const int category=a.horizontal?ph:pw,start=category*k/count,span=category*(k+1)/count-start,gap=std::min(2,span/5),space=span-2*gap,offset=start+gap+space*j/a.seriesCount,bar=space*(j+1)/a.seriesCount-space*j/a.seriesCount;int zero=fraction(0,a.horizontal?pw:ph),pos=fraction(v,a.horizontal?pw:ph);if(!bar||zero==pos)continue;
-      if(a.horizontal)c.fillRoundRect(left+std::min(zero,pos),top+offset,std::max(1,abs(pos-zero)),std::max(1,bar-1),std::min(3,bar/2),a.series[j].color);
-      else c.fillRoundRect(left+offset,bottom-std::max(zero,pos),std::max(1,bar-1),std::max(1,abs(pos-zero)),std::min(3,bar/2),a.series[j].color);
-    }
-  }}
-  int labelWidth=0;for(int k=0;k<a.labelCount;++k)labelWidth=std::max(labelWidth,int(c.textWidth(a.labels[k])));const int stride=std::max(1,(labelWidth*count+pw-1)/pw);
-  if(!a.horizontal&&a.labelCount)for(int k=0;k<std::min(count,int(a.labelCount));k+=stride){int span=std::min(pw,pw*stride/count),center=n.kind==Kind::LineChart?(count>1?pw*k/(count-1):pw/2):pw*(2*k+1)/(2*count),x=std::max(left,std::min(left+pw-span,left+center-span/2));label(a.labels[k],x,bottom+4,span,1);}
-  if(a.horizontal&&a.labelCount)for(int k=0;k<std::min(count,int(a.labelCount));++k)label(a.labels[k],r.x,top+k*ph/count,left-r.x-4,2);
+  renderChart(c,n,state,r);
 }
 } }

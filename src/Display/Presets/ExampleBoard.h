@@ -7,7 +7,9 @@
 // sample connections; no display pin or controller selection macros are used.
 namespace nice_gfx {
 
-#if defined(CONFIG_IDF_TARGET_ESP32S3)
+#if defined(SEEED_WIO_TERMINAL)
+using ExampleDisplay = WioTerminalDisplay;
+#elif defined(CONFIG_IDF_TARGET_ESP32S3)
 class ExampleDisplay : public CH13613_480x480_QSPI {
  public: ExampleDisplay() : CH13613_480x480_QSPI(45, 7, 17, 8, 16, 15, 18) {}
 };
@@ -36,9 +38,15 @@ class ExampleDisplay : public ILI9341_240x320_SPI {
 };
 #endif
 
-// Backlight is tied to power in this example wiring. Set a GPIO here when the
-// module has an independently controlled backlight input.
-inline int exampleBacklightPin() { return -1; }
+// Most sample modules tie backlight to power; Wio has a dedicated control pin.
+// Set a GPIO here for other modules with an independent backlight input.
+inline int exampleBacklightPin() {
+#if defined(SEEED_WIO_TERMINAL)
+  return LCD_BACKLIGHT;
+#else
+  return -1;
+#endif
+}
 
 inline Status exampleTouchWait(void *context) {
   NICE_GFX &display = *static_cast<NICE_GFX *>(context);
@@ -48,6 +56,11 @@ inline Status exampleTouchWait(void *context) {
 // The bundled touch sketches contain one display. This helper owns their one
 // optional touch controller and binds shared-master waiting to that display.
 inline Status exampleAttachTouch(NICE_GFX &display) {
+#if defined(SEEED_WIO_TERMINAL)
+  // The production Wio Terminal has no fitted touchscreen controller.
+  (void)display;
+  return Status::Unsupported;
+#else
 #if defined(CONFIG_IDF_TARGET_ESP32S3)
   // Optional external XPT2046; this is not a CH13613 built-in touch controller.
   static TouchSoftwareSpi bus(TouchPins(10, 11, 12, 13));
@@ -66,6 +79,7 @@ inline Status exampleAttachTouch(NICE_GFX &display) {
   Status s = touch.begin();
   if (s == Status::Ok) display.attachTouch(touch);
   return s;
+#endif
 }
 
 } // namespace nice_gfx

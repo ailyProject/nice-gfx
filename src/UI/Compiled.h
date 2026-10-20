@@ -2,13 +2,17 @@
 #include <stdint.h>
 #include <stddef.h>
 
+// Shape motion and configurable pivots are versioned independently below.
+#define NICE_GFX_UI_SHAPE_MOTION_VERSION 1
+#define NICE_GFX_UI_PIVOT_MOTION_VERSION 1
+
 namespace nice_gfx { struct MonoFont; struct MonoIcon; }
 namespace nice_gfx { namespace htmlui {
 
 // Versioned, generated C++ resource ABI. Geometry is page-relative, in physical
 // pixels at PageDesc's target size. Parents precede children. Resource pointers
 // remain valid for the lifetime of the mounted project.
-constexpr uint32_t ResourceVersion = 15;
+constexpr uint32_t ResourceVersion = 17;
 constexpr uint16_t NoParent = 0xffff;
 using Id = uint32_t;
 enum class Kind : uint8_t { Container, Text, Button, Range, Checkbox, Switch, Progress, Scroll, Pager, Label, Icon, Media, Gauge, Ring, LineChart, BarChart, Spinbox, Shape, InputField };
@@ -48,8 +52,9 @@ struct AnimationDesc {
   uint16_t duration, delay, repeat, distance; // ms, ms, total cycles (0=infinite), px
 };
 // Author keyframes are normalized once by the compiler. Offsets, uniform scale
-// and reveal use Q10; rotation is clockwise degrees about the box center.
-// Only Media/Icon leaves may scale/rotate; reveal clips any node and its subtree.
+// and reveal use Q10; rotation is clockwise degrees about MotionDesc's pivot.
+// Media/Icon/Shape leaves may scale/rotate; reveal clips any node and its subtree.
+// Shape motion cannot combine a nonidentity scale/rotation with partial reveal.
 struct MotionKeyframe {
   uint16_t offset;
   int16_t x, y;
@@ -62,7 +67,16 @@ enum MotionFlags : uint8_t { MotionAlternate = 1, MotionRevealRight = 2,
   MotionRevealUp = 4, MotionRevealDown = 6 };
 // count=0 attaches direction/reveal options to an existing preset. The complete
 // immutable frame table and this descriptor can be shared across all pages.
-struct MotionDesc { const MotionKeyframe *frames; uint8_t count, flags; };
+struct MotionDesc {
+  const MotionKeyframe *frames; uint8_t count, flags;
+  // Integer percentages of the node box, including external pivots. Shape
+  // percentages span first/last pixel centers; Media/Icon span box edges.
+  // Constructor defaults keep generated brace initializers usable in C++11.
+  int16_t pivotX;
+  int16_t pivotY;
+  constexpr MotionDesc(const MotionKeyframe *f=nullptr,uint8_t n=0,uint8_t options=0,int16_t px=50,int16_t py=50)
+    :frames(f),count(n),flags(options),pivotX(px),pivotY(py) {}
+};
 struct PagerDesc { uint16_t indicatorHeight; uint8_t dotSize, dotGap; };
 struct MediaDesc { const uint8_t *pixels; uint16_t width, height, frames; uint8_t fps, bytesPerPixel; };
 enum class ShapeType : uint8_t { Circle, Ellipse, Rect, Line, Polyline, Polygon };
@@ -81,11 +95,19 @@ struct ShapeDesc {
 };
 struct InstrumentZone { int32_t to; uint16_t color; };
 struct ChartSeriesDesc { const char *name; uint16_t color, count; const int32_t *values; };
+struct ChartReferenceDesc { int32_t value; uint16_t color; uint8_t dash; const char *label; };
+// Bounded immutable chart appearance. Fill blends against an opaque background.
+struct ChartStyleDesc {
+  uint8_t lineWidth, fillMode, fillOpacity, gridX, minorGrid, pointMode, pointRadius, lineMode, barMode, barRadius, barGap;
+  bool axisTicks, legend, axes;
+  uint8_t referenceCount; const ChartReferenceDesc *references;
+};
 struct InstrumentDesc {
   uint8_t decimals; const char *unit; int16_t start; uint16_t sweep, thickness; uint8_t ticks; uint16_t duration;
   uint8_t zoneCount; const InstrumentZone *zones;
   uint16_t capacity; uint8_t seriesCount; const ChartSeriesDesc *series;
   uint16_t labelCount; const char *const *labels; uint8_t grid; bool horizontal;
+  const ChartStyleDesc *chartStyle;
 };
 enum class InputFieldType : uint8_t { Text, Number, Password, Pin, Tel };
 enum class InputEnterAction : uint8_t { Auto, Done, Next, Search };

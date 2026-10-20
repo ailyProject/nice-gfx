@@ -1,0 +1,15 @@
+2026-10-16
+已对精确 IDF 源执行 git apply --no-index --check 并应用适配补丁。
+已核对原 SDK 的 DVP 私有头与源中不存在 frame_tail / FIFO boundary reset 修复。
+原 libesp_driver_cam.a SHA256 和四个成员名已核对。
+PowerShell 脚本语法解析已通过。
+构建人员使用分发脚本 -BuildOnly，按精确 S31 SDK flags 和官方 GCC 15.2.0 成功编译两个 object。
+候选 archive 四个原成员均保留，原全局驱动符号均保留。
+该次候选 archive SHA256：b28f16fac7c291cb31d11cfe2c7c372c645742661d387c0ece13d3c8c3424a2e。
+随后根任务明确授权后，仅将补丁安装到工作区隔离 SDK，脚本备份和 marker 均成功。
+上面的 archive SHA 含本地源路径等调试信息，不要求其他机器重新构建后字节一致。
+脚本安装时以源 SHA、固定原库 SHA、版本/目标/工具链、成员与全局符号验证为准。
+独立错误 IDF fixture 已确认被脚本拒绝，fixture archive 校验值未改变。
+实机验证：等待运行人员记录，当前不据此宣称已修复单帧停流。
+
+后续实机记录（2026-10-16）：固件 a247e873589d3395662ad6d066fa5adccafe32d64577be016533d1c7e37b19f5 已烧录并校验。SC101IOT 使用本补丁和应用0ns PCLK适配，约35秒日志达到DQ499/Q499，timeout/Qfail/short均0，preview227/UI312。用户确认画面持续更新、开关正常。未分别测试两项适配效果，未测试OV3640实物。

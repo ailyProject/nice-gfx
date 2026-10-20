@@ -1,0 +1,67 @@
+{
+  "idfCommit": "94639ab7251fc8230ca725df638c9a57dbb17153",
+  "bspCommit": "e110720fc6eb1f1d208fcbc42f7881ca8ce782d6",
+  "originalArchiveSha256": "979daf20cc2db48e9405ce157d8baf4d1d28f9b3dce59d905be68ae02ef3c6d4",
+  "files": [
+    {
+      "path": "patched/components/esp_driver_cam/dvp_share_ctrl.h",
+      "sha256": "dbb9798f341d760dcb7330cf0d4b2d899b466fcfaf0d8c42f4e7e517c713e370"
+    },
+    {
+      "path": "patched/components/esp_driver_cam/dvp/private_include/esp_cam_ctlr_dvp_cam.h",
+      "sha256": "0273717c6b4b3845f804393e593021bfdc03c30d1b3c580df94bad189ef1f03f"
+    },
+    {
+      "path": "patched/components/esp_driver_cam/dvp/private_include/esp_cam_ctlr_dvp_dma.h",
+      "sha256": "000f5d5dacd93c7b4620e07f70938ac1e24efc69a7db22753ebdd3e8e27f3d29"
+    },
+    {
+      "path": "patched/components/esp_driver_cam/dvp/src/esp_cam_ctlr_dvp_cam.c",
+      "sha256": "96843f2ed5ebe06dd100fc35e8429e1a46a813793f322a0d75ecff8592bcebcc"
+    },
+    {
+      "path": "patched/components/esp_driver_cam/dvp/src/esp_cam_ctlr_dvp_gdma.c",
+      "sha256": "3fbcb628851484f13d0a469dedf5be19b9d6c9e14697c2cd52041c621301a3e7"
+    },
+    {
+      "path": "original/components/esp_driver_cam/dvp_share_ctrl.h",
+      "sha256": "dbb9798f341d760dcb7330cf0d4b2d899b466fcfaf0d8c42f4e7e517c713e370"
+    },
+    {
+      "path": "original/components/esp_driver_cam/dvp/private_include/esp_cam_ctlr_dvp_cam.h",
+      "sha256": "0273717c6b4b3845f804393e593021bfdc03c30d1b3c580df94bad189ef1f03f"
+    },
+    {
+      "path": "original/components/esp_driver_cam/dvp/private_include/esp_cam_ctlr_dvp_dma.h",
+      "sha256": "58744ed11b6908ade4bbe7595494a2264fea8a9634bf190bca647ac920965e0a"
+    },
+    {
+      "path": "original/components/esp_driver_cam/dvp/src/esp_cam_ctlr_dvp_cam.c",
+      "sha256": "1c80c277fceb8522cb4d5dc29be3a4c20055ac59c93209d661ad90e89afdfe75"
+    },
+    {
+      "path": "original/components/esp_driver_cam/dvp/src/esp_cam_ctlr_dvp_gdma.c",
+      "sha256": "906b7e3936f35b219c24870d8537d528492d66246eac317b7f46116f0c560b4e"
+    },
+    {
+      "path": "bsp/CMakeLists.txt",
+      "sha256": "631c8b165d3f22075c6366c67d53ca400f4b86550d795f2ffa57f2199ed94877"
+    },
+    {
+      "path": "bsp/esp-cam-sensor-sc101iot-pclk-delay.patch",
+      "sha256": "1c5a73ab72a0fd9b72834514b7b23bce5b203bab113c9cc95f784de1bb14c133"
+    },
+    {
+      "path": "bsp/esp-idf-dvp-frame-capture-stability.patch",
+      "sha256": "8da76c289405ee7f10ca3080e9e6529cea6eaf930c2fdb1416da190984d4c3ff"
+    },
+    {
+      "path": "bsp/LICENSE",
+      "sha256": "8c6db340475136df3c1201d458fa5755698eace76e510471ecc9d857d6083dac"
+    },
+    {
+      "path": "bsp/README.md",
+      "sha256": "e857059f8a1caa10abaeb85c40e80e898c69857a623c14a196991bdee1731cc8"
+    }
+  ]
+}

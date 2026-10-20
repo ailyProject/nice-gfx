@@ -19,12 +19,33 @@ inline int64_t floorDivide(int64_t numerator,int64_t denominator) {
 inline int64_t ceilDivide(int64_t numerator,int64_t denominator) {
   return -floorDivide(-numerator,denominator);
 }
-inline Rect bounds(Rect box,uint16_t scale,int16_t rotation) {
+// Local edge coordinates in hundredths of a pixel. Shapes use pixel-center
+// extents so 0/100 percent coincide with their first/last authored pixels.
+inline void pivot100(Rect box,int16_t pivotX,int16_t pivotY,bool pixelCenters,int64_t &x,int64_t &y) {
+  x=int64_t(box.width-(pixelCenters?1:0))*pivotX+(pixelCenters?50:0);
+  y=int64_t(box.height-(pixelCenters?1:0))*pivotY+(pixelCenters?50:0);
+}
+inline Rect bounds(Rect box,uint16_t scale,int16_t rotation,int16_t pivotX=50,int16_t pivotY=50,bool pixelCenters=false) {
   if((scale==1024&&rotation%360==0)||box.width<=0||box.height<=0)return box;
   // Bound the actual quantized inverse, not an independently rounded forward
   // matrix. Q14 table rounding otherwise loses edge pixels on large boxes.
   const int32_t s=sine(rotation)*4096/scale,c=sine(rotation+90)*4096/scale;
   const int64_t denominator=int64_t(c)*c+int64_t(s)*s;
+  if(pivotX!=50||pivotY!=50) {
+    int64_t px,py;pivot100(box,pivotX,pivotY,pixelCenters,px,py);
+    const int64_t baseX=floorDivide(px,100),baseY=floorDivide(py,100);
+    const int64_t remainderX=px-baseX*100,remainderY=py-baseY*100;
+    int64_t left=INT64_MAX,top=INT64_MAX,right=INT64_MIN,bottom=INT64_MIN;
+    for(uint8_t corner=0;corner<4;++corner) {
+      const int64_t x=(corner&1?int64_t(box.width)*100:0)-px,y=(corner&2?int64_t(box.height)*100:0)-py;
+      const int64_t nx=(int64_t(c)*x-int64_t(s)*y)*65536+remainderX*denominator;
+      const int64_t ny=(int64_t(s)*x+int64_t(c)*y)*65536+remainderY*denominator;
+      const int64_t loX=box.x+baseX+floorDivide(nx,denominator*100),hiX=box.x+baseX+ceilDivide(nx,denominator*100);
+      const int64_t loY=box.y+baseY+floorDivide(ny,denominator*100),hiY=box.y+baseY+ceilDivide(ny,denominator*100);
+      if(loX<left)left=loX;if(hiX>right)right=hiX;if(loY<top)top=loY;if(hiY>bottom)bottom=hiY;
+    }
+    return {int32_t(left),int32_t(top),int32_t(right-left),int32_t(bottom-top)};
+  }
   const int64_t halfX=(int64_t(c<0?-c:c)*box.width+int64_t(s<0?-s:s)*box.height)*32768;
   const int64_t halfY=(int64_t(s<0?-s:s)*box.width+int64_t(c<0?-c:c)*box.height)*32768;
   const int64_t cx=int64_t(box.width)*denominator,cy=int64_t(box.height)*denominator;
@@ -34,14 +55,20 @@ inline Rect bounds(Rect box,uint16_t scale,int16_t rotation) {
 }
 struct Inverse {
   int32_t xx,xy,yx,yy;
-  explicit Inverse(uint16_t scale,int16_t rotation) {
+  int16_t pivotX,pivotY;bool pixelCenters;
+  explicit Inverse(uint16_t scale,int16_t rotation,int16_t px=50,int16_t py=50,bool centers=false):pivotX(px),pivotY(py),pixelCenters(centers) {
     const int32_t c=sine(rotation+90)*4096/scale,s=sine(rotation)*4096/scale;
     xx=yy=c;xy=s;yx=-s;
   }
+  void offset100(Rect box,int32_t x,int32_t y,int64_t &dx,int64_t &dy) const {
+    int64_t px,py;pivot100(box,pivotX,pivotY,pixelCenters,px,py);
+    dx=(int64_t(x)*2+1-int64_t(box.x)*2)*50-px;
+    dy=(int64_t(y)*2+1-int64_t(box.y)*2)*50-py;
+  }
   void point(Rect box,int32_t x,int32_t y,int64_t &u,int64_t &v) const {
-    const int64_t dx=int64_t(x)*2+1-(int64_t(box.x)*2+box.width),dy=int64_t(y)*2+1-(int64_t(box.y)*2+box.height);
-    u=(int64_t(box.width)<<15)+floorDivide(dx*xx+dy*xy,2);
-    v=(int64_t(box.height)<<15)+floorDivide(dx*yx+dy*yy,2);
+    int64_t px,py,dx,dy;pivot100(box,pivotX,pivotY,pixelCenters,px,py);offset100(box,x,y,dx,dy);
+    u=floorDivide(px*65536+dx*xx+dy*xy,100);
+    v=floorDivide(py*65536+dx*yx+dy*yy,100);
   }
 };
 inline Rect reveal(Rect box,uint16_t fraction,uint8_t flags) {
@@ -51,8 +78,8 @@ inline Rect reveal(Rect box,uint16_t fraction,uint8_t flags) {
   else {const int32_t height=int32_t(int64_t(box.height)*fraction/1024);if(direction==3)box.y+=box.height-height;box.height=height;}
   return box;
 }
-inline bool contains(Rect box,uint16_t scale,int16_t rotation,int32_t x,int32_t y,uint16_t fraction=1024,uint8_t flags=0) {
-  int64_t u,v;Inverse(scale,rotation).point(box,x,y,u,v);
+inline bool contains(Rect box,uint16_t scale,int16_t rotation,int32_t x,int32_t y,uint16_t fraction=1024,uint8_t flags=0,int16_t pivotX=50,int16_t pivotY=50,bool pixelCenters=false) {
+  int64_t u,v;Inverse(scale,rotation,pivotX,pivotY,pixelCenters).point(box,x,y,u,v);
   const Rect mask=reveal({0,0,box.width,box.height},fraction,flags);
   return u>=int64_t(mask.x)*65536&&v>=int64_t(mask.y)*65536&&u<int64_t(mask.x+mask.width)*65536&&v<int64_t(mask.y+mask.height)*65536;
 }

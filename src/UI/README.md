@@ -1,4 +1,9 @@
-# Native compiled UI runtime (NICE_GFX 1.0.0, resource ABI 15)
+# Native compiled UI runtime (NICE_GFX 1.0.0, resource ABI 16)
+
+ABI 16 adds immutable chart styling and reference-line descriptors. Line charts
+support solid/gradient areas, step traces, finer grids and point markers; bars
+support mixed-sign stacking. The editor and exported runtime share these options.
+Regenerate complete projects so compiled resources and the runtime match.
 
 The main library is the canonical source for the native runtime and fonts.
 The editor application lives only in the sibling `nice_gfx_editor/` directory;
@@ -60,6 +65,13 @@ restores the authored source. See [dynamic images](../../docs/DynamicImages.md)
 for copied uploads, ownership transfer, compiled resource switching and memory
 contracts. This capability uses `NICE_GFX_UI_DYNAMIC_IMAGE_VERSION = 1` without
 changing the resource descriptor ABI.
+
+Media pixels honor the node's `border-radius`, including dynamic replacements,
+frame playback and transformed animations. The radius is capped at half the
+border box's shorter side, then inset by each border and padding edge to clip
+the content corners. An 80 x 80 node with a 40px radius is circular; zero keeps
+the rectangular fast path. This uses the existing style field without an ABI
+change; export the updated runtime with the generated UI.
 
 The runtime requires STL containers and sufficient dynamic memory. AVR is not a
 compiled-UI target: `View.cpp` excludes its implementation there so Arduino can
@@ -333,7 +345,7 @@ finish and dirty tiles drain, idle tick performs no display writes. finish() onl
 drains the current frame, never advances animation time. Test actual bus throughput
 on hardware; no fixed frame rate is promised.
 
-## Compiled keyframes and local transforms (ABI 15, motion API 1)
+## Compiled keyframes and local transforms (ABI 17, motion API 1)
 
 `NodeDesc::motion` optionally references an immutable `MotionDesc`, with 2–16
 normalized `MotionKeyframe` poses. The compiler resolves missing fields, delay
@@ -345,6 +357,35 @@ direction to a legacy preset; a null pointer keeps the original sampling path.
 `repeat` counts single traversals, so alternate repeat=2 returns to the first
 pose. Infinite alternate clocks rebase only whole pairs of traversals.
 
+Rotation and uniform scale use one fixed pivot per node. Optional
+`data-animation-pivot-x` and `data-animation-pivot-y` are integer percentages
+from -1000 to 1000; omitted axes default to 50 (the existing center behavior).
+The compiler stores them as trailing `MotionDesc::pivotX` / `pivotY` fields;
+`NICE_GFX_UI_PIVOT_MOTION_VERSION=1` identifies this capability. ABI 17 changes
+the motion descriptor layout; re-export resources when upgrading the runtime.
+Existing C++ `{frames,count,flags}` source initializers retain the center defaults,
+including Arduino toolchains using C++11; a constexpr constructor supplies the
+optional pivot values without changing descriptor layout.
+
+For Media/Icon, 0/100 percent select the node box edges. For Shape they select
+the first/last pixel centers, so a filled polygon endpoint at logical
+`50,100` remains fixed with pivot `50,100`. Percentages apply to the full
+node, including padding and borders; authored line vertices still use their
+existing half-stroke inset. A stroked line endpoint therefore differs from the
+box-edge pivot by that inset. Negative values and values above 100 place the
+pivot outside the node. Position/opacity/reveal retain their existing meaning;
+the pivot only affects rotation/scale and follows the node's animated position.
+Rendering, `bounds()`, pointer hits and old/new dirty regions share the pivot.
+
+~~~html
+<gfx-polygon id="hand" style="position:absolute;left:100px;top:30px;width:11px;height:71px"
+  points="50,100 20,0 80,0" data-view-width="100" data-view-height="100"
+  fill="#ffffff" stroke="none" data-animation-pivot-x="50" data-animation-pivot-y="100"
+  data-keyframes='[{"at":0,"rotation":0},{"at":100,"rotation":360}]'
+  data-animation-duration="60000" data-animation-repeat="infinite"
+  data-animation-easing="linear"></gfx-polygon>
+~~~
+
 Scale (0.125–4) and rotation (-360–360 degrees) are supported for Media/Icon
 leaves, including their background, gradient, padding and border. The tiled
 renderer samples their original image/mask directly, with fixed-point inverse
@@ -354,6 +395,16 @@ and applies node opacity once. Bounds and pointer hits use the same quantized
 transform. Containers, text and controls support translation, opacity and
 reveal, but cannot scale/rotate. Reveal clips descendants and pointer hits from
 the selected edge; it does not change layout or resize content.
+
+`NICE_GFX_UI_SHAPE_MOTION_VERSION=1` also enables scale/rotation on all Shape
+leaves without changing the resource ABI. Authored line/polygon vertices are
+transformed around the configured full-node pivot (center by default); circles, ellipses and rounded rectangles
+use a bounded 64-segment contour during transforms. The original renderer remains
+in use for unchanged poses. Geometry and destination clipping stay independent
+of display tile boundaries. A fixed 64-pixel row block composites fill, stroke,
+background and border before applying opacity once, with no heap or full-image
+buffer. Shape keyframes cannot combine any nonidentity scale/rotation with any
+partial reveal; both the compiler and native mount reject that combination.
 
 `show(id)` reveals a node and restarts Enter/Show motion. `hide(id)` runs its
 independent exit once from the current pose, then hides it after the final
@@ -378,3 +429,7 @@ animations without completion listeners incur no additional end-frame fence.
 The [Motion Lab project](../../../nice_gfx_editor/public/motion-lab.gfx-project.json)
 demonstrates rotation, alternate scaling, reveal/slide/fade and animated show/hide.
 
+
+Native pivot regression (real View, tile rendering, Media/Icon/Shape, pointer hits,
+dirty cleanup and integer overflow checks): `node nice_gfx/tests/motion-pivot.mjs --sanitize`
+from the workspace root. The runner uses an existing host C++ compiler only.

@@ -1,0 +1,69 @@
+{
+  "adapter": "nice_gfx optional OV3640 adapter",
+  "repository": "https://github.com/espressif/esp-video-components",
+  "sourceCommit": "ee31057dcf3c652284959283780f591e3d6320f2",
+  "componentVersion": "2.6.0",
+  "target": "esp32s31",
+  "memoryType": "qio_opi",
+  "compiler": {
+    "machine": "riscv32-esp-elf",
+    "version": "15.2.0"
+  },
+  "sourceLicense": "Apache-2.0",
+  "sensorMode": "OV3640 24MHz DVP VGA UYVY 30fps",
+  "files": [
+    {
+      "path": "src/ov3640.c",
+      "sha256": "85abf410f4be215b44cd452e35d22fc0168d3b22441b61e9ae2303314d18b70e",
+      "upstreamPath": "esp_cam_sensor/sensors/ov3640/ov3640.c",
+      "gitBlobSha": "0b3cc5d04338b7774439071f7a811ddb85bada08"
+    },
+    {
+      "path": "src/esp_cam_sensor_detect.c",
+      "sha256": "260866990510e0beb9e2f274d4b210587c39433f8858ace1aba294beee1a5246",
+      "upstreamPath": "esp_cam_sensor/src/esp_cam_sensor_detect.c",
+      "gitBlobSha": "c6f84d65dbb124942ba3b2ea97e218801adfc5ff"
+    },
+    {
+      "path": "include/ov3640.h",
+      "sha256": "bb95a4b9d3fb188ec9a712c1f45c7081c85147f7eed753cd110055a794cf7476",
+      "upstreamPath": "esp_cam_sensor/sensors/ov3640/include/ov3640.h",
+      "gitBlobSha": "fb85afcdac30981d9413f7ac2407a546a21bccad"
+    },
+    {
+      "path": "include/ov3640_types.h",
+      "sha256": "a83973c14201b8c171ce5fa34d7f1e8d68b9551c24c69a77ce56a739a9ffc0bb",
+      "upstreamPath": "esp_cam_sensor/sensors/ov3640/include/ov3640_types.h",
+      "gitBlobSha": "b81e182c102ca197208dbc631b9bcd7e02e3b1d7"
+    },
+    {
+      "path": "private_include/ov3640_settings.h",
+      "sha256": "845e5dd5c2998995b715fb204d9dac8299a708b47fea83ee9be5aa17752a1a45",
+      "upstreamPath": "esp_cam_sensor/sensors/ov3640/private_include/ov3640_settings.h",
+      "gitBlobSha": "0657e582fd3eca753785fdaa8d4a5fc6dc4913e0"
+    },
+    {
+      "path": "private_include/ov3640_regs.h",
+      "sha256": "5ab1fd6099de60628dbb95eda05facb4baeb12517bd02585b5271e47362c4263",
+      "upstreamPath": "esp_cam_sensor/sensors/ov3640/private_include/ov3640_regs.h",
+      "gitBlobSha": "484e72a84e6313eb6e6162f0f38b304724fa0c4c"
+    },
+    {
+      "path": "private_include/ov3640_dvp_8bit_24Minput_640x480_yuv422_uyvy_30fps.h",
+      "sha256": "8d134639a15a01d9e96df817a41407bac23d007c71e809c61a0f1d8e8f441885",
+      "upstreamPath": "esp_cam_sensor/sensors/ov3640/private_include/ov3640_dvp_8bit_24Minput_640x480_yuv422_uyvy_30fps.h",
+      "gitBlobSha": "6b063fee56065794fae178673a60f1c5fc497460"
+    },
+    {
+      "path": "ov3640_config.h",
+      "sha256": "b3799781146be981f55ae639a1138fa4de8a89a559a223a5cced213969a63ecd",
+      "origin": "Local integration configuration"
+    },
+    {
+      "path": "LICENSE",
+      "sha256": "8c6db340475136df3c1201d458fa5755698eace76e510471ecc9d857d6083dac",
+      "upstreamPath": "esp_cam_sensor/LICENSE",
+      "gitBlobSha": "d645695673349e3947e8e5ae42332d0ac3164cd7"
+    }
+  ]
+}

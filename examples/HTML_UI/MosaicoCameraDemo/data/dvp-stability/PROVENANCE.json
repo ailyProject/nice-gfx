@@ -1,0 +1,72 @@
+{
+  "description": "Exact ESP-IDF source and publicly published ESP-Mosaico DVP stability workarounds. Workspace preparation only; no SDK archive has been modified.",
+  "idfRepository": "https://github.com/espressif/esp-idf",
+  "idfCommit": "94639ab7251fc8230ca725df638c9a57dbb17153",
+  "bspRepository": "https://github.com/esp-mosaico/esp-mosaico-bsp",
+  "bspCommit": "e110720fc6eb1f1d208fcbc42f7881ca8ce782d6",
+  "license": "Apache-2.0",
+  "adaptations": [
+    "Official patch ESP_ALIGN_UP(...) -> exact revision ALIGN_UP_BY(...)",
+    "Official patch ESP_ALIGN_DOWN(...) -> exact revision ALIGN_DOWN_BY(...)",
+    "Prominent modification notices added to three modified files. No functional changes beyond the published patch."
+  ],
+  "sources": [
+    {
+      "path": "components/esp_driver_cam/dvp/src/esp_cam_ctlr_dvp_cam.c",
+      "gitBlobSha": "cb65826f4c22488a681da10be73b3c14749bef80",
+      "url": "https://github.com/espressif/esp-idf/blob/94639ab7251fc8230ca725df638c9a57dbb17153/components/esp_driver_cam/dvp/src/esp_cam_ctlr_dvp_cam.c"
+    },
+    {
+      "path": "components/esp_driver_cam/dvp/src/esp_cam_ctlr_dvp_gdma.c",
+      "gitBlobSha": "3467e9d48cc35c4d37fc04872f088c37a21d3d65",
+      "url": "https://github.com/espressif/esp-idf/blob/94639ab7251fc8230ca725df638c9a57dbb17153/components/esp_driver_cam/dvp/src/esp_cam_ctlr_dvp_gdma.c"
+    },
+    {
+      "path": "components/esp_driver_cam/dvp/private_include/esp_cam_ctlr_dvp_cam.h",
+      "gitBlobSha": "3bf5502d942ac43d1274e146a574725c3a41b408",
+      "url": "https://github.com/espressif/esp-idf/blob/94639ab7251fc8230ca725df638c9a57dbb17153/components/esp_driver_cam/dvp/private_include/esp_cam_ctlr_dvp_cam.h"
+    },
+    {
+      "path": "components/esp_driver_cam/dvp/private_include/esp_cam_ctlr_dvp_dma.h",
+      "gitBlobSha": "70a05bde728f3ea9edb8055c4ab75bd68555dc47",
+      "url": "https://github.com/espressif/esp-idf/blob/94639ab7251fc8230ca725df638c9a57dbb17153/components/esp_driver_cam/dvp/private_include/esp_cam_ctlr_dvp_dma.h"
+    },
+    {
+      "path": "components/esp_driver_cam/dvp_share_ctrl.h",
+      "gitBlobSha": "3f321fc7eba5ee7548490427fb340588898bbb8b",
+      "url": "https://github.com/espressif/esp-idf/blob/94639ab7251fc8230ca725df638c9a57dbb17153/components/esp_driver_cam/dvp_share_ctrl.h"
+    },
+    {
+      "path": "LICENSE",
+      "gitBlobSha": "d645695673349e3947e8e5ae42332d0ac3164cd7",
+      "url": "https://github.com/espressif/esp-idf/blob/94639ab7251fc8230ca725df638c9a57dbb17153/LICENSE"
+    }
+  ],
+  "bspSources": [
+    {
+      "path": "components/mosaico_module_camera/patches/esp-idf-dvp-frame-capture-stability.patch",
+      "gitBlobSha": "9c27ae5c95d50e07eba133b6e8a032af3585f44d",
+      "url": "https://github.com/esp-mosaico/esp-mosaico-bsp/blob/e110720fc6eb1f1d208fcbc42f7881ca8ce782d6/components/mosaico_module_camera/patches/esp-idf-dvp-frame-capture-stability.patch"
+    },
+    {
+      "path": "components/mosaico_module_camera/patches/esp-cam-sensor-sc101iot-pclk-delay.patch",
+      "gitBlobSha": "e4313066fb355f12cc5c7d80cfa2aa77f7c6e870",
+      "url": "https://github.com/esp-mosaico/esp-mosaico-bsp/blob/e110720fc6eb1f1d208fcbc42f7881ca8ce782d6/components/mosaico_module_camera/patches/esp-cam-sensor-sc101iot-pclk-delay.patch"
+    },
+    {
+      "path": "components/mosaico_module_camera/README.md",
+      "gitBlobSha": "cda0e4ba62f12f359c226c7adc5e425897c3bea5",
+      "url": "https://github.com/esp-mosaico/esp-mosaico-bsp/blob/e110720fc6eb1f1d208fcbc42f7881ca8ce782d6/components/mosaico_module_camera/README.md"
+    },
+    {
+      "path": "components/mosaico_module_camera/CMakeLists.txt",
+      "gitBlobSha": "ee9021d13ce0afb1c1426ca14bda7b2277b70a08",
+      "url": "https://github.com/esp-mosaico/esp-mosaico-bsp/blob/e110720fc6eb1f1d208fcbc42f7881ca8ce782d6/components/mosaico_module_camera/CMakeLists.txt"
+    },
+    {
+      "path": "LICENSE",
+      "gitBlobSha": "d645695673349e3947e8e5ae42332d0ac3164cd7",
+      "url": "https://github.com/esp-mosaico/esp-mosaico-bsp/blob/e110720fc6eb1f1d208fcbc42f7881ca8ce782d6/LICENSE"
+    }
+  ]
+}

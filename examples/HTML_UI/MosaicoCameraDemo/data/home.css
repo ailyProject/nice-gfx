@@ -1,0 +1,43 @@
+main {
+  width: 480px;
+  height: 480px;
+  background: #101923;
+  color: #edf4fc;
+  font-family: GfxTerm8x16;
+  font-size: 16px;
+}
+main > * { position: absolute; }
+#title {
+  left: 24px;
+  top: 18px;
+  width: 432px;
+  height: 32px;
+  font-family: GfxTermBold8x16;
+  font-size: 32px;
+}
+#status { left: 24px; top: 62px; width: 328px; height: 16px; color: #9db0c5; }
+#fps { left: 360px; top: 62px; width: 96px; height: 16px; text-align: right; color: #7ad4ff; }
+#preview-frame { left: 76px; top: 92px; width: 328px; height: 248px; background: #243347; border-radius: 4px; }
+#preview { left: 80px; top: 96px; width: 320px; height: 240px; background: #030608; }
+gfx-rect { width: 48px; height: 40px; background: transparent; }
+#box0 { left: 96px; top: 112px; }
+#box1 { left: 176px; top: 112px; }
+#box2 { left: 256px; top: 112px; }
+#box3 { left: 336px; top: 112px; }
+.object-label { width: 80px; height: 16px; background: #101923; }
+#label0 { left: 96px; top: 96px; }
+#label1 { left: 176px; top: 96px; }
+#label2 { left: 256px; top: 96px; }
+#label3 { left: 320px; top: 96px; }
+.red { color: #ff5a68; }
+.green { color: #54ed96; }
+.blue { color: #55aaff; }
+.yellow { color: #ffe36a; }
+#detect-panel { left: 24px; top: 360px; width: 432px; height: 56px; background: #1b2939; border-radius: 12px; }
+#detect-title { left: 40px; top: 380px; width: 288px; height: 16px; }
+#detect { left: 376px; top: 372px; width: 64px; height: 32px; border-radius: 16px; }
+#detect::part(track) { background: #526579; height: 32px; }
+#detect::part(fill) { background: #24a977; }
+#detect::part(thumb) { background: #ffffff; width: 28px; height: 28px; border-radius: 14px; }
+#legend { left: 24px; top: 432px; width: 432px; height: 16px; text-align: center; color: #c6d4e4; }
+#help { left: 24px; top: 456px; width: 432px; height: 16px; text-align: center; color: #8095ac; }

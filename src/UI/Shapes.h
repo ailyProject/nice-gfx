@@ -1,5 +1,6 @@
 #pragma once
 #include "Compiled.h"
+#include "MotionGeometry.h"
 #include <algorithm>
 #include <math.h>
 
@@ -179,6 +180,67 @@ template<class Canvas> void renderShape(Canvas &canvas,const ShapeDesc &shape,Re
   if(stroke<=0)return;
   for(int i=1;i<shape.count;++i)raster.capsule(points[i-1],points[i],stroke,shape.strokeColor);
   if(shape.type==ShapeType::Polygon)raster.capsule(points[shape.count-1],points[0],stroke,shape.strokeColor);
+}
+
+namespace shape_raster {
+// Prepare vertices once per node, then rasterize only the destination rows in
+// the current display tile. Curves use a bounded 64-sided contour; authored
+// polygons retain their original vertices. No bitmap or heap storage is used.
+struct TransformedShape {
+  Point points[64];uint8_t count=0;bool closed=false;
+  float stroke=0;const ShapeDesc &shape;
+  TransformedShape(const ShapeDesc &source,Rect content,Rect pivot,uint16_t scale,int16_t rotation,uint8_t radius=0,int16_t pivotX=50,int16_t pivotY=50):shape(source) {
+    if(content.width<=0||content.height<=0||!scale)return;
+    const float originalStroke=(shape.flags&ShapeStroke)?shape.strokeWidth*0.5f:0;
+    const float insetX=std::min(originalStroke,(content.width-1)*0.5f),insetY=std::min(originalStroke,(content.height-1)*0.5f);
+    const float left=content.x+insetX,top=content.y+insetY;
+    const float width=std::max(0.0f,content.width-1-2*insetX),height=std::max(0.0f,content.height-1-2*insetY);
+    closed=shape.type!=ShapeType::Line&&shape.type!=ShapeType::Polyline;
+    if(shape.type==ShapeType::Line||shape.type==ShapeType::Polyline||shape.type==ShapeType::Polygon) {
+      count=shape.count;
+      for(uint8_t i=0;i<count;++i)points[i]={left+float(shape.points[i].x)*width/shape.viewWidth,top+float(shape.points[i].y)*height/shape.viewHeight};
+    }else if(shape.type==ShapeType::Rect&&!radius) {
+      count=4;points[0]={left,top};points[1]={left+width,top};points[2]={left+width,top+height};points[3]={left,top+height};
+    }else {
+      count=64;
+      const bool rounded=shape.type==ShapeType::Rect;
+      const float rx=(shape.type==ShapeType::Circle?std::min(width,height):width)*0.5f;
+      const float ry=shape.type==ShapeType::Circle?rx:height*0.5f;
+      const float outerRadius=std::min(float(radius),std::min((content.width-1)*0.5f,(content.height-1)*0.5f));
+      const float corner=std::max(0.0f,outerRadius-originalStroke);
+      // A recurrence avoids per-vertex/device trigonometry. One revolution is
+      // 64 segments; every sixteenth point starts the next rounded corner.
+      float cosine=1,sine=0;
+      constexpr float stepCos=0.9951847267f,stepSin=0.0980171403f;
+      for(uint8_t i=0;i<count;++i) {
+        if(rounded){const uint8_t quadrant=i/16;const float cx=(quadrant==0||quadrant==3)?left+width-corner:left+corner;
+          const float cy=quadrant<2?top+height-corner:top+corner;points[i]={cx+cosine*corner,cy+sine*corner};}
+        else points[i]={content.x+(content.width-1)*0.5f+cosine*rx,content.y+(content.height-1)*0.5f+sine*ry};
+        const float next=cosine*stepCos-sine*stepSin;sine=sine*stepCos+cosine*stepSin;cosine=next;
+      }
+    }
+    // Match MotionGeometry's quantized inverse exactly. Geometry coordinates
+    // name integer pixel centers, hence the half-pixel shift from box edges.
+    const motion_geometry::Inverse inverse(scale,rotation);
+    const float c=float(inverse.xx)/65536.0f,s=float(inverse.xy)/65536.0f,denominator=c*c+s*s;
+    const float cx=pivot.x+(pivotX==50?(pivot.width-1)*0.5f:float(pivot.width-1)*pivotX/100.0f),cy=pivot.y+(pivotY==50?(pivot.height-1)*0.5f:float(pivot.height-1)*pivotY/100.0f);
+    for(uint8_t i=0;i<count;++i){const float x=points[i].x-cx,y=points[i].y-cy;points[i]={cx+(c*x-s*y)/denominator,cy+(s*x+c*y)/denominator};}
+    stroke=originalStroke/sqrtf(denominator);
+  }
+  template<class Canvas> void paint(Canvas &canvas,Rect clipped) const {
+    if(!count||clipped.width<=0||clipped.height<=0)return;
+    Raster<Canvas> raster{canvas,clipped};
+    if(closed&&(shape.flags&ShapeFill))raster.polygon(points,count,shape.fillColor);
+    if(stroke<=0)return;
+    for(uint8_t i=1;i<count;++i)raster.capsule(points[i-1],points[i],stroke,shape.strokeColor);
+    if(closed)raster.capsule(points[count-1],points[0],stroke,shape.strokeColor);
+  }
+};
+} // namespace shape_raster
+
+template<class Canvas> void renderTransformedShape(Canvas &canvas,const ShapeDesc &shape,Rect box,Rect clipped,uint16_t scale,int16_t rotation,uint8_t radius=0,int16_t pivotX=50,int16_t pivotY=50) {
+  if(scale==1024&&rotation%360==0){renderShape(canvas,shape,box,clipped,radius);return;}
+  shape_raster::TransformedShape(shape,box,box,scale,rotation,radius,pivotX,pivotY).paint(canvas,clipped);
 }
 
 }} // namespace nice_gfx::htmlui

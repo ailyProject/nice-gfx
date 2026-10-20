@@ -50,3 +50,96 @@ debug_custom.json
 Network Trash Folder
 Temporary Items
 .apdisk
+
+# Local test suites; keep the public diagnostic sketches under examples/
+tests/
+
+# Build output and downloaded development dependencies
+build/
+build-*/
+cmake-build-*/
+.build/
+.builddeps/
+.pio/
+.cache/
+managed_components/
+
+# CMake / CTest / Ninja generated files
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+CTestTestfile.cmake
+DartConfiguration.tcl
+install_manifest.txt
+compile_commands.json
+Testing/
+build.ninja
+rules.ninja
+.ninja_deps
+.ninja_log
+
+# Compiler, firmware and coverage output
+*.o
+*.obj
+*.d
+*.a
+*.lib
+*.so
+*.dll
+*.exe
+*.elf
+*.bin
+*.map
+*.hex
+*.uf2
+*.gcda
+*.gcno
+*.gcov
+coverage/
+.coverage
+.coverage.*
+htmlcov/
+
+# Python tool caches and generated UI build reports
+__pycache__/
+*.py[cod]
+.pytest_cache/
+ui-build-report.json
+
+# Local IDE settings, configuration and credentials
+.vscode/
+.idea/
+.vs/
+.env
+.env.*
+!.env.example
+!.env.sample
+!.env.template
+*.local.h
+sdkconfig
+sdkconfig.old
+
+# Local history and backup copies
+.history/
+.local-history/
+/history/
+/backup/
+/backups/
+/archive/
+/archives/
+*.bak
+*.bak.*
+*.backup
+*.old
+*.orig
+*.rej
+*~
+*.swp
+*.swo
+
+# Temporary files and diagnostic logs
+/tmp/
+/temp/
+*.tmp
+*.temp
+*.log

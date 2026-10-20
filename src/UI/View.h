@@ -6,7 +6,7 @@
 #include "Image.h"
 #include "Components.h"
 #include "Navigation.h"
-#define NICE_GFX_UI_STATS_VERSION 3
+#define NICE_GFX_UI_STATS_VERSION 4
 #define NICE_GFX_UI_RENDER_CACHE_VERSION 2
 #define NICE_GFX_UI_CIRCULAR_CLIP_VERSION 1
 #define NICE_GFX_UI_ACTIONS_VERSION 1
@@ -52,6 +52,10 @@ struct RuntimeStats {
   uint64_t submitMicros=0;
   uint64_t directBlits=0, directPixels=0;
   uint32_t maxRenderMicros=0;
+  // Optional S31 cached full-page fade. Timings include PPA wait + Wire565
+  // conversion; hardware channel rounding can differ from CPU by one step.
+  uint64_t ppaBlendCalls=0,ppaBlendPixels=0,ppaBlendMicros=0;
+  uint32_t ppaBlendFailures=0;
 };
 struct RenderCacheStats {
   size_t capacityPages=0, readyPages=0;
@@ -156,6 +160,7 @@ class View {
   // A frame already submitted keeps its old source. Failure leaves state intact.
   Status setImage(Id id, const ImageView &source);
   Status setImage(Id id, const Image &image);
+  bool hasImage(Id id, const Image &image) const; // Same immutable source on the active Media node.
   // Copy the descriptor, borrow immutable compiled/flash pixels until all
   // states, snapshots and cache keys release them. Never use mutable RAM here;
   // use setImage/copy/adopt for decoded or downloaded buffers instead.
@@ -214,6 +219,8 @@ class View {
   Id focused() const;
   uint32_t inputGeneration() const;
   Rect bounds(Id id) const;
+  // Current topmost visible node at a pointer coordinate; zero outside a page.
+  Id hitTest(int32_t x, int32_t y) const;
   Rect layoutBounds(Id id) const;
   Style style(Id id) const;
   bool setBounds(Id id, Rect bounds);

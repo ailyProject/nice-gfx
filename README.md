@@ -15,6 +15,8 @@ NICE_GFX 是面向彩色屏幕的 Arduino / ESP-IDF 图形库。显示对象在�
 
 ## 快速开始
 
+Wio Terminal 可直接使用 `WioTerminalDisplay gfx;`，`begin()` 后设置 `gfx.setRotation(3)` 并打开 `LCD_BACKLIGHT`。预设选择板载 SPI3 / SERCOM7；Seeed SAMD 核心的固定多 SPI 路由及同步 ZeroDMA 传输已接入。板载屏幕无触摸，不能使用默认 SPI 接线或 XPT2046。基础彩条示例见 [WioTerminal](examples/Boards/WioTerminal/WioTerminal.ino)；完整的 [Wio Field Lab](examples/HTML_UI/WioFieldLab/README.md) 包含 Seeed 风格的图片生成设计、七页原生动效、传感器、SD、红外与异步 Wi-Fi，并附可重新导入编辑器的项目 JSON。
+
 将 `NICE_GFX` 文件夹放入 Arduino 草图目录的 `libraries/`，安装所用开发板的 Arduino core，再从 IDE 示例菜单打开本库示例。示例接线与额外依赖见 [examples/README.md](examples/README.md)。
 
 下面使用 ESP32 经典款与 SPI 接口 ILI9341。引脚必须与实际接线一致，其他屏幕及触摸类型见 [设备支持](docs/DeviceSupport.md)。
@@ -155,6 +157,7 @@ void loop() {
 | [示例目录](examples/README.md) | 接线、字体、触摸和额外依赖 |
 | [GfxTouchDemo](examples/HTML_UI/GfxTouchDemo/README.md) | 可编辑设计器工程、生成资源、应用状态和事件回调 |
 | [DynamicImageDemo](examples/HTML_UI/DynamicImageDemo/README.md) | 动态图片完整 Arduino 示例 |
+| [MosaicoCameraDemo](examples/HTML_UI/MosaicoCameraDemo/README.md) | ESP-Mosaico V1.2 摄像头实时预览、颜色识别与检测框叠加 |
 | [Display_Info](<examples/Test and diagnostics/Display_Info>) | 查询实际显示对象与总线能力 |
 | [Touch_calibrate](examples/Generic/Touch_calibrate/Touch_calibrate.ino) | XPT2046 接线与校准 |
 

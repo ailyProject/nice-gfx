@@ -79,7 +79,8 @@ struct MotionSample {
 };
 inline bool validMotion(const AnimationDesc &a,const MotionDesc *m) {
   if(!m)return true;
-  if(!validAnimation(a)||a.duration<1||a.duration>60000||a.delay>60000||a.repeat>1000||m->flags>7)return false;
+  if(!validAnimation(a)||a.duration<1||a.duration>60000||a.delay>60000||a.repeat>1000||m->flags>7||
+     m->pivotX<-1000||m->pivotX>1000||m->pivotY<-1000||m->pivotY>1000)return false;
   if(!m->count)return !m->frames&&a.effect!=AnimationEffect::None;
   if(!m->frames||m->count<2||m->count>16||m->frames[0].offset!=0||m->frames[m->count-1].offset!=1024)return false;
   for(uint8_t i=0;i<m->count;++i){const auto &f=m->frames[i];

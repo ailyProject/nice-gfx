@@ -1,5 +1,9 @@
 # Arduino examples
 
+[Boards/WioTerminal](Boards/WioTerminal/WioTerminal.ino) uses the onboard ILI9341 through `WioTerminalDisplay` on SPI3, with rotation 3 and backlight control. Select `Seeeduino:samd:seeed_wio_terminal` (Seeed SAMD Boards). No separate display library is needed. The editor's `40-wio-field-lab` project adds seven editable screens and a maintained sensor/SD/IR/Wi-Fi application.
+
+[HTML_UI/WioFieldLab](HTML_UI/WioFieldLab/README.md) is the complete ready-to-upload application: a modern Seeed instrument UI with deep teal, cream data cards, a generated botanical chip hero, the official Seeed Studio home logo and native animations, plus live onboard instruments, CSV recording, NEC IR and asynchronous radio scanning. Its `data/project.gfx-project.json` imports directly into nice_gfx_editor.
+
 These sketches are included in the standard Arduino library `examples/` directory. After installing NICE_GFX, open them from the Arduino IDE examples menu. From the workspace root, compile a sketch with `arduino-cli compile --fqbn <board> --library nice_gfx nice_gfx/examples/<example-directory>`.
 
 Display wiring is supplied through the display object's constructor arguments.
@@ -70,6 +74,13 @@ Application interfaces are generated from designer projects. Start with
 [HTML_UI/GfxTouchDemo](HTML_UI/GfxTouchDemo/README.md), which includes its editable
 project JSON, generated ui.h and application callbacks. Touch calibration remains
 available in [Touch_calibrate](Generic/Touch_calibrate/Touch_calibrate.ino).
+
+[HTML_UI/MosaicoCameraDemo](HTML_UI/MosaicoCameraDemo/README.md) targets the
+ESP-Mosaico V1.2 preset and its camera board in the left H2 slot. It demonstrates
+background DVP capture through esp_video/V4L2, a bounded RGB565 frame pool,
+real color-threshold recognition and synchronized UI bounding-box overlays.
+It requires an Arduino-ESP32 4.x build with ESP32-S31 and the camera sensor driver;
+see the example for wiring, SDK requirements and validation limits.
 
 For a complete on-device rendering test, open
 [Graphics_Benchmark](<Test and diagnostics/Graphics_Benchmark/README.md>).

@@ -172,6 +172,22 @@ Status ArduinoSpi::beginPeripheral() {
   else if (p.clock == 6 && p.mosi == 8 && (input < 0 || input == 7)) spi_.pins(6,7,8,0);
   else return Status::Unsupported;
   spi_.begin();
+#elif defined(ARDUINO_ARCH_SAMD)
+  // SAMD peripherals have fixed variant routes. In particular Wio Terminal's
+  // LCD is SPI3 (SERCOM7), SD is SPI2, and the header is SPI. Never silently
+  // accept the header pins for an explicitly selected onboard peripheral.
+  bool route=&spi_==&SPI && p.clock==SCK && p.mosi==MOSI && (input<0 || input==MISO);
+#if SPI_INTERFACES_COUNT > 1
+  route=route || (&spi_==&SPI1 && p.clock==PIN_SPI1_SCK && p.mosi==PIN_SPI1_MOSI && (input<0 || input==PIN_SPI1_MISO));
+#endif
+#if SPI_INTERFACES_COUNT > 2
+  route=route || (&spi_==&SPI2 && p.clock==PIN_SPI2_SCK && p.mosi==PIN_SPI2_MOSI && (input<0 || input==PIN_SPI2_MISO));
+#endif
+#if SPI_INTERFACES_COUNT > 3
+  route=route || (&spi_==&SPI3 && p.clock==PIN_SPI3_SCK && p.mosi==PIN_SPI3_MOSI && (input<0 || input==PIN_SPI3_MISO));
+#endif
+  if (!route) return Status::Unsupported;
+  spi_.begin();
 #else
   // Cores without a pin remapping API must use the board's physical SPI route.
   if (p.clock != SCK || p.mosi != MOSI || (input >= 0 && input != MISO)) return Status::Unsupported;
@@ -231,6 +247,10 @@ void ArduinoSpi::writeBlock(const uint8_t *p, size_t n, bool pixels) {
     spi_.transfer(p,nullptr,count); p+=count; n-=count;
   }
 #elif defined(ARDUINO_ARCH_RP2040) && !defined(ARDUINO_ARCH_MBED)
+  spi_.transfer(p,nullptr,n);
+#elif defined(SEEED_WIO_TERMINAL)
+  // Seeed SAMD's const TX / null RX overload uses ZeroDMA synchronously;
+  // unlike the standard in-place API it leaves immutable flash data intact.
   spi_.transfer(p,nullptr,n);
 #else
   // The standard SPI API is in-place; use bounded staging to preserve input.

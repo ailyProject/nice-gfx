@@ -1,0 +1,61 @@
+{
+  "version": 1,
+  "name": "MosaicoCameraDemo",
+  "width": 480,
+  "height": 480,
+  "canvasShape": "square",
+  "initialRoute": "/home",
+  "hardware": {
+    "preset": "esp-mosaico",
+    "board": "esp32:esp32:esp_mosaico:USBMode=default,CDCOnBoot=cdc,PartitionScheme=app3M_fat9M_16MB",
+    "display": "CO5300_480x480_QSPI",
+    "cs": "50",
+    "dc": "-1",
+    "reset": "44",
+    "te": "43",
+    "sck": "42",
+    "mosi": "-1",
+    "miso": "-1",
+    "backlight": "-1",
+    "disp": "-1",
+    "frequency": 40000000,
+    "rotation": 0,
+    "bufferLines": 16,
+    "edgeBack": false,
+    "swipeHome": false,
+    "wr": "-1",
+    "rd": "-1",
+    "dataPins": [
+      "36",
+      "51",
+      "35",
+      "9"
+    ],
+    "touch": "cst9220",
+    "touchCs": "-1",
+    "touchIrq": "6",
+    "touchClock": "-1",
+    "touchMosi": "-1",
+    "touchMiso": "-1",
+    "touchSda": "56",
+    "touchScl": "3",
+    "touchReset": "-1",
+    "touchAddress": 90,
+    "calibration": [
+      300,
+      3600,
+      300,
+      3600,
+      3
+    ]
+  },
+  "pages": [
+    {
+      "id": "home",
+      "name": "Camera",
+      "path": "/home",
+      "html": "<main id=\"home\">\n  <p id=\"title\">MOSAICO CAMERA</p>\n  <p id=\"status\">Waiting for camera...</p>\n  <p id=\"fps\">0 FPS</p>\n  <div id=\"preview-frame\"></div>\n  <gfx-media id=\"preview\" data-media-dynamic=\"true\"></gfx-media>\n  <gfx-rect id=\"box0\" fill=\"none\" stroke=\"#ff5a68\" stroke-width=\"2\" data-visible=\"false\"></gfx-rect>\n  <p id=\"label0\" class=\"object-label red\" data-visible=\"false\">RED</p>\n  <gfx-rect id=\"box1\" fill=\"none\" stroke=\"#54ed96\" stroke-width=\"2\" data-visible=\"false\"></gfx-rect>\n  <p id=\"label1\" class=\"object-label green\" data-visible=\"false\">GREEN</p>\n  <gfx-rect id=\"box2\" fill=\"none\" stroke=\"#55aaff\" stroke-width=\"2\" data-visible=\"false\"></gfx-rect>\n  <p id=\"label2\" class=\"object-label blue\" data-visible=\"false\">BLUE</p>\n  <gfx-rect id=\"box3\" fill=\"none\" stroke=\"#ffe36a\" stroke-width=\"2\" data-visible=\"false\"></gfx-rect>\n  <p id=\"label3\" class=\"object-label yellow\" data-visible=\"false\">YELLOW</p>\n  <div id=\"detect-panel\"></div>\n  <label id=\"detect-title\" for=\"detect\">COLOR DETECTION</label>\n  <gfx-switch id=\"detect\" checked data-on-change=\"detectChanged\"></gfx-switch>\n  <p id=\"legend\">RED / GREEN / BLUE / YELLOW</p>\n  <p id=\"help\">Live RGB565 + color bounding boxes</p>\n</main>\n",
+      "css": "main {\n  width: 480px;\n  height: 480px;\n  background: #101923;\n  color: #edf4fc;\n  font-family: GfxTerm8x16;\n  font-size: 16px;\n}\nmain > * { position: absolute; }\n#title {\n  left: 24px;\n  top: 18px;\n  width: 432px;\n  height: 32px;\n  font-family: GfxTermBold8x16;\n  font-size: 32px;\n}\n#status { left: 24px; top: 62px; width: 328px; height: 16px; color: #9db0c5; }\n#fps { left: 360px; top: 62px; width: 96px; height: 16px; text-align: right; color: #7ad4ff; }\n#preview-frame { left: 76px; top: 92px; width: 328px; height: 248px; background: #243347; border-radius: 4px; }\n#preview { left: 80px; top: 96px; width: 320px; height: 240px; background: #030608; }\ngfx-rect { width: 48px; height: 40px; background: transparent; }\n#box0 { left: 96px; top: 112px; }\n#box1 { left: 176px; top: 112px; }\n#box2 { left: 256px; top: 112px; }\n#box3 { left: 336px; top: 112px; }\n.object-label { width: 80px; height: 16px; background: #101923; }\n#label0 { left: 96px; top: 96px; }\n#label1 { left: 176px; top: 96px; }\n#label2 { left: 256px; top: 96px; }\n#label3 { left: 320px; top: 96px; }\n.red { color: #ff5a68; }\n.green { color: #54ed96; }\n.blue { color: #55aaff; }\n.yellow { color: #ffe36a; }\n#detect-panel { left: 24px; top: 360px; width: 432px; height: 56px; background: #1b2939; border-radius: 12px; }\n#detect-title { left: 40px; top: 380px; width: 288px; height: 16px; }\n#detect { left: 376px; top: 372px; width: 64px; height: 32px; border-radius: 16px; }\n#detect::part(track) { background: #526579; height: 32px; }\n#detect::part(fill) { background: #24a977; }\n#detect::part(thumb) { background: #ffffff; width: 28px; height: 28px; border-radius: 14px; }\n#legend { left: 24px; top: 432px; width: 432px; height: 16px; text-align: center; color: #c6d4e4; }\n#help { left: 24px; top: 456px; width: 432px; height: 16px; text-align: center; color: #8095ac; }\n"
+    }
+  ]
+}

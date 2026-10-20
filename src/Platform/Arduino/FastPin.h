@@ -39,6 +39,10 @@ struct FastPin {
     return pin >= 0 && pin < NUM_BANK0_GPIOS;
 #elif defined(ARDUINO_ARCH_MBED)
     return pin >= 0 && pin < PINS_COUNT && digitalPinToPinName(pin) != NC;
+#elif defined(ARDUINO_ARCH_SAMD) && defined(PINS_COUNT)
+    // NUM_DIGITAL_PINS counts header pins on Seeed SAMD (Wio: 23),
+    // while valid onboard LCD/SD/sensor routes extend to PINS_COUNT (93).
+    return pin >= 0 && pin < PINS_COUNT;
 #elif defined(ESP8266)
     return pin >= 0 && pin <= 16 && (pin < 6 || pin > 11);
 #elif defined(NUM_DIGITAL_PINS)
