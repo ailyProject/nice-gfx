@@ -156,7 +156,30 @@
 
 ## 触摸芯片与使用入口
 
-XPT2046 的驱动与总线适配器位于主库。三种电容触摸通过设计器的硬件配置生成 `TouchAdapter.h`，提供 `beginTouch()`、`sampleTouch()` 和 `pollUi()`；该文件随完整 Arduino 工程导出。
+主库提供触摸协议驱动与总线适配器；设计器也可根据硬件配置生成 `TouchAdapter.h`，提供 `beginTouch()`、`sampleTouch()` 和 `pollUi()`，随完整 Arduino 工程导出。
+
+I²C 触摸驱动按芯片或协议族放在 `src/Drivers/Touch/`，公共基类为 [I2cTouch.h](../src/Drivers/Touch/I2cTouch.h)。应用可直接包含所用芯片的头文件，也可继续包含 [TouchI2c.h](../src/Drivers/Touch/TouchI2c.h) 获取全部 I²C 触摸驱动。Arduino 的 [TouchWire.h](../src/Platform/Arduino/TouchWire.h) 保留统一入口，兼容原有示例。
+
+| 驱动头文件 | 公开类型 |
+| --- | --- |
+| [CST816.h](../src/Drivers/Touch/CST816.h) | `Cst816`、`Cst816S`、`Cst816T`、`Cst816D`、`Cst820` |
+| [FT6x36.h](../src/Drivers/Touch/FT6x36.h) | `Ft6x36`、`Ft6236`、`Ft6336`、`Ft6336U`、`Ft5x06`、`Ft3168`、`Ft6146` |
+| [CHSC6X.h](../src/Drivers/Touch/CHSC6X.h) | `Chsc6x` |
+| [AXS5106L.h](../src/Drivers/Touch/AXS5106L.h) | `Axs5106L` |
+| [AXS15231B.h](../src/Drivers/Touch/AXS15231B.h) | `Axs15231bTouch` |
+| [GT911.h](../src/Drivers/Touch/GT911.h) | `Gt911` |
+| [GT1151.h](../src/Drivers/Touch/GT1151.h) | `Gt1151`，包括多点 `Frame` 接口 |
+| [CST328.h](../src/Drivers/Touch/CST328.h) | `Cst328` |
+| [CST3530.h](../src/Drivers/Touch/CST3530.h) | `Cst3530` |
+| [CST92xx.h](../src/Drivers/Touch/CST92xx.h) | `Cst9217`、`Cst9220` |
+| [SPD2010.h](../src/Drivers/Touch/SPD2010.h) | `Spd2010Touch` |
+
+例如 CST816 的 Arduino 应用可使用以下包含方式；初始化、接线与采样见 [Vendor_Capacitive_Touch](../examples/Generic/Vendor_Capacitive_Touch/Vendor_Capacitive_Touch.ino)。表中的类型均位于 `nice_gfx` 命名空间。
+
+```cpp
+#include <Drivers/Touch/CST816.h>
+#include <Platform/Arduino/TouchWire.h>
+```
 
 | 触摸芯片 | 接口与默认地址 | 实例化或配置方法 | 当前适配范围 |
 | --- | --- | --- | --- |

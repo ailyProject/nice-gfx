@@ -55,11 +55,17 @@ class TileCanvas : public NICE_GFX {
     uint16_t *dst=data_+size_t(r.y-tile_.y)*stride_+size_t(r.x-tile_.x);
     for(int32_t row=0;row<r.height;++row) {
       if (image.order==order_) copyRow(dst,src,size_t(r.width));
-      else for(int32_t col=0;col<r.width;++col) {
+      else {
+#if defined(__GNUC__) && defined(__BYTE_ORDER__) && defined(__ORDER_LITTLE_ENDIAN__) && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+        swapCopyRow(dst,src,size_t(r.width));
+#else
+        for(int32_t col=0;col<r.width;++col) {
         uint16_t c;
         if (image.order==PixelOrder::Wire) c=uint16_t(uint16_t(src[2*col])<<8|src[2*col+1]);
         else memcpy(&c,src+2*col,sizeof(c));
         dst[col]=stored(c);
+        }
+#endif
       }
       if (row+1<r.height) { src+=image.stride*2; dst+=stride_; }
     }
@@ -89,13 +95,17 @@ class TileCanvas : public NICE_GFX {
         for (int32_t row=0;row<h;++row) memset(first+size_t(row)*stride_,uint8_t(c),bytes);
       } else {
         for (int32_t col=0;col<w;++col) first[col]=c;
-        for (int32_t row=1;row<h;++row) memcpy(first+size_t(row)*stride_,first,bytes);
+        for (int32_t row=1;row<h;++row) copyRow(first+size_t(row)*stride_,reinterpret_cast<const uint8_t *>(first),size_t(w));
       }
     } else {
       for (int32_t row=0;row<h;++row) {
         uint16_t *dst=first+size_t(row)*stride_;
-        for (int32_t col=0;col<w;++col)
+        for (int32_t col=0;col<w;++col) {
+#if defined(CONFIG_IDF_TARGET_ESP32S31) // Exact AA palette memo.
+          if(coverage<15) {dst[col]=paletteBlend(color,dst[col],coverage);continue;}
+#endif
           dst[col]=stored(textCoverageColor(color,stored(dst[col]),coverage));
+        }
       }
     }
     return true;
@@ -151,7 +161,7 @@ class TileCanvas : public NICE_GFX {
       for(int32_t row=0;row<r.height;++row) memset(first+size_t(row)*stride_,uint8_t(c),bytes);
     } else {
       for(int32_t col=0;col<r.width;++col) first[col]=c;
-      for(int32_t row=1;row<r.height;++row) memcpy(first+size_t(row)*stride_,first,bytes);
+      for(int32_t row=1;row<r.height;++row) copyRow(first+size_t(row)*stride_,reinterpret_cast<const uint8_t *>(first),size_t(r.width));
     }
   }
   // Keep the original scanline raster for every intersecting triangle. Arc
@@ -240,6 +250,41 @@ class TileCanvas : public NICE_GFX {
     }
   }
  private:
+  static uint32_t swapCopyPair(uint32_t value) {
+    return ((value&0x00ff00ffu)<<8)|((value>>8)&0x00ff00ffu);
+  }
+  // Cross-order copy streams aligned word stores even when a clipped source
+  // begins on the second halfword or an odd byte. No alignment-down read or
+  // one-past source fetch is permitted; odd tails use exact two-byte reads.
+  static void swapCopyRow(uint16_t *destination,const uint8_t *source,size_t pixels) {
+#if defined(__GNUC__)
+    typedef uint32_t CopyWord __attribute__((__may_alias__));
+    if((reinterpret_cast<uintptr_t>(destination)&2)&&pixels){*destination++=uint16_t(source[0]<<8|source[1]);source+=2;--pixels;}
+    auto *out=reinterpret_cast<CopyWord *>(destination);
+    if(reinterpret_cast<uintptr_t>(source)&1){
+      while(pixels>=2){*out++=uint32_t(source[0])<<8|source[1]|uint32_t(source[2])<<24|uint32_t(source[3])<<16;source+=4;pixels-=2;}
+      if(pixels)*reinterpret_cast<uint16_t *>(out)=uint16_t(source[0]<<8|source[1]);return;
+    }
+    if(!(reinterpret_cast<uintptr_t>(source)&2)){
+      const auto *in=reinterpret_cast<const CopyWord *>(source);
+      while(pixels>=8){const uint32_t a=in[0],b=in[1],c=in[2],d=in[3];out[0]=swapCopyPair(a);out[1]=swapCopyPair(b);out[2]=swapCopyPair(c);out[3]=swapCopyPair(d);in+=4;out+=4;pixels-=8;}
+      while(pixels>=2){*out++=swapCopyPair(*in++);pixels-=2;}
+      if(pixels){const auto *last=reinterpret_cast<const uint8_t *>(in);*reinterpret_cast<uint16_t *>(out)=uint16_t(last[0]<<8|last[1]);}return;
+    }
+    uint16_t carry;__builtin_memcpy(&carry,__builtin_assume_aligned(source,2),2);
+    const auto *in=reinterpret_cast<const CopyWord *>(source+2);
+    while(pixels>=9){const uint32_t a=in[0],b=in[1],c=in[2],d=in[3];
+      out[0]=swapCopyPair(uint32_t(carry)|(a<<16));out[1]=swapCopyPair((a>>16)|(b<<16));
+      out[2]=swapCopyPair((b>>16)|(c<<16));out[3]=swapCopyPair((c>>16)|(d<<16));
+      carry=uint16_t(d>>16);in+=4;out+=4;pixels-=8;
+    }
+    while(pixels>=3){const uint32_t value=*in++;*out++=swapCopyPair(uint32_t(carry)|(value<<16));carry=uint16_t(value>>16);pixels-=2;}
+    if(pixels){auto *tail=reinterpret_cast<uint16_t *>(out);tail[0]=uint16_t(carry>>8|carry<<8);
+      if(pixels==2){const auto *last=reinterpret_cast<const uint8_t *>(in);tail[1]=uint16_t(last[0]<<8|last[1]);}}
+#else
+    for(size_t i=0;i<pixels;++i)destination[i]=uint16_t(source[2*i]<<8|source[2*i+1]);
+#endif
+  }
 #if (defined(ARDUINO_ARCH_ESP32) || NICE_GFX_NATIVE_IDF) && defined(CONFIG_IDF_TARGET_ESP32S31) && defined(__GNUC__)
   // Core 1 owns S31's PIE coprocessor. These caller-saved vector registers
   // are used only in a normal, yieldable task; IRQ/critical/Core 0 use C++.
@@ -370,7 +415,7 @@ class TileCanvas : public NICE_GFX {
       phase^=2;
     }
     if(!stepY)for(int32_t row=period;row<r.height;++row)
-      memcpy(first+size_t(row)*stride_,first+size_t(dither?(row&1):0)*stride_,size_t(r.width)*2);
+      copyRow(first+size_t(row)*stride_,reinterpret_cast<const uint8_t *>(first+size_t(dither?(row&1):0)*stride_),size_t(r.width));
   }
   template<bool Wire,bool Dither> static void gradientRow(uint16_t *dst,int32_t width,const uint16_t *colors,int32_t coordinate,int32_t step,uint8_t phase) {
     const int32_t rounded=coordinate+32768,last=rounded+(width-1)*step;
@@ -407,6 +452,20 @@ class TileCanvas : public NICE_GFX {
     // Let the compiler resolve endianness, also on 8-bit targets.
     return wireWord(c);
   }
+#if defined(CONFIG_IDF_TARGET_ESP32S31) // Exact AA palette memo.
+  // Each pixel still supplies its real stored underlay. Only an identical
+  // foreground/background/order tuple can reuse exact RGB565 interpolation.
+  uint16_t paletteBlend(uint16_t foreground,uint16_t background,uint8_t coverage) {
+    const uint16_t bit=uint16_t(1u<<coverage);
+    const bool same=foreground==paletteForeground_&&background==paletteBackground_&&order_==paletteOrder_;
+    if(same&&(paletteValid_&bit))return palette_[coverage];
+    const uint16_t result=stored(textCoverageColor(foreground,stored(background),coverage));
+    if(!same){paletteForeground_=foreground;paletteBackground_=background;paletteOrder_=order_;paletteValid_=0;}
+    palette_[coverage]=result;paletteValid_|=bit;return result;
+  }
+  uint16_t palette_[16]={},paletteForeground_=0,paletteBackground_=0,paletteValid_=0;
+  PixelOrder paletteOrder_=PixelOrder::Wire;
+#endif
   uint16_t *data_ = nullptr;
   size_t stride_ = 0;
   DirtyRect tile_;

@@ -3,6 +3,7 @@
 // example exceeds the Arduino UNO's 32 KiB Flash; use Mega or a 32-bit board.
 // With an ESP32, change the GPIOs and initialize Wire with its SDA/SCL pins.
 #include <NICE_GFX.h>
+#include <Drivers/Touch/CST816.h>
 #include <Platform/Arduino/TouchWire.h>
 
 ST7789V2_170x320_SPI gfx(10, 7, 8, SCK, MOSI, -1, 10000000);

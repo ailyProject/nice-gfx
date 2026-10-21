@@ -6,8 +6,12 @@
 #include "driver/gpio.h"
 #include "esp_heap_caps.h"
 #include "esp_timer.h"
+#if defined(CONFIG_IDF_TARGET_ESP32S3)
+#include "esp_ipc.h"
+#endif
+#include "freertos/task.h"
 #include <string.h>
-#if defined(CONFIG_IDF_TARGET_ESP32S31)
+#if defined(CONFIG_IDF_TARGET_ESP32S31) || defined(CONFIG_IDF_TARGET_ESP32S3)
 #include "esp_cache.h"
 #endif
 
@@ -46,6 +50,17 @@ bool IRAM_ATTR VideoTransport::rgbVsync(esp_lcd_panel_handle_t,
   if(s.scanStats_)s.scanStats_->record(s.lastVsync_?uint32_t(now-s.lastVsync_):0);
   s.lastVsync_=now;return false;
 }
+#if defined(CONFIG_IDF_TARGET_ESP32S31) || defined(CONFIG_IDF_TARGET_ESP32S3)
+bool IRAM_ATTR VideoTransport::rgbFrameDone(esp_lcd_panel_handle_t,
+                                      const esp_lcd_rgb_panel_event_data_t *,void *context){
+  auto &s=*static_cast<VideoTransport*>(context);
+  // S31 reports the AXI GDMA link switch; S3 reports the bounce engine's
+  // end-of-frame source latch. Both have stopped reading the old framebuffer.
+  // S3 submission is serialized against this callback on the interrupt core.
+  // VSYNC and color-copy callbacks cannot release either ownership fence.
+  return s.frameCompleted_&&s.flipPending_.load(std::memory_order_acquire)?complete(s.frameCompleted_):false;
+}
+#endif
 #endif
 #if SOC_MIPI_DSI_SUPPORTED
 bool IRAM_ATTR VideoTransport::dpiDone(esp_lcd_panel_handle_t,
@@ -67,11 +82,164 @@ Status VideoTransport::present() {
   if (!panel_ || !rasterReady()) return Status::NotInitialized;
   const Status s = wait();
   if (s != Status::Ok) return s;
+#if defined(CONFIG_IDF_TARGET_ESP32S31) || defined(CONFIG_IDF_TARGET_ESP32S3)
+  if(frameAtomic_)return frameOpen_&&!frameExplicit_?commitFrame():result_;
+#endif
 #if SOC_LCD_RGB_SUPPORTED
   if (interface_ == VideoInterface::RGB && refreshOnDemand_)
     return result_ = convert(esp_lcd_rgb_panel_refresh(panel_));
 #endif
   return result_;
+}
+
+#if defined(CONFIG_IDF_TARGET_ESP32S3)
+void VideoTransport::publishS3Atomic(void *context){
+  auto &s=*static_cast<VideoTransport *>(context);
+  portMUX_TYPE guard=portMUX_INITIALIZER_UNLOCKED;
+  portENTER_CRITICAL(&guard);
+  s.flipPending_.store(true,std::memory_order_release);
+  s.atomicSubmitError_=esp_lcd_panel_draw_bitmap(s.panel_,0,0,int(s.rasterWidth()),int(s.rasterHeight()),s.rgbFramebuffer_);
+  portEXIT_CRITICAL(&guard);
+}
+#endif
+Status VideoTransport::beginFrame(const DirtyRect *regions,size_t count){
+#if defined(CONFIG_IDF_TARGET_ESP32S31) || defined(CONFIG_IDF_TARGET_ESP32S3)
+  if(frameAtomic_)return beginAtomicFrame(regions,count,true);
+#endif
+  (void)regions;(void)count;return Status::Ok;
+}
+Status VideoTransport::commitFrame(){
+#if defined(CONFIG_IDF_TARGET_ESP32S31) || defined(CONFIG_IDF_TARGET_ESP32S3)
+  if(frameAtomic_){
+    const Status s=wait();if(s!=Status::Ok)return s;
+    if(!frameOpen_)return result_;
+    if(!panel_||!frameCompleted_||flipPending_.load(std::memory_order_acquire))return result_=Status::Busy;
+    while(xSemaphoreTake(frameCompleted_,0)==pdTRUE){}
+    // Arm before draw_bitmap: the link-switch interrupt may arrive before
+    // that SDK call returns. Keep the just-submitted buffer immutable until
+    // the next acquisition consumes the independent frame-complete fence.
+#if defined(CONFIG_IDF_TARGET_ESP32S3)
+    // S3's bounce completion latches the next source BEFORE our callback.
+    // Publish on that same core with its IRQ masked, so an old-source latch
+    // cannot race the submission and falsely release the old front buffer.
+    esp_err_t error=ESP_OK;
+    if(xPortGetCoreID()==atomicCore_)publishS3Atomic(this);
+    else error=esp_ipc_call_blocking(atomicCore_,publishS3Atomic,this);
+    if(error==ESP_OK)error=atomicSubmitError_;
+#else
+    flipPending_.store(true,std::memory_order_release);
+    const esp_err_t error=esp_lcd_panel_draw_bitmap(panel_,0,0,int(rasterWidth()),int(rasterHeight()),rgbFramebuffer_);
+#endif
+    if(error!=ESP_OK){
+      // A failed submission has uncertain DMA ownership. Do not disarm or
+      // recycle either buffer. A later wait may recover a completion; shutdown
+      // can always stop/delete the panel before releasing its callback state.
+      frameOpen_=frameExplicit_=false;staleFull_=true;staleCount_=0;
+      return result_=convert(error);
+    }
+    staleFull_=frameDamageFull_;staleCount_=frameDamageCount_;
+    for(size_t i=0;i<staleCount_;++i)staleDamage_[i]=frameDamage_[i];
+    if(copyStats_)++copyStats_->frameCommits;
+    frameOpen_=frameExplicit_=false;return result_=Status::Ok;
+  }
+#endif
+  return present();
+}
+Status VideoTransport::abortFrame(){
+  const Status s=wait();
+#if defined(CONFIG_IDF_TARGET_ESP32S31) || defined(CONFIG_IDF_TARGET_ESP32S3)
+  if(frameAtomic_&&frameOpen_){frameOpen_=frameExplicit_=false;staleFull_=true;staleCount_=0;if(copyStats_)++copyStats_->frameAborts;}
+#endif
+  return s;
+}
+
+#if defined(CONFIG_IDF_TARGET_ESP32S31) || defined(CONFIG_IDF_TARGET_ESP32S3)
+Status VideoTransport::waitAtomicFlip(){
+  if(!flipPending_.load(std::memory_order_acquire))return Status::Ok;
+  const int64_t started=esp_timer_get_time();
+  const bool done=frameCompleted_&&xSemaphoreTake(frameCompleted_,pdMS_TO_TICKS(250))==pdTRUE;
+  if(copyStats_)copyStats_->linkWaitMicros+=uint64_t(esp_timer_get_time()-started);
+  if(!done){if(copyStats_)++copyStats_->linkTimeouts;return result_=Status::IoError;}
+  // One outstanding flip, one completion, and only this producer changes
+  // indices. The ISR only signals; it never mutates a still-borrowed pointer.
+  frontIndex_^=1;rgbFramebuffer_=rgbFrames_[frontIndex_^1];
+  flipPending_.store(false,std::memory_order_release);if(copyStats_)++copyStats_->frameSwitches;return result_=Status::Ok;
+}
+Status VideoTransport::inheritAtomicRect(const DirtyRect &r){
+  const int64_t started=esp_timer_get_time();
+  const auto *front=rgbFrames_[frontIndex_]+size_t(r.y)*rasterWidth()+size_t(r.x);
+  const PixelView view(front,size_t(r.width),size_t(r.height),rasterWidth(),PixelOrder::Native);
+#if SOC_PPA_SUPPORTED
+  // Front already contains the panel's channel order. The ordinary PPA copy
+  // applies BGR conversion to application colors, so keep physical BGR
+  // inheritance on the raw CPU copy rather than converting it a second time.
+  if(!swapRedBlue_&&copyWithPpa(r.x,r.y,view)){if(copyStats_){copyStats_->inheritedPixels+=uint64_t(r.width)*r.height;copyStats_->inheritMicros+=uint64_t(esp_timer_get_time()-started);}return Status::Ok;}
+#endif
+  for(int32_t row=0;row<r.height;++row)memcpy(rgbFramebuffer_+size_t(r.y+row)*rasterWidth()+size_t(r.x),front+size_t(row)*rasterWidth(),size_t(r.width)*2);
+  const Status result=synchronizeFramebuffer(r.x,r.y,size_t(r.width),size_t(r.height),true);
+  if(copyStats_){copyStats_->inheritedPixels+=uint64_t(r.width)*r.height;copyStats_->inheritMicros+=uint64_t(esp_timer_get_time()-started);copyStats_->cpuPixels+=uint64_t(r.width)*r.height;}
+  return result;
+}
+Status VideoTransport::beginAtomicFrame(const DirtyRect *regions,size_t count,bool explicitFrame){
+  if(frameOpen_){if(explicitFrame)frameExplicit_=true;return Status::Ok;}
+  if(!panel_||!rasterReady()||!rgbFrames_[0]||!rgbFrames_[1])return Status::NotInitialized;
+  if(count&&!regions)return Status::InvalidArgument;
+  const bool bounded=count&&count<=AtomicMaxDamage;
+  if(bounded)for(size_t i=0;i<count;++i){const auto &r=regions[i];
+    if(r.x<0||r.y<0||r.width<=0||r.height<=0||int64_t(r.x)+r.width>rasterWidth()||int64_t(r.y)+r.height>rasterHeight())return Status::InvalidArgument;
+  }
+  Status s=wait();if(s==Status::Ok)s=waitAtomicFlip();if(s!=Status::Ok)return s;
+  frameDamageFull_=!bounded;frameDamageCount_=bounded?count:0;
+  for(size_t i=0;i<frameDamageCount_;++i)frameDamage_[i]=regions[i];
+  DirtyRect needed[AtomicMaxInherit],next[AtomicMaxInherit];size_t neededCount=0;
+  const DirtyRect full(0,0,int32_t(rasterWidth()),int32_t(rasterHeight()));
+  if(staleFull_)needed[neededCount++]=full;
+  else for(size_t i=0;i<staleCount_;++i)needed[neededCount++]=staleDamage_[i];
+  bool overflow=false;
+  // The back buffer differs from front only inside the previous frame's
+  // damage. New declared damage is guaranteed to be replaced by the caller,
+  // so inherit just stale-minus-new. In particular, steady map ROI needs no
+  // frame clone. Bounded fragmentation falls back to one complete safe copy.
+  for(size_t cut=0;bounded&&cut<count&&!overflow;++cut){size_t n=0;const auto &b=regions[cut];
+    for(size_t i=0;i<neededCount&&!overflow;++i){const auto &a=needed[i];
+      const int32_t left=a.x>b.x?a.x:b.x,top=a.y>b.y?a.y:b.y;
+      const int32_t right=a.x+a.width<b.x+b.width?a.x+a.width:b.x+b.width;
+      const int32_t bottom=a.y+a.height<b.y+b.height?a.y+a.height:b.y+b.height;
+      const auto add=[&](int32_t x,int32_t y,int32_t w,int32_t h){if(w<=0||h<=0)return;if(n==AtomicMaxInherit){overflow=true;return;}next[n++]=DirtyRect(x,y,w,h);};
+      if(right<=left||bottom<=top)add(a.x,a.y,a.width,a.height);
+      else {add(a.x,a.y,a.width,top-a.y);add(a.x,bottom,a.width,a.y+a.height-bottom);add(a.x,top,left-a.x,bottom-top);add(right,top,a.x+a.width-right,bottom-top);}
+    }
+    if(!overflow){neededCount=n;for(size_t i=0;i<n;++i)needed[i]=next[i];}
+  }
+  if(overflow){needed[0]=full;neededCount=1;}
+  // Inheritance never publishes and consumes every source synchronously.
+  // An aborted/incomplete frame must re-inherit its whole back buffer.
+  staleFull_=true;staleCount_=0;
+  for(size_t i=0;i<neededCount;++i)if((s=inheritAtomicRect(needed[i]))!=Status::Ok)return s;
+  frameOpen_=true;frameExplicit_=explicitFrame;return result_=Status::Ok;
+}
+Status VideoTransport::ensureAtomicFrame(){return !frameAtomic_||frameOpen_?Status::Ok:beginAtomicFrame(nullptr,0,false);}
+#endif
+
+Status VideoTransport::mapNativeFramebuffer(NativeFramebuffer &frame) {
+  frame = NativeFramebuffer();
+#if defined(CONFIG_IDF_TARGET_ESP32S31) || defined(CONFIG_IDF_TARGET_ESP32S3)
+  // Atomic RGB maps only its inactive buffer. A BGR panel still needs the
+  // normal channel conversion; unrelated multi-buffer/DPI paths stay unmapped.
+  if (!panel_ || !rasterReady()) return Status::NotInitialized;
+  if (!rgbFramebuffer_ || swapRedBlue_) return Status::Unsupported;
+  const Status s = wait();
+  if (s != Status::Ok) return s;
+#if defined(CONFIG_IDF_TARGET_ESP32S31) || defined(CONFIG_IDF_TARGET_ESP32S3)
+  const Status acquired=ensureAtomicFrame();if(acquired!=Status::Ok)return acquired;
+#endif
+  frame.pixels = rgbFramebuffer_;
+  frame.width = frame.stride = rasterWidth(); frame.height = rasterHeight();
+  frame.bytes = frame.stride * frame.height * sizeof(uint16_t);
+  return Status::Ok;
+#else
+  return Status::Unsupported;
+#endif
 }
 
 Status VideoTransport::shutdown() {
@@ -94,6 +262,11 @@ Status VideoTransport::shutdown() {
     if (s != Status::Ok) return result_ = first == Status::Ok ? s : first;
     panel_ = nullptr; rgbFramebuffer_ = nullptr;
   }
+#if defined(CONFIG_IDF_TARGET_ESP32S31) || defined(CONFIG_IDF_TARGET_ESP32S3)
+  frameAtomic_=frameOpen_=frameExplicit_=false;flipPending_.store(false,std::memory_order_release);
+  rgbFrames_[0]=rgbFrames_[1]=nullptr;frontIndex_=0;staleFull_=true;staleCount_=frameDamageCount_=0;
+  if(frameCompleted_){vSemaphoreDelete(frameCompleted_);frameCompleted_=nullptr;}
+#endif
   if (io_) {
     const Status s = convert(esp_lcd_panel_io_del(io_));
     if (s != Status::Ok) return result_ = first == Status::Ok ? s : first;
@@ -114,6 +287,7 @@ Status VideoTransport::shutdown() {
   if (completed_) { vSemaphoreDelete(completed_); completed_ = nullptr; }
   if (scratch_) { heap_caps_free(scratch_); scratch_ = nullptr; }
   hasSpi_ = hasDisplayPin_ = refreshOnDemand_ = swapRedBlue_ = false;
+  commandWrite_ = nullptr; commandContext_ = nullptr;
   return result_ = first;
 }
 void VideoTransport::end() { shutdown(); }
@@ -166,6 +340,7 @@ void VideoTransport::spiByte(uint8_t byte, bool data) {
 }
 Status VideoTransport::transmitCommand(uint8_t c, const uint8_t *data, size_t bytes) {
   if (bytes && !data) return Status::InvalidArgument;
+  if (commandWrite_) return commandWrite_(c, data, bytes, commandContext_);
   if (interface_ == VideoInterface::MIPI) {
     if (!io_) return Status::NotInitialized;
     return convert(esp_lcd_panel_io_tx_param(io_, c, data, bytes));
@@ -207,6 +382,9 @@ Status VideoTransport::initializeHardware(VideoController controller, const Vide
     esp_lcd_rgb_panel_event_callbacks_t callbacks = {};
     callbacks.on_color_trans_done = rgbDone;
     callbacks.on_vsync = rgbVsync;
+#if defined(CONFIG_IDF_TARGET_ESP32S31) || defined(CONFIG_IDF_TARGET_ESP32S3)
+    if(frameAtomic_)callbacks.on_frame_buf_complete=rgbFrameDone;
+#endif
     error = esp_lcd_rgb_panel_register_event_callbacks(panel_, &callbacks, this);
   }
 #endif
@@ -260,6 +438,9 @@ Status VideoTransport::initializeHardware(VideoController controller, const Vide
 
 Status VideoTransport::drawBitmap(int x0, int y0, int x1, int y1, const uint16_t *pixels) {
   if (!panel_ || !rasterReady()) return Status::NotInitialized;
+#if defined(CONFIG_IDF_TARGET_ESP32S31) || defined(CONFIG_IDF_TARGET_ESP32S3)
+  if(frameAtomic_)return drawPixelView(x0,y0,PixelView(pixels,size_t(x1-x0),size_t(y1-y0),size_t(x1-x0),PixelOrder::Native));
+#endif
   const Status s = wait();
   if (s != Status::Ok) return s;
   while (xSemaphoreTake(completed_, 0) == pdTRUE) {}
@@ -280,12 +461,21 @@ Status VideoTransport::drawBitmap(int x0, int y0, int x1, int y1, const uint16_t
   return wait();
 }
 
-#if defined(CONFIG_IDF_TARGET_ESP32S31)
+#if defined(CONFIG_IDF_TARGET_ESP32S31) || defined(CONFIG_IDF_TARGET_ESP32S3)
 Status VideoTransport::synchronizeFramebuffer(int x, int y, size_t width, size_t height, bool cpuWritten) {
-  // Only a fixed, single RGB framebuffer is mapped. CPU stores and blocking
-  // PPA copies have already consumed their source; no driver job remains to
-  // wait for and no framebuffer/DMA link needs to change. present() retains
-  // responsibility for starting refresh-on-demand panels.
+#if defined(CONFIG_IDF_TARGET_ESP32S3)
+  if (!cpuWritten || frameAtomic_) return result_ = Status::Ok;
+  // Let the installed SDK preserve its bounce-buffer/cache coherency policy.
+  // Passing its own framebuffer bypasses its CPU pixel copy. This remains a
+  // source-completion fence, never a VSYNC wait or a framebuffer flip.
+  while (xSemaphoreTake(completed_, 0) == pdTRUE) {}
+  pending_ = true;
+  result_ = convert(esp_lcd_panel_draw_bitmap(panel_, x, y, x+int(width), y+int(height), rgbFramebuffer_));
+  if (result_ != Status::Ok) { pending_ = false; return result_; }
+  return wait();
+#else
+  // CPU stores and blocking PPA have consumed their sources. Cache maintenance
+  // does not publish an atomic back buffer: only commitFrame changes DMA links.
   if (!cpuWritten || !esp_cache_get_line_size_by_addr(rgbFramebuffer_)) return result_ = Status::Ok;
   auto *first = rgbFramebuffer_ + size_t(y) * rasterWidth() + size_t(x);
   const int flags = ESP_CACHE_MSYNC_FLAG_DIR_C2M | ESP_CACHE_MSYNC_FLAG_UNALIGNED;
@@ -298,14 +488,18 @@ Status VideoTransport::synchronizeFramebuffer(int x, int y, size_t width, size_t
     if (s != Status::Ok) return result_ = s;
   }
   return result_ = Status::Ok;
+#endif
 }
 
 Status VideoTransport::drawFillRect(int x, int y, size_t width, size_t height, uint16_t color) {
   if (!rgbFramebuffer_) return Status::NotInitialized;
   const Status s = wait();
   if (s != Status::Ok) return s;
+#if defined(CONFIG_IDF_TARGET_ESP32S31) || defined(CONFIG_IDF_TARGET_ESP32S3)
+  const Status acquired=ensureAtomicFrame();if(acquired!=Status::Ok)return acquired;
+#endif
   if (swapRedBlue_) color = uint16_t((color & 0x07E0) | ((color & 0x001F) << 11) | (color >> 11));
-#if SOC_PPA_SUPPORTED
+#if SOC_PPA_SUPPORTED && defined(CONFIG_IDF_TARGET_ESP32S31)
   if (fillWithPpa(x, y, width, height, color)) return result_ = Status::Ok;
 #endif
   const auto fillSpan = [color](uint16_t *out, size_t count) {
@@ -339,6 +533,21 @@ Status VideoTransport::drawPixelView(int x, int y, PixelView view) {
   if (!rgbFramebuffer_) return Status::NotInitialized;
   const Status s = wait();
   if (s != Status::Ok) return s;
+#if defined(CONFIG_IDF_TARGET_ESP32S31) || defined(CONFIG_IDF_TARGET_ESP32S3)
+  const Status acquired=ensureAtomicFrame();if(acquired!=Status::Ok)return acquired;
+#endif
+#if defined(CONFIG_IDF_TARGET_ESP32S31) || defined(CONFIG_IDF_TARGET_ESP32S3)
+  // A producer can render directly into the mapped native scanout buffer.
+  // Submitting that exact rectangle commits its cache lines, without another
+  // SRM transaction or overlapping memcpy. Keep the ordinary present() path.
+  if (!swapRedBlue_ && view.order == PixelOrder::Native && view.stride == rasterWidth() &&
+      view.data == reinterpret_cast<const uint8_t *>(rgbFramebuffer_ + size_t(y) * rasterWidth() + size_t(x))) {
+#if SOC_LCD_RGB_SUPPORTED
+    if (copyStats_) { ++copyStats_->mappedTransfers; copyStats_->mappedPixels += uint64_t(view.width) * view.height; }
+#endif
+    return synchronizeFramebuffer(x, y, view.width, view.height, true);
+  }
+#endif
   bool copied=false;
 #if SOC_PPA_SUPPORTED && defined(CONFIG_IDF_TARGET_ESP32S31)
   copied=copyWithPpa(x,y,view);
@@ -380,7 +589,7 @@ Status VideoTransport::drawPixelView(int x, int y, PixelView view) {
       }
     }
   }
-#if defined(CONFIG_IDF_TARGET_ESP32S31)
+#if defined(CONFIG_IDF_TARGET_ESP32S31) || defined(CONFIG_IDF_TARGET_ESP32S3)
   // Blocking PPA already synchronized its output; CPU writes need only the
   // dirty pixels written back, rather than every complete LCD scanline.
   return synchronizeFramebuffer(x, y, view.width, view.height, !copied);
@@ -398,9 +607,12 @@ Status VideoTransport::drawPixelView(int x, int y, PixelView view) {
 
 #if SOC_PPA_SUPPORTED && defined(CONFIG_IDF_TARGET_ESP32S31)
 bool VideoTransport::fillWithPpa(int x,int y,size_t width,size_t height,uint16_t color){
-  // Keep small rectangles on the CPU to avoid DMA submission/wakeup overhead.
+  // Keep tiny rectangles on the CPU to avoid DMA submission/wakeup overhead.
+  // Card-size erases (for example 232x132) are frequent during cached layer
+  // motion; the old 65536-pixel cutoff forced every such PSRAM fill onto the
+  // CPU. At least 8 KiB of output now uses the existing blocking DMA path.
   // The hardware descriptor and fill block dimensions are 14-bit on S31.
-  if(!ppaFill_||ppaFillRejected_||width*height<65536||rasterWidth()>0x3FFF||rasterHeight()>0x3FFF)return false;
+  if(!ppaFill_||ppaFillRejected_||width*height<4096||rasterWidth()>0x3FFF||rasterHeight()>0x3FFF)return false;
   const size_t bytes=rasterWidth()*rasterHeight()*2;
   const size_t line=esp_cache_get_line_size_by_addr(rgbFramebuffer_);
   if(!line||bytes%line||reinterpret_cast<uintptr_t>(rgbFramebuffer_)%line)return false;
@@ -455,19 +667,47 @@ bool VideoTransport::copyWithPpa(int x,int y,PixelView view){
   const size_t end=((size_t(y)+view.height)*rasterWidth()*2+line-1)&~(line-1);
   if(end>bytes)return false;
   auto *region=reinterpret_cast<uint8_t*>(rgbFramebuffer_)+begin;
-  // Preserve dirty CPU-rendered neighbors before DMA invalidates whole rows.
-  if(esp_cache_msync(region,end-begin,ESP_CACHE_MSYNC_FLAG_DIR_C2M)!=ESP_OK)return false;
+  // SRM's SDK implementation invalidates complete destination rows before
+  // DMA. Preserve dirty neighbors for partial/cache-line-sharing writes. A
+  // complete aligned row is overwritten, so its previous contents need no
+  // redundant writeback (the common full-frame and full-width tile paths).
+  const bool replacesCacheLines=x==0&&view.width==rasterWidth()&&
+    (size_t(y)*rasterWidth()*2)%line==0&&(view.height*rasterWidth()*2)%line==0;
+  if(!replacesCacheLines){
+    const int64_t at=copyStats_?esp_timer_get_time():0;
+    const auto sync=esp_cache_msync(region,end-begin,ESP_CACHE_MSYNC_FLAG_DIR_C2M);
+    if(copyStats_)copyStats_->ppaCopySyncMicros+=uint64_t(esp_timer_get_time()-at);
+    if(sync!=ESP_OK)return false;
+  }
   ppa_srm_oper_config_t operation={};
   operation.in.buffer=view.data;operation.in.pic_w=view.stride;operation.in.pic_h=view.height;
   operation.in.block_w=view.width;operation.in.block_h=view.height;operation.in.srm_cm=PPA_SRM_COLOR_MODE_RGB565;
+  if(frameAtomic_&&view.order==PixelOrder::Native&&view.stride==rasterWidth()){
+    const uintptr_t begin=reinterpret_cast<uintptr_t>(rgbFrames_[frontIndex_]),source=reinterpret_cast<uintptr_t>(view.data);
+    if(source>=begin&&source-begin<bytes&&!(source&1)){
+      const size_t offset=(source-begin)/2,sx=offset%rasterWidth(),sy=offset/rasterWidth();
+      if(view.width<=rasterWidth()-sx&&view.height<=rasterHeight()-sy){
+        // Give the SDK the complete allocation, not an interior pointer whose
+        // declared pic_w*pic_h could run past the final cropped scanline.
+        operation.in.buffer=rgbFrames_[frontIndex_];operation.in.pic_w=rasterWidth();operation.in.pic_h=rasterHeight();
+        operation.in.block_offset_x=sx;operation.in.block_offset_y=sy;
+      }
+    }
+  }
   operation.out.buffer=rgbFramebuffer_;operation.out.buffer_size=bytes;
   operation.out.pic_w=rasterWidth();operation.out.pic_h=rasterHeight();
   operation.out.block_offset_x=x;operation.out.block_offset_y=y;operation.out.srm_cm=PPA_SRM_COLOR_MODE_RGB565;
   operation.scale_x=operation.scale_y=1.0f;operation.byte_swap=view.order==PixelOrder::Wire;
   operation.rgb_swap=swapRedBlue_;operation.mode=PPA_TRANS_MODE_BLOCKING;
-  if(ppa_do_scale_rotate_mirror(ppaCopy_,&operation)!=ESP_OK){if(copyStats_)++copyStats_->ppaFailures;return false;}
+  const int64_t copyAt=copyStats_?esp_timer_get_time():0;
+  const auto copied=ppa_do_scale_rotate_mirror(ppaCopy_,&operation);
+  if(copyStats_)copyStats_->ppaCopyDriverMicros+=uint64_t(esp_timer_get_time()-copyAt);
+  if(copied!=ESP_OK){if(copyStats_)++copyStats_->ppaFailures;return false;}
   // A bounce ISR could have cached these rows while DMA was writing them.
-  if(esp_cache_msync(region,end-begin,ESP_CACHE_MSYNC_FLAG_DIR_M2C)!=ESP_OK)return false;
+  const int64_t syncAt=copyStats_?esp_timer_get_time():0;
+  const auto synced=esp_cache_msync(region,end-begin,ESP_CACHE_MSYNC_FLAG_DIR_M2C);
+  if(copyStats_)copyStats_->ppaCopySyncMicros+=uint64_t(esp_timer_get_time()-syncAt);
+  if(synced!=ESP_OK)return false;
   const bool partial=x!=0||view.width!=rasterWidth();
   if(!ppaVerified_||(partial&&!ppaPartialVerified_)){
     bool exact=true;
@@ -534,6 +774,29 @@ RgbConfig::RgbConfig() {
     rgb.data_gpio_nums[i] = decltype(rgb.disp_gpio_num)(-1);
 }
 Status Esp32Rgb::begin() {
+  if (config_.interruptCore < -1 || config_.interruptCore > 1) return Status::InvalidArgument;
+  if (rasterReady()) return wait();
+#if !CONFIG_FREERTOS_UNICORE
+  if (config_.interruptCore >= 0 && config_.interruptCore != xPortGetCoreID()) {
+    struct Request { Esp32Rgb *self; SemaphoreHandle_t done; Status result; } request{this,xSemaphoreCreateBinary(),Status::IoError};
+    if (!request.done) return Status::NoMemory;
+    const auto worker=[](void *context) {
+      auto *r=static_cast<Request *>(context);
+      r->result=r->self->beginConfigured();
+      xSemaphoreGive(r->done);
+      vTaskDelete(nullptr);
+    };
+    const BaseType_t created=xTaskCreatePinnedToCore(worker,"gfx-rgb-init",6144,&request,2,nullptr,config_.interruptCore);
+    if (created!=pdPASS) {vSemaphoreDelete(request.done);return Status::NoMemory;}
+    xSemaphoreTake(request.done,portMAX_DELAY);
+    vSemaphoreDelete(request.done);return request.result;
+  }
+#else
+  if (config_.interruptCore > 0) return Status::Unsupported;
+#endif
+  return beginConfigured();
+}
+Status Esp32Rgb::beginConfigured() {
   if (rasterReady()) return wait();
   const Status cleaned = shutdown();
   if (cleaned != Status::Ok) return cleaned;
@@ -563,7 +826,9 @@ Status Esp32Rgb::begin() {
     if (config_.reset >= 0 && config_.reset == controlPins[i]) return fail(Status::InvalidArgument);
   for (size_t i = 0; i < config_.rgb.data_width; ++i)
     if (config_.reset >= 0 && config_.reset == config_.rgb.data_gpio_nums[i]) return fail(Status::InvalidArgument);
-  if (!profile->noCommand) {
+  if (config_.commandWrite && config_.createIo) return fail(Status::InvalidArgument);
+  commandWrite_ = config_.commandWrite; commandContext_ = config_.commandContext;
+  if (!profile->noCommand && !commandWrite_) {
     if (!config_.createIo) return fail(Status::InvalidArgument);
     const int commandPins[] = {config_.io3wire.line_config.cs_gpio_num,
       config_.io3wire.line_config.scl_gpio_num, config_.io3wire.line_config.sda_gpio_num};
@@ -578,16 +843,43 @@ Status Esp32Rgb::begin() {
     const Status prepared = prepareCommandSpi(config_.io3wire);
     if (prepared != Status::Ok) return fail(prepared);
   }
+  esp_lcd_rgb_panel_config_t rgb=config_.rgb;
+#if defined(CONFIG_IDF_TARGET_ESP32S31) || defined(CONFIG_IDF_TARGET_ESP32S3)
+  if(config_.frameAtomic){
+#if defined(CONFIG_IDF_TARGET_ESP32S3)
+    if(rgb.flags.refresh_on_demand||!rgb.bounce_buffer_size_px)return fail(Status::Unsupported);
+#else
+    if(rgb.flags.refresh_on_demand||rgb.bounce_buffer_size_px)return fail(Status::Unsupported);
+#endif
+    rgb.num_fbs=2;rgb.flags.double_fb=false;
+  }
+#else
+  if(config_.frameAtomic)return fail(Status::Unsupported);
+#endif
   esp_lcd_panel_handle_t created = nullptr;
-  const esp_err_t error = esp_lcd_new_rgb_panel(&config_.rgb, &created);
+  const esp_err_t error = esp_lcd_new_rgb_panel(&rgb, &created);
   if (error != ESP_OK) return fail(error);
   if (!created) return fail(Status::Busy);
   panel_ = created; refreshOnDemand_ = config_.rgb.flags.refresh_on_demand;
+#if defined(CONFIG_IDF_TARGET_ESP32S31) || defined(CONFIG_IDF_TARGET_ESP32S3)
+  if(config_.frameAtomic){
+    frameCompleted_=xSemaphoreCreateBinary();if(!frameCompleted_)return fail(ESP_ERR_NO_MEM);
+    void *first=nullptr,*second=nullptr;
+    const auto acquired=esp_lcd_rgb_panel_get_frame_buffer(panel_,2,&first,&second);
+    if(acquired!=ESP_OK)return fail(acquired);
+    if(!first||!second||first==second)return fail(Status::InvalidArgument);
+    rgbFrames_[0]=static_cast<uint16_t*>(first);rgbFrames_[1]=static_cast<uint16_t*>(second);
+    frontIndex_=0;rgbFramebuffer_=rgbFrames_[1];frameAtomic_=true;staleFull_=true;staleCount_=0;
+#if defined(CONFIG_IDF_TARGET_ESP32S3)
+    atomicCore_=xPortGetCoreID();
+#endif
+  }
+#endif
   const Status initialized = initializeHardware(config_.controller, config_.panel, config_.init, config_.reset,
     config_.rgb.timings.h_res, config_.rgb.timings.v_res, 0, config_.displayOnInit,
     config_.rgb.disp_gpio_num >= 0);
   // Keep multi-buffer configurations on the established IDF copy path.
-  if (initialized == Status::Ok && config_.rgb.num_fbs <= 1 && !config_.rgb.flags.double_fb) {
+  if (initialized == Status::Ok && !config_.frameAtomic && config_.rgb.num_fbs <= 1 && !config_.rgb.flags.double_fb) {
     void *frame = nullptr;
     if (esp_lcd_rgb_panel_get_frame_buffer(panel_, 1, &frame) == ESP_OK)
       rgbFramebuffer_ = static_cast<uint16_t *>(frame);

@@ -5,6 +5,7 @@
 #if !defined(ARDUINO_ARCH_AVR) && !defined(__AVR__)
 #include "../Graphics/TileCanvas.h"
 #include "Animation.h"
+#include "RangeGeometry.h"
 #include "MotionGeometry.h"
 #include "Transition.h"
 #include "Instruments.h"
@@ -12,6 +13,8 @@
 #include "RasterOcclusion.h"
 #include "Rgb565Blend.h"
 #include "Rgb565PpaBlend.h"
+#include "Rle565.h"
+#include "RetainedStorage.h"
 #include "KeyboardIcons.h"
 #include <vector>
 #include <string>
@@ -282,7 +285,7 @@ struct View::Impl {
   size_t capacity;
   size_t tileCount=2;
   const ProjectDesc *project=nullptr;
-  std::vector<std::vector<State>> pages;
+  std::vector<RetainedVector<State>> pages;
   std::vector<uint16_t> history;
   std::shared_ptr<std::vector<Listener>> listeners=std::make_shared<std::vector<Listener>>();
   std::vector<std::vector<int>> eventPaths;
@@ -297,13 +300,13 @@ struct View::Impl {
   mutable std::vector<int32_t> componentNodes;
   std::vector<uint16_t> underlay; // Allocated only when an animation uses opacity.
   std::vector<uint16_t> mediaRow; // Reusable wire-order scanline, never a framebuffer.
-  std::vector<State> snapshot;
+  RetainedVector<State> snapshot;
   const PageDesc *snapshotPage=nullptr;
   const PageDesc *previewPage=nullptr;
-  std::vector<State> previewSnapshot;
+  RetainedVector<State> previewSnapshot;
   struct TextLine { size_t begin,end;int32_t width; };
   struct Geometry { Rect rect,clip;uint32_t lineFirst=0;uint16_t lineCount=0,children=0;int32_t textY=0;uint8_t alpha=255;bool visible=true,inputVisible=true; };
-  struct FrameCache { std::vector<Geometry> nodes;std::vector<TextLine> lines;std::vector<uint32_t> bands;size_t words=0;int32_t bandHeight=1; };
+  struct FrameCache { RetainedVector<Geometry> nodes;RetainedVector<TextLine> lines;std::vector<uint32_t> bands;size_t words=0;int32_t bandHeight=1; };
   FrameCache snapshotCache,previewCache;
   FrameCache *paintCache=&snapshotCache;
   mutable RuntimeStats stats;
@@ -329,7 +332,7 @@ struct View::Impl {
   struct Transition {
     Rect viewport{};
     const PageDesc *from=nullptr;
-    std::vector<State> outgoing;
+    RetainedVector<State> outgoing;
     std::vector<MotionRuntime> outgoingMotions;
     uint32_t started=0;
     bool active=false,pending=false,reverse=false;
@@ -411,7 +414,7 @@ struct View::Impl {
   Drag drag=Drag::None;
   bool down=false, canceled=false, changed=false, longPressed=false, allowX=true, allowY=true, moved=false;
   int32_t x=0,y=0,startX=0,startY=0,startScrollX=0,startScrollY=0,startValue=0;
-  int32_t rangeGrabOffset=0;
+  int32_t rangeGrabOffset=0;bool rangeThumbContact=false;
   uint32_t downAt=0,spinRepeatAt=0;
   int interruptedPager=-1;
   int32_t lastX=0, velocityX=0;
@@ -432,8 +435,8 @@ struct View::Impl {
   }
   ~Impl() { refresh->cancel(); delete refresh; }
   const PageDesc &page() const { return project->pages[history.back()]; }
-  std::vector<State> &state() { return pages[history.back()]; }
-  const std::vector<State> &state() const { return pages[history.back()]; }
+  RetainedVector<State> &state() { return pages[history.back()]; }
+  const RetainedVector<State> &state() const { return pages[history.back()]; }
   const MediaDesc *media(const NodeDesc &node,const State &value) const {
     return value.imageOverride?(value.image.impl_?&value.image.impl_->media:nullptr):node.media;
   }
@@ -620,7 +623,7 @@ struct View::Impl {
     char text[160];snprintf(text,sizeof(text),"%.*s%ld%s",int(placeholder-format),format,long(state()[index].value),placeholder+7);
     if(state()[link->text].text.set(text))invalidate(link->text);
   }
-  void revealComponentSelection(const PageDesc &p,std::vector<State> &values,const ComponentDesc &component) {
+  void revealComponentSelection(const PageDesc &p,RetainedVector<State> &values,const ComponentDesc &component) {
     if((component.kind!=ComponentKind::Choice&&component.kind!=ComponentKind::Tabs)||values.size()!=p.count)return;
     int root=-1,value=-1,selected=-1;const Id valueId=component.kind==ComponentKind::Tabs?component.pageId:component.id;
     for(uint16_t n=0;n<p.count;++n){if(p.nodes[n].id==component.id)root=n;if(p.nodes[n].id==valueId)value=n;}
@@ -674,16 +677,16 @@ struct View::Impl {
     if(next<0||!focusable(next,false))return;
     const bool nested=processing;processing=true;setFocus(next);if(!nested)endProcessing();
   }
-  const Style &styleFor(const PageDesc &p,const std::vector<State> &s,int i) const { return s[i].dynamic&&s[i].dynamic->styleOverride?s[i].dynamic->style:p.nodes[i].style; }
-  Rect baseRect(const PageDesc &p,const std::vector<State> &s,int i) const {
+  const Style &styleFor(const PageDesc &p,const RetainedVector<State> &s,int i) const { return s[i].dynamic&&s[i].dynamic->styleOverride?s[i].dynamic->style:p.nodes[i].style; }
+  Rect baseRect(const PageDesc &p,const RetainedVector<State> &s,int i) const {
     Rect r=p.nodes[i].rect;const auto &d=s[i].dynamic;
     if(d&&d->boundsOverride){r.x+=d->offsetX;r.y+=d->offsetY;r.width=d->width;r.height=d->height;}return r;
   }
-  Rect layoutRect(const PageDesc &p,const std::vector<State> &s,int i) const {
+  Rect layoutRect(const PageDesc &p,const RetainedVector<State> &s,int i) const {
     Rect r=baseRect(p,s,i);
     for(uint16_t a=p.nodes[i].parent;a!=NoParent;a=p.nodes[a].parent)if(s[a].dynamic&&s[a].dynamic->boundsOverride){r.x+=s[a].dynamic->offsetX;r.y+=s[a].dynamic->offsetY;}return r;
   }
-  Rect childBox(const PageDesc &p,const std::vector<State> &s,int i,Rect r) const {
+  Rect childBox(const PageDesc &p,const RetainedVector<State> &s,int i,Rect r) const {
     r=contentBox(r,styleFor(p,s,i));if(p.nodes[i].kind==Kind::Pager)r.height=std::max<int32_t>(0,r.height-p.nodes[i].pager.indicatorHeight);return r;
   }
   void dynamicChanged(int i) {
@@ -700,19 +703,22 @@ struct View::Impl {
     for(uint16_t i=0;i<page().count;++i){if(page().nodes[i].kind==Kind::Pager)setPage(i,state()[i].value,false);else state()[i].value=normalized(i,state()[i].value);auto &v=state()[i];v.switchPosition=v.switchFrom=v.switchTo=v.value?1000:0;}
     for(size_t component=0;component<componentCount;++component)revealComponentSelection(page(),state(),components[component]);
   }
+  bool renderingFullFrameSurface=false;
 #include "RenderCache.inc.h"
-  Rect poseRect(const PageDesc &p,const std::vector<State> &s,int i) const {
+#include "AnimationLayers.inc.h"
+#include "NativeRender.inc.h"
+  Rect poseRect(const PageDesc &p,const RetainedVector<State> &s,int i) const {
     Rect r=layoutRect(p,s,i);r.x+=s[i].animationX;r.y+=s[i].animationY;
     for(uint16_t a=p.nodes[i].parent;a!=NoParent;a=p.nodes[a].parent) { r.x+=s[a].animationX-s[a].scrollX; r.y+=s[a].animationY-s[a].scrollY; }
     return r;
   }
-  Rect rect(const PageDesc &p,const std::vector<State> &s,int i) const {
+  Rect rect(const PageDesc &p,const RetainedVector<State> &s,int i) const {
     const Rect r=poseRect(p,s,i);if(!p.nodes[i].motion)return r;
     const auto &m=motionPose(p,s,i);return motion_geometry::bounds(r,m.scale,m.rotation,p.nodes[i].motion->pivotX,p.nodes[i].motion->pivotY,p.nodes[i].kind==Kind::Shape);
   }
   Rect rect(int i) const { return rect(page(),state(),i); }
   int32_t pagerStride(int i) const { return contentBox(baseRect(page(),state(),i),styleFor(page(),state(),i)).width; }
-  Rect clip(const PageDesc &p,const std::vector<State> &s,int i) const {
+  Rect clip(const PageDesc &p,const RetainedVector<State> &s,int i) const {
     Rect result{0,0,p.width,p.height};
     for(uint16_t a=p.nodes[i].parent;a!=NoParent;a=p.nodes[a].parent)
       {if((s[a].flags&Clip)||scrolling(p.nodes[a].kind))result=intersect(result,childBox(p,s,a,poseRect(p,s,a)));
@@ -720,7 +726,7 @@ struct View::Impl {
     if(p.nodes[i].motion){const auto &m=motionPose(p,s,i);if(m.reveal<1024&&m.scale==1024&&m.rotation%360==0)result=intersect(result,motion_geometry::reveal(poseRect(p,s,i),m.reveal,p.nodes[i].motion->flags));}
     return result;
   }
-  uint8_t opacity(const PageDesc &p,const std::vector<State> &s,int i) const {
+  uint8_t opacity(const PageDesc &p,const RetainedVector<State> &s,int i) const {
     uint32_t result=255;
     for(int a=i;a>=0;a=p.nodes[a].parent==NoParent?-1:p.nodes[a].parent)result=result*s[a].opacity/255;
     return uint8_t(result);
@@ -791,7 +797,7 @@ struct View::Impl {
       if(!sample.active&&((m&&m->hiding)||hasAnimationEndListener(i)))finishMotionSample(i);
     }
   }
-  bool visible(const PageDesc &p,const std::vector<State> &s,int i,bool input=false) const {
+  bool visible(const PageDesc &p,const RetainedVector<State> &s,int i,bool input=false) const {
     for(int a=i;a>=0;a=p.nodes[a].parent==NoParent?-1:p.nodes[a].parent)
       if((s[a].flags&Hidden)||(input&&(s[a].flags&Disabled))) return false;
     return true;
@@ -1256,7 +1262,7 @@ struct View::Impl {
     v.switchFrom=v.switchPosition;v.switchTo=to;v.switchPending=true;
     invalidate(i);
   }
-  void extent(const PageDesc &p,const std::vector<State> &values,int i,int32_t &maxX,int32_t &maxY) const {
+  void extent(const PageDesc &p,const RetainedVector<State> &values,int i,int32_t &maxX,int32_t &maxY) const {
     const Rect b=contentBox(layoutRect(p,values,i),styleFor(p,values,i));maxX=maxY=0;
     if(p.nodes[i].kind==Kind::Pager) {
       int32_t count=0;for(uint16_t j=uint16_t(i+1);j<p.count;++j)if(p.nodes[j].parent==i)++count;
@@ -1303,10 +1309,12 @@ struct View::Impl {
   }
   void range(int i) {
     const NodeDesc &n=page().nodes[i];const Style &style=styleFor(page(),state(),i);Rect r=contentBox(rect(i),style);
-    const int32_t inset=std::min<int32_t>(r.width/2,style.thumbWidth/2);
-    const int32_t length=std::max<int32_t>(1,r.width-2*inset);
-    const int32_t px=clamp32(x-r.x-inset-rangeGrabOffset,0,length);
-    int32_t next=normalized(i,int32_t(int64_t(n.minimum)+(int64_t(n.maximum)-n.minimum)*px/length));
+    const auto geometry=detail::rangeGeometry(r,style,(n.flags&VerticalRange)!=0,true,state()[i].value,n.minimum,n.maximum);
+    const int32_t length=geometry.length,px=geometry.coordinate(r,x,y,rangeGrabOffset);
+    const int64_t span=int64_t(n.maximum)-n.minimum;
+    const int32_t delta=geometry.vertical?startY-y:x-startX;
+    const int64_t raw=rangeThumbContact?int64_t(startValue)+span*delta/length:int64_t(n.minimum)+span*px/length;
+    int32_t next=normalized(i,int32_t(std::max<int64_t>(n.minimum,std::min<int64_t>(n.maximum,raw))));
     if(next!=state()[i].value) { state()[i].value=next;changed=true;invalidate(i);dispatch(i,EventType::Input); }
   }
   void pointerDown(int32_t px,int32_t py,uint32_t now) {
@@ -1321,14 +1329,13 @@ struct View::Impl {
       navigationFooterContact=true;navigationDot=navigationDotAt(*g,x,y);target=activeControl=-1;
     }
     if(input) { int candidate=activeControl>=0?activeControl:target;for(;candidate>=0&&!focusable(candidate,false);candidate=parent(candidate)){}if(candidate>=0)setFocus(candidate,false); }
-    rangeGrabOffset=0;
+    rangeGrabOffset=0;rangeThumbContact=false;
     if(activeControl>=0) startValue=state()[activeControl].value;
     if(activeControl>=0&&page().nodes[activeControl].kind==Kind::Range) {
       const NodeDesc &n=page().nodes[activeControl];const Style &style=styleFor(page(),state(),activeControl);const Rect r=contentBox(rect(activeControl),style);
-      const int32_t tw=std::min<int32_t>(r.width,style.thumbWidth),th=std::min<int32_t>(r.height,style.thumbHeight),inset=tw/2;
-      const int32_t length=std::max<int32_t>(1,r.width-2*inset);
-      const int32_t center=r.x+inset+int32_t((int64_t(startValue)-n.minimum)*length/(int64_t(n.maximum)-n.minimum));
-      if(contains({center-tw/2,r.y+(r.height-th)/2,tw,th},x,y))rangeGrabOffset=x-center;
+      const auto geometry=detail::rangeGeometry(r,style,(n.flags&VerticalRange)!=0,true,startValue,n.minimum,n.maximum);
+      rangeThumbContact=contains(geometry.thumb,x,y);
+      if(rangeThumbContact)rangeGrabOffset=geometry.vertical?y-(geometry.thumb.y+geometry.thumb.height/2):x-(geometry.thumb.x+geometry.thumb.width/2);
     }
     for(int a=target;a>=0;a=parent(a)) {
       const uint16_t f=state()[a].flags;
@@ -1380,7 +1387,7 @@ struct View::Impl {
         if(backPrepared) { drag=Drag::Back;cancelTarget(); }
         else { routeEvent(EventType::NavigationCancel,from,to,RouteAction::Back);allowX=false; }
       }
-      else if(activeControl>=0&&page().nodes[activeControl].kind==Kind::Range&&horizontal&&!canceled) { drag=Drag::Range;owner=activeControl; }
+      else if(activeControl>=0&&page().nodes[activeControl].kind==Kind::Range&&horizontal==!(page().nodes[activeControl].flags&VerticalRange)&&!canceled) { drag=Drag::Range;owner=activeControl; }
       else if((horizontal&&allowX)||(!horizontal&&allowY)) {
         bool contained=false;
         for(int a=target;a>=0;a=parent(a)) {
@@ -1632,7 +1639,7 @@ struct View::Impl {
     }
     if(i>begin&&y<r.height)line(i);
   }
-  void prepareCache(const PageDesc &p,const std::vector<State> &s,FrameCache &cache,int32_t visibleHeight=-1) {
+  void prepareCache(const PageDesc &p,const RetainedVector<State> &s,FrameCache &cache,int32_t visibleHeight=-1) {
     cache.nodes.resize(p.count);cache.words=(size_t(p.count)+31)/32;cache.bandHeight=(int32_t(p.height)+31)/32;
     cache.bands.assign(cache.words*32,0);
     cache.lines.clear();
@@ -1659,7 +1666,7 @@ struct View::Impl {
   // Pixel-only surface repairs retain exact geometry, bands and unchanged text
   // layouts. Compact copied line ranges each time so changing line counts never
   // grow a history of obsolete layouts in the retained surface.
-  void prepareVisualCache(const PageDesc &p,const std::vector<State> &s,const std::vector<State> &previous,
+  template<class Previous> void prepareVisualCache(const PageDesc &p,const RetainedVector<State> &s,const Previous &previous,
                           const FrameCache &source,FrameCache &cache) {
     cache.nodes=source.nodes;cache.bands=source.bands;cache.words=source.words;cache.bandHeight=source.bandHeight;cache.lines.clear();
     for(uint16_t i=0;i<p.count;++i){auto &g=cache.nodes[i];const auto &old=source.nodes[i];
@@ -1685,7 +1692,7 @@ struct View::Impl {
     canvas.setViewport(clipped.x,clipped.y,clipped.width,clipped.height,false);
   }
   struct ComponentPaint { bool selected=false,select=false,expanded=false,list=false; };
-  ComponentPaint componentPaint(const PageDesc &p,const std::vector<State> &values,Id id) const {
+  ComponentPaint componentPaint(const PageDesc &p,const RetainedVector<State> &values,Id id) const {
     ComponentPaint result;
     // A transition may paint an outgoing page while page() already points at
     // its destination. Read selection and expansion from the painted snapshot.
@@ -1759,7 +1766,7 @@ struct View::Impl {
     uint16_t bg=selected?s.thumbColor:disabled?s.disabledColor:(pressed?s.pressedColor:s.background);
     const bool transparent=!selected&&(disabled?(v.flags&DisabledTransparent)!=0:
       pressed?(v.flags&ActiveTransparent)!=0:(v.flags&Transparent)!=0);
-    const bool gradient=!selected&&(disabled?(v.flags&GradientDisabled)!=0:pressed?(v.flags&GradientActive)!=0:true);
+    const bool gradient=!(n.flags&RangeFillGradient)&&!selected&&(disabled?(v.flags&GradientDisabled)!=0:pressed?(v.flags&GradientActive)!=0:true);
     if(!transparent)rounded(r,bg,s.borderColor,s,gradient,i,clipped);
     else for(int b=0;b<s.borderWidth&&2*b<std::min<int32_t>(r.width,r.height);++b)
       canvas.drawRoundRect(r.x+b,r.y+b,r.width-2*b,r.height-2*b,std::max<int32_t>(0,std::min<int32_t>(s.radius,std::min<int32_t>(r.width,r.height)/2)-b),s.borderColor);
@@ -1851,12 +1858,16 @@ struct View::Impl {
       const int left=r.x+(r.width-(count*step-n.pager.dotGap))/2,top=r.y+r.height-(n.pager.indicatorHeight+size)/2;
       for(int j=0;j<count;++j)canvas.fillRoundRect(left+j*step,top,size,size,size/2,j==v.value?s.fillColor:s.trackColor);
     } else if(n.kind==Kind::Range||n.kind==Kind::Progress) {
-      const int32_t tw=std::min<int32_t>(r.width,s.thumbWidth),th=std::min<int32_t>(r.height,s.thumbHeight),inset=n.kind==Kind::Range?tw/2:0;
-      const int32_t length=std::max<int32_t>(1,r.width-2*inset),track=std::min<int32_t>(r.height,s.trackSize);
-      const int32_t pos=n.maximum>n.minimum?int32_t((int64_t(clamp32(v.value,n.minimum,n.maximum))-n.minimum)*length/(int64_t(n.maximum)-n.minimum)):0;
-      canvas.fillRoundRect(r.x+inset,r.y+(r.height-track)/2,length,track,track/2,s.trackColor);
-      if(pos>0)canvas.fillRoundRect(r.x+inset,r.y+(r.height-track)/2,pos,track,track/2,s.fillColor);
-      if(n.kind==Kind::Range){const int32_t x=r.x+inset+pos-tw/2,y=r.y+(r.height-th)/2,radius=std::min<int32_t>(s.thumbRadius,std::min<int32_t>(tw,th)/2);
+      const auto g=detail::rangeGeometry(r,s,(n.flags&VerticalRange)!=0,n.kind==Kind::Range,v.value,n.minimum,n.maximum);
+      const int32_t track=g.vertical?g.track.width:g.track.height;
+      canvas.fillRoundRect(g.track.x,g.track.y,g.track.width,g.track.height,track/2,s.trackColor);
+      if(g.position>0){
+        if((n.flags&RangeFillGradient)&&s.gradient){const auto &fill=*s.gradient;const Rect origin=rect(i);
+          const int32_t projection=int32_t(int64_t(fill.origin)+int64_t(g.fill.x-origin.x)*fill.stepX+int64_t(g.fill.y-origin.y)*fill.stepY);
+          canvas.fillLinearGradientRoundRect(g.fill.x,g.fill.y,g.fill.width,g.fill.height,uint8_t(track/2),fill.colors,projection,fill.stepX,fill.stepY,false);
+        }else canvas.fillRoundRect(g.fill.x,g.fill.y,g.fill.width,g.fill.height,track/2,s.fillColor);
+      }
+      if(n.kind==Kind::Range){const int32_t tw=g.thumb.width,th=g.thumb.height,x=g.thumb.x,y=g.thumb.y,radius=std::min<int32_t>(s.thumbRadius,std::min<int32_t>(tw,th)/2);
         canvas.fillRoundRect(x,y,tw,th,radius,s.trackColor);
         if(tw>2&&th>2)canvas.fillRoundRect(x+1,y+1,tw-2,th-2,std::max<int32_t>(0,radius-1),s.thumbColor);}
     } else if(n.kind==Kind::Checkbox) {
@@ -1872,8 +1883,30 @@ struct View::Impl {
       canvas.fillRoundRect(r.x+inset+int32_t(int64_t(travel)*v.switchPosition/1000),r.y+(r.height-th)/2,tw,th,std::min<int32_t>(s.thumbRadius,std::min<int32_t>(tw,th)/2),s.thumbColor);
     }
   }
+  // Native frames already own an idle tile buffer. Borrow it per node instead
+  // of allocating a full clipped/page-sized opacity underlay. The Native
+  // preflight excludes every target/source alias before any framebuffer write.
+  Status paintNativeAlphaNode(int index,Rect clipped,const DirtyRect &area,uint16_t *pixels,size_t stride,uint8_t alpha) {
+    const int32_t width=int32_t(std::min<size_t>(size_t(clipped.width),capacity));
+    const int32_t rows=int32_t(std::min<size_t>(size_t(clipped.height),capacity/size_t(width)));
+    uint16_t *saved=tileBuffers[0];
+    for(int32_t y=clipped.y;y<clipped.y+clipped.height;y+=rows)for(int32_t x=clipped.x;x<clipped.x+clipped.width;x+=width){
+      const Rect chunk{x,y,std::min(width,clipped.x+clipped.width-x),std::min(rows,clipped.y+clipped.height-y)};
+      auto *target=pixels+size_t(chunk.y-area.y)*stride+size_t(chunk.x-area.x);
+      for(int32_t row=0;row<chunk.height;++row)memcpy(saved+size_t(row)*chunk.width,target+size_t(row)*stride,size_t(chunk.width)*2);
+      // A node may temporarily enlarge its viewport. Bind the borrowed tile
+      // itself to this chunk so no such helper can touch another chunk early.
+      const Status attached=canvas.attach(DirtyRect(chunk.x,chunk.y,chunk.width,chunk.height),target,
+        size_t(chunk.height-1)*stride+size_t(chunk.width),stride,PixelOrder::Native);
+      if(attached!=Status::Ok)return attached;
+      paintNode(index,chunk);
+      rgb565_blend::nativeRows(target,stride,saved,size_t(chunk.width),size_t(chunk.width),size_t(chunk.height),alpha);
+    }
+    return canvas.attach(area,pixels,size_t(area.height-1)*stride+size_t(area.width),stride,PixelOrder::Native);
+  }
 #include "MotionRender.inc.h"
 #include "TextInput.inc.h"
+#include "OpaqueCover.inc.h"
   static Status render(void *context,const DirtyRect &requestedArea,uint16_t *pixels,size_t stride) {
     Impl &self=*static_cast<Impl *>(context);
     DirtyRect area=requestedArea;
@@ -1899,8 +1932,8 @@ struct View::Impl {
     }
     RenderTimer timer(self);
     ++self.stats.renderedTiles;self.stats.renderedPixels+=uint64_t(area.width)*area.height;
-    const size_t available=self.buildingSurface?size_t(area.height-1)*stride+size_t(area.width):self.capacity;
-    Status result=self.canvas.attach(area,pixels,available,stride,PixelOrder::Wire);if(result!=Status::Ok)return result;
+    const size_t available=(self.buildingSurface||self.renderingFullFrameSurface)?size_t(area.height-1)*stride+size_t(area.width):self.capacity;
+    Status result=self.canvas.attach(area,pixels,available,stride,self.buildingSurface?PixelOrder::Wire:self.renderOrder);if(result!=Status::Ok)return result;
     // A modal keyboard paints an opaque full-width background. Skip every
     // covered page node; a dock leaves only the band above it to rasterize.
     // This also applies to circular output, whose physical clip is imposed by
@@ -1909,10 +1942,24 @@ struct View::Impl {
       area.height=std::max<int32_t>(0,std::min<int32_t>(area.height,self.snapshotKeyboard.rect.y-area.y));
       if(!area.height){self.paintKeyboard({requestedArea.x,requestedArea.y,requestedArea.width,requestedArea.height});self.canvas.detach();return Status::Ok;}
     }
+    // A stationary cached enter/exit fade uses a constant background.
+    // Blend immutable pixels directly without materializing an underlay.
+    if(self.renderOrder==PixelOrder::Wire&&!self.buildingSurface&&self.snapshotTransition&&!self.previewPage&&self.snapshotSurface&&
+       (self.snapshotPhase==TransitionPhase::Enter||self.snapshotPhase==TransitionPhase::Exit)&&
+       !self.snapshotKeyboard.visible&&!self.snapshotInput&&
+       (self.snapshotGroupIndex<0||!self.snapshotGroup.indicatorHeight)&&
+       !v.x&&!v.y&&v.width==self.snapshotPage->width&&v.height==self.snapshotPage->height&&
+       !self.transitionFrame.outX&&!self.transitionFrame.outY&&!self.transitionFrame.inX&&!self.transitionFrame.inY){
+      const size_t pageWidth=self.snapshotPage->width;
+      const size_t offset=size_t(area.y)*pageWidth+size_t(area.x);
+      rgb565_blend::wireRowsSolid(pixels,stride,self.snapshotSurface->pixels+offset,pageWidth,
+        size_t(area.width),size_t(area.height),self.snapshotBackground,self.transitionFrame.opacity);
+      ++self.surfaceStats.hits;self.canvas.detach();return Status::Ok;
+    }
     // Cached paired fades have exact immutable pixels for both pages. Blend
     // them straight into the tile instead of copying the outgoing page,
     // saving its underlay, painting the incoming page, then blending in place.
-    if(!self.buildingSurface&&self.snapshotTransition&&self.snapshotPhase==TransitionPhase::Paired&&
+    if(self.renderOrder==PixelOrder::Wire&&!self.buildingSurface&&self.snapshotTransition&&self.snapshotPhase==TransitionPhase::Paired&&
        self.previewPage&&self.snapshotSurface&&self.previewSurface&&!self.snapshotKeyboard.visible&&
        !self.snapshotInput&&(self.snapshotGroupIndex<0||!self.snapshotGroup.indicatorHeight)&&
        !self.transitionFrame.outX&&!self.transitionFrame.outY&&!self.transitionFrame.inX&&!self.transitionFrame.inY){
@@ -1925,7 +1972,11 @@ struct View::Impl {
     }
     const PageDesc *activePage=self.snapshotPage;
     const int activePressed=self.snapshotPressed;
-    if(self.snapshotTransition&&!self.previewPage){
+    const bool transitionCover=self.renderOrder==PixelOrder::Native&&!self.buildingSurface&&self.opaqueCoverTransition()&&
+      self.opaqueCoverAt(self.snapshotCache,area,
+        self.snapshotPhase==TransitionPhase::Enter?self.transitionFrame.inX:self.transitionFrame.outX,
+        self.snapshotPhase==TransitionPhase::Enter?self.transitionFrame.inY:self.transitionFrame.outY)>=0;
+    if(self.snapshotTransition&&!self.previewPage&&!transitionCover){
       self.canvas.setViewport(area.x,area.y,area.width,area.height,false);
       self.canvas.fillRect(area.x,area.y,area.width,area.height,self.snapshotBackground);
     }
@@ -1955,7 +2006,10 @@ struct View::Impl {
       }
       self.canvas.setViewport(area.x,area.y,area.width,area.height,false);
       const Surface *surface=self.previewPage&&layer==0?self.previewSurface:self.snapshotSurface;
-      if(!self.buildingSurface&&surface){
+      if(!self.buildingSurface&&self.snapshotAnimationSurface&&!self.previewPage){
+        result=self.paintAnimationSurface(area);
+        if(result!=Status::Ok){self.canvas.detach();return result;}
+      }else if(!self.buildingSurface&&surface){
         ++self.surfaceStats.hits;
         const Rect source=self.renderingViewport?v:Rect{0,0,self.snapshotPage->width,self.snapshotPage->height};
         result=self.canvas.blit(source.x+self.paintOffsetX,source.y+self.paintOffsetY,
@@ -1964,12 +2018,19 @@ struct View::Impl {
       } else {
       if(!self.buildingSurface&&!self.surfaces.empty())++self.surfaceStats.misses;
       const Rect source=self.renderingViewport?v:Rect{0,0,self.snapshotPage->width,self.snapshotPage->height};
-      self.canvas.fillRect(source.x+self.paintOffsetX,source.y+self.paintOffsetY,source.width,source.height,self.snapshotPage->background);
+      const int opaqueCover=self.opaqueCover(area);
+      int firstPaint=opaqueCover;
+      if(opaqueCover>=0)if(auto *panel=nice_gfx::detail::DisplayAccess::panel(self.display)){
+        bool painted=false;result=self.blitOpaqueCover(*panel,opaqueCover,area,painted);
+        if(result!=Status::Ok){self.canvas.detach();return result;}
+        if(painted)++firstPaint;
+      }
+      if(opaqueCover<0)self.canvas.fillRect(source.x+self.paintOffsetX,source.y+self.paintOffsetY,source.width,source.height,self.snapshotPage->background);
       const FrameCache &cache=*self.paintCache;
       const int firstBand=clamp32((area.y-self.paintOffsetY)/cache.bandHeight,0,31),lastBand=clamp32((area.y+area.height-1-self.paintOffsetY)/cache.bandHeight,0,31);
       for(size_t word=0;word<cache.words;++word){uint32_t candidates=0;
       for(int band=firstBand;band<=lastBand;++band)candidates|=cache.bands[size_t(band)*cache.words+word];
-      while(candidates){uint32_t bits=candidates;int bit=0;while(!(bits&1)){bits>>=1;++bit;}candidates&=candidates-1;const int i=int(word*32)+bit;++self.stats.candidateNodes;
+      while(candidates){uint32_t bits=candidates;int bit=0;while(!(bits&1)){bits>>=1;++bit;}candidates&=candidates-1;const int i=int(word*32)+bit;if(i<firstPaint)continue;++self.stats.candidateNodes;
       const Geometry &g=cache.nodes[i];Rect clipped=intersect(g.clip,g.rect);
       if(self.renderingViewport)clipped=intersect(clipped,v);
       clipped.x+=self.paintOffsetX;clipped.y+=self.paintOffsetY;
@@ -1977,6 +2038,10 @@ struct View::Impl {
       const uint8_t alpha=g.alpha;if(!alpha)continue;++self.stats.paintedNodes;
       if(self.snapshotPage->nodes[i].motion){const auto &m=self.motionPose(*self.snapshotPage,self.snapshot,i);
         if(m.scale!=1024||m.rotation%360!=0){self.paintTransformedNode(i,clipped,area,pixels,stride,alpha);continue;}}
+      if(alpha<255&&self.renderOrder==PixelOrder::Native){
+        result=self.paintNativeAlphaNode(i,clipped,area,pixels,stride,alpha);
+        if(result!=Status::Ok){self.canvas.detach();return result;}continue;
+      }
       if(alpha<255) {
         const size_t needed=size_t(clipped.width)*clipped.height;
         if(self.underlay.size()<needed)self.underlay.resize(needed);
@@ -2054,14 +2119,71 @@ struct View::Impl {
       transitionFrame=groupMotion.vertical?TransitionSample{0,offset,0,incoming,255,true}:TransitionSample{offset,0,incoming,0,255,true};snapshotPressed=-1;
       if(groupMotion.prepared){previewPage=&page();previewSnapshot=state();previewMotions=pageMotions[history.back()];snapshotPage=&project->pages[groupMotion.destination];snapshot=pages[groupMotion.destination];snapshotMotions=pageMotions[groupMotion.destination];}
     }
-    snapshotSurface=previewSurface=nullptr;
+    snapshotSurface=previewSurface=nullptr;snapshotAnimationSurface=nullptr;snapshotAnimationLayerCount=0;
+    // Hydrate a retained terminal key before exact-match and animation-atlas
+    // checks. The other page remains protected throughout a paired snapshot.
+    // CPU RGB fades can merge exact cold run streams without decoding two
+    // complete pages merely to read them back for this one transition.
+    if(!compressedFadeKeysReady()){
+      restoreSurfacePage(*snapshotPage,previewPage);
+      if(previewPage)restoreSurfacePage(*previewPage,snapshotPage);
+    }
     const bool keyboardCovers=snapshotKeyboard.visible&&snapshotKeyboard.fullscreen&&!snapshotTransition&&!previewPage;
     const bool plainFocus=snapshotInput&&!snapshotTransition&&!previewPage&&snapshotFocus>=0;
     if(!keyboardCovers&&snapshotPressed<0&&!plainFocus)snapshotSurface=findSurface(*snapshotPage,snapshot);
     if(previewPage)previewSurface=findSurface(*previewPage,previewSnapshot);
+    const bool exactBeforePatch=snapshotSurface!=nullptr;
+    // With an exact outgoing surface, prefetch beside its cheap first copy.
+    // A stale first frame already pays for repair; defer its prefetch until
+    // the following PPA fade step to keep both completion intervals bounded.
+    if(snapshotTransition&&snapshotPhase==TransitionPhase::Exit&&transition.config.effect==TransitionEffect::Fade&&
+       transitionFrame.opacity>0&&(transitionFrame.opacity<255||exactBeforePatch)&&transition.destination>=0)
+      restoreSurfacePage(project->pages[transition.destination],snapshotPage,previewPage);
+    if(!snapshotSurface)findAnimationSurface();
+    bool geometryPrepared=false,previewGeometryPrepared=false,transitionRepairAttempted=false;
+    // Prefer a bounded retained repair during page motion. Native rendering
+    // remains first for ordinary live maps, while changed route labels must
+    // not force a static page to rerasterize at every slide sample.
+    if(!keyboardCovers&&!snapshotSurface&&!snapshotAnimationSurface&&snapshotPressed<0&&!plainFocus){
+      uint64_t repairBudget=0;
+      if(snapshotTransition&&snapshotPhase==TransitionPhase::Enter&&!previewPage&&transitionFrame.opacity==255&&
+         !snapshotMotionRect.x&&!snapshotMotionRect.y&&snapshotMotionRect.width==snapshotPage->width&&snapshotMotionRect.height==snapshotPage->height){
+        const Rect visible=intersect({0,0,snapshotPage->width,snapshotPage->height},
+          {transitionFrame.inX,transitionFrame.inY,snapshotPage->width,snapshotPage->height});
+        if(visible.width<=0||visible.height<=0)repairBudget=std::max<uint64_t>(uint64_t(capacity)*4,uint64_t(snapshotPage->width)*snapshotPage->height/2);
+      }
+      // Always keep supported slide roots in their terminal pose in a retained
+      // atlas. The larger first-entry budget is available only while the whole
+      // page is outside the screen; visible/component-only repairs stay small.
+      if(repairTerminalAnimationSurface(geometryPrepared,repairBudget))findAnimationSurface();
+      if(snapshotTransition&&!snapshotAnimationSurface){
+        snapshotSurface=patchSurface(geometryPrepared,repairBudget);transitionRepairAttempted=true;
+      }
+    }
+    // Native/PPA composition can write before Refresh::start. Keep those
+    // writes in the same whole-frame transaction as the eventual refresh;
+    // only the scheduler may publish after every region has completed.
+    auto *framePanel=nice_gfx::detail::DisplayAccess::panel(display);
+    if(!framePanel)return Status::NotInitialized;
+    DirtyRect frameDamage[16];const size_t frameDamageCount=refresh->pendingRegions();
+    if(frameDamageCount>16)return Status::InvalidArgument;
+    for(size_t i=0;i<frameDamageCount;++i)if(!refresh->pendingRegion(i,frameDamage[i]))return Status::InvalidArgument;
+    const Status frameStarted=framePanel->beginFrame(frameDamage,frameDamageCount);
+    if(frameStarted!=Status::Ok)return frameStarted;
+    struct SnapshotFrameGuard {
+      nice_gfx::Panel *panel;
+      ~SnapshotFrameGuard(){if(panel)panel->abortFrame();}
+    } frameGuard{framePanel};
+    NativeRenderFrame nativeFrame;const Status nativeStatus=prepareNativeRender(nativeFrame);
+    if(nativeStatus!=Status::Ok&&nativeStatus!=Status::Unsupported)return nativeStatus;
+    const bool nativeReady=nativeStatus==Status::Ok;
     ++stats.frames;
-    bool geometryPrepared=false,previewGeometryPrepared=false;
-    if(previewPage&&!previewSurface&&snapshotTransition&&snapshotPhase==TransitionPhase::Paired){
+    if(nativeReady){
+      prepareNativeGeometry(*snapshotPage,snapshot,snapshotCache);geometryPrepared=true;
+      if(previewPage&&!previewSurface){prepareNativeGeometry(*previewPage,previewSnapshot,previewCache);previewGeometryPrepared=true;}
+      partitionNativeRegions(nativeFrame);
+    }
+    if(!nativeReady&&previewPage&&!previewSurface&&snapshotTransition&&snapshotPhase==TransitionPhase::Paired){
       // A dynamic image can be published just before navigation, before its
       // page surface receives a normal refresh. Repair against the captured
       // outgoing key once, using the same bounded policy as the incoming page.
@@ -2078,8 +2200,8 @@ struct View::Impl {
       snapshotPage=incomingPage;previewPage=outgoingPage;paintCache=savedPaint;
       snapshotPressed=savedPressed;snapshotFocus=savedFocus;snapshotGroupIndex=savedGroup;
     }
-    if(!keyboardCovers&&!snapshotSurface&&snapshotPressed<0&&!plainFocus)snapshotSurface=patchSurface(geometryPrepared);
-    if(!keyboardCovers&&!snapshotSurface&&!geometryPrepared)prepareCache(*snapshotPage,snapshot,snapshotCache,
+    if(!nativeReady&&!transitionRepairAttempted&&!keyboardCovers&&!snapshotSurface&&!snapshotAnimationSurface&&snapshotPressed<0&&!plainFocus)snapshotSurface=patchSurface(geometryPrepared);
+    if(!keyboardCovers&&!snapshotSurface&&!snapshotAnimationSurface&&!geometryPrepared)prepareCache(*snapshotPage,snapshot,snapshotCache,
       snapshotKeyboard.visible&&!snapshotTransition&&!previewPage?snapshotKeyboard.rect.y:-1);
     if(previewPage&&!previewSurface&&!previewGeometryPrepared)prepareCache(*previewPage,previewSnapshot,previewCache);
     bool direct=snapshotSurface&&!snapshotTransition&&!previewPage&&!snapshotKeyboard.visible&&!snapshotInput&&
@@ -2089,6 +2211,9 @@ struct View::Impl {
     const int32_t w=snapshotPage->width,h=snapshotPage->height;
     const Rect viewport=snapshotMotionRect;
     const auto &t=transitionFrame;
+    if(!direct){const Status cpuFade=prepareCpuCachedFade(surface);
+      if(cpuFade==Status::Ok)direct=true;
+      else if(cpuFade!=Status::Unsupported)return cpuFade;}
     // Preserve authored fade timing. Cached immutable pages permit one PPA
     // transaction for the whole frame. Refresh borrows scratch until complete;
     // the start() busy gate prevents reuse while a transfer still reads it.
@@ -2098,22 +2223,41 @@ struct View::Impl {
       viewport.x==0&&viewport.y==0&&viewport.width==w&&viewport.height==h&&
       t.outX==0&&t.outY==0&&t.inX==0&&t.inY==0&&
       !snapshotKeyboard.visible&&!snapshotInput&&(snapshotGroupIndex<0||!snapshotGroup.indicatorHeight);
-    if(pairedFade){
+    const bool singleFade=rgb565_ppa::Context::available()&&snapshotTransition&&!previewPage&&snapshotSurface&&
+      (snapshotPhase==TransitionPhase::Enter||snapshotPhase==TransitionPhase::Exit)&&transition.config.effect==TransitionEffect::Fade&&
+      viewport.x==0&&viewport.y==0&&viewport.width==w&&viewport.height==h&&
+      !t.outX&&!t.outY&&!t.inX&&!t.inY&&!snapshotKeyboard.visible&&!snapshotInput&&
+      (snapshotGroupIndex<0||!snapshotGroup.indicatorHeight);
+    if(pairedFade||singleFade){
       auto *panel=nice_gfx::detail::DisplayAccess::panel(display);
       const PixelView incoming(snapshotSurface->pixels,w,h,0,PixelOrder::Wire);
-      const PixelView outgoing(previewSurface->pixels,w,h,0,PixelOrder::Wire);
-      if(panel&&panel->supportsFrameBlit()&&panel->canFrameBlit(incoming)&&panel->canFrameBlit(outgoing)){
-        if(!t.opacity){surface=outgoing;direct=true;}
+      const PixelView outgoing(previewSurface?previewSurface->pixels:nullptr,w,h,0,PixelOrder::Wire);
+      if(panel&&panel->supportsFrameBlit()&&panel->canFrameBlit(incoming)&&(!pairedFade||panel->canFrameBlit(outgoing))){
+        if(!t.opacity&&singleFade){
+          pieces[0].area=DirtyRect(0,0,w,h);pieces[0].solid=true;pieces[0].color=snapshotBackground;count=1;
+        }
+        else if(!t.opacity&&pairedFade){surface=outgoing;direct=true;}
         else if(t.opacity==255){surface=incoming;direct=true;}
         else if(panel->canFrameBlit(PixelView(snapshotSurface->pixels,w,h,0,PixelOrder::Native))) {
           RenderTimer timer(*this);
           const uint32_t started=profilingClock?profilingClock():0;
-          const uint16_t *blended=ppaFade.blendSourcesToNative(snapshotSurface->pixels,w,previewSurface->pixels,w,w,h,t.opacity);
+          nice_gfx::NativeFramebuffer frame{};
+          const Status mapStatus=panel->mapNativeFramebuffer(frame);
+          if(mapStatus!=Status::Ok&&mapStatus!=Status::Unsupported)return mapStatus;
+          const bool mapped=mapStatus==Status::Ok;
+          const uint16_t *blended=nullptr;
+          if(mapped){
+            const bool okay=singleFade?ppaFade.blendSolidIntoNative(frame.pixels,frame.stride,frame.bytes,
+              snapshotSurface->pixels,w,w,h,snapshotBackground,t.opacity):
+              ppaFade.blendSourcesIntoNative(frame.pixels,frame.stride,frame.bytes,snapshotSurface->pixels,w,
+                previewSurface->pixels,w,w,h,t.opacity);
+            if(okay)blended=frame.pixels;
+          }else if(pairedFade)blended=ppaFade.blendSourcesToNative(snapshotSurface->pixels,w,previewSurface->pixels,w,w,h,t.opacity);
           if(blended){
-            surface=PixelView(blended,w,h,0,PixelOrder::Native);direct=true;
+            surface=PixelView(blended,w,h,mapped?frame.stride:0,PixelOrder::Native);direct=true;
             ++stats.ppaBlendCalls;stats.ppaBlendPixels+=uint64_t(w)*h;
             if(profilingClock)stats.ppaBlendMicros+=profilingClock()-started;
-          }else ++stats.ppaBlendFailures; // Exact original CPU tile fallback.
+          }else if(mapped||pairedFade)++stats.ppaBlendFailures; // Exact original CPU tile fallback.
         }
       }
     }
@@ -2135,7 +2279,57 @@ struct View::Impl {
       };
       add(previewSurface,t.outX,t.outY);add(snapshotSurface,t.inX,t.inY);
     }
-    return refresh->start(render,this,PixelOrder::Wire,direct?&surface:nullptr,count?pieces:nullptr,count);
+    if(snapshotTransition&&!previewPage&&snapshotSurface&&
+       (snapshotPhase==TransitionPhase::Enter||snapshotPhase==TransitionPhase::Exit)&&t.opacity==255&&
+       transition.config.effect!=TransitionEffect::Fade&&
+       viewport.x==0&&viewport.y==0&&viewport.width==w&&viewport.height==h&&
+       !snapshotKeyboard.visible&&!snapshotInput&&(snapshotGroupIndex<0||!snapshotGroup.indicatorHeight)){
+      const int32_t x=snapshotPhase==TransitionPhase::Enter?t.inX:t.outX;
+      const int32_t y=snapshotPhase==TransitionPhase::Enter?t.inY:t.outY;
+      const Rect visible=intersect({0,0,w,h},{x,y,w,h});
+      const auto solid=[&](Rect r){if(r.width<=0||r.height<=0)return;auto &p=pieces[count++];
+        p.area=DirtyRect(r.x,r.y,r.width,r.height);p.solid=true;p.color=snapshotBackground;};
+      if(visible.width<=0||visible.height<=0)solid({0,0,w,h});
+      else {
+        solid({0,0,w,visible.y});solid({0,visible.y+visible.height,w,h-visible.y-visible.height});
+        solid({0,visible.y,visible.x,visible.height});solid({visible.x+visible.width,visible.y,w-visible.x-visible.width,visible.height});
+        auto &p=pieces[count++];p.area=DirtyRect(visible.x,visible.y,visible.width,visible.height);
+        p.pixels=PixelView(snapshotSurface->pixels+size_t(visible.y-y)*w+size_t(visible.x-x),
+          visible.width,visible.height,w,PixelOrder::Wire);
+      }
+    }
+    if(!direct&&!count){
+      const Status coldFade=prepareColdFade(surface);
+      if(coldFade==Status::Ok)direct=true;
+      else if(coldFade!=Status::Unsupported)return coldFade;
+    }
+    // Translation-only component layers reuse a terminal page as an atlas.
+    // Compose directly into a mapped native framebuffer when available. The
+    // transport performs conversion and card copies with PPA on ESP32-S31.
+    // Other displays can borrow an existing cache slot for one full-frame blit.
+    if(!direct&&!count&&snapshotAnimationSurface&&(!snapshotTransition||t.opacity==255)){
+      auto *panel=nice_gfx::detail::DisplayAccess::panel(display);
+      if(panel&&panel->supportsFrameBlit()){
+        nice_gfx::NativeFramebuffer native{};Status composed;
+        {RenderTimer timer(*this);composed=composeAnimationNative(*panel,native);}
+        if(composed==Status::Ok){surface=PixelView(native.pixels,w,h,native.stride,PixelOrder::Native);direct=true;}
+        else if(composed!=Status::Unsupported)return composed;
+      }
+      if(!direct&&panel&&panel->supportsFrameBlit())if(auto *frame=acquireFrameSurface(snapshotAnimationSurface,snapshotSurface,previewSurface)){
+        const PixelView candidate(frame->pixels,w,h,0,PixelOrder::Wire);
+        if(panel->canFrameBlit(candidate)){
+          renderingFullFrameSurface=true;const Status composed=render(this,DirtyRect(0,0,w,h),frame->pixels,w);renderingFullFrameSurface=false;
+          if(composed==Status::Ok){surface=candidate;direct=true;}
+        }
+      }
+    }
+    if(!direct&&!count&&nativeReady){
+      const Status painted=paintNativeRender(nativeFrame);if(painted!=Status::Ok)return painted;
+      surface=PixelView(nativeFrame.frame.pixels,w,h,nativeFrame.frame.stride,PixelOrder::Native);direct=true;
+    }
+    const Status started=refresh->start(render,this,PixelOrder::Wire,direct?&surface:nullptr,count?pieces:nullptr,count);
+    if(started==Status::Ok&&refresh->busy())frameGuard.panel=nullptr;
+    return started;
   }
   void releaseSnapshot() { if(!refresh->busy()){snapshot.clear();snapshotMotions.clear();previewSnapshot.clear();previewMotions.clear();previewPage=nullptr;snapshotSurface=previewSurface=nullptr;} }
   void completedFrame() {
@@ -2216,7 +2410,7 @@ Status View::mount(const ProjectDesc &p) {
   }
   s.refresh->cancel();s.processing=true;s.cancel();s.processing=false;s.animation.active=s.inertia.active=s.backAnimation.active=false;s.backOffset=0;s.backPrepared=false;s.project=&p;s.lookupPage=nullptr;s.components=nullptr;s.componentCount=0;s.componentsPage=nullptr;s.componentLinks.clear();s.componentNodes.clear();s.pages.clear();s.pages.resize(p.count);s.pageMotions.clear();s.pageMotions.resize(p.count);s.history.assign(1,p.initial);s.pendingNavigation=false;
   s.tickPage=nullptr;s.animationNodes.clear();s.mediaNodes.clear();
-  s.clearSurfaces();s.snapshot.clear();s.snapshotMotions.clear();s.previewSnapshot.clear();s.previewMotions.clear();s.snapshotCache=Impl::FrameCache{};s.previewCache=Impl::FrameCache{};s.updateDepth=0;s.transition=Impl::Transition{};s.initializeActive();
+  s.clearSurfaces();s.clearNativeGeometryMemo();s.snapshot.clear();s.snapshotMotions.clear();s.previewSnapshot.clear();s.previewMotions.clear();s.snapshotCache=Impl::FrameCache{};s.previewCache=Impl::FrameCache{};s.updateDepth=0;s.transition=Impl::Transition{};s.initializeActive();
   s.softInput=Impl::SoftInput{};s.snapshotKeyboard=Impl::SoftInput{};s.keyboardPointer=s.keyboardFieldPointer=s.keyboardSpacePointer=s.keyboardTrackpad=s.keyboardPickerPointer=s.keyboardBackspaceRepeat=s.keyboardBackspacePaused=false;s.keyboardPressed.clear();s.keyInput=s.snapshotKeyInput=s.snapshotInput=false;
   s.snapshotTransition=false;s.previewPage=nullptr;s.previewSnapshot.clear();
   s.history[0]=p.initial;s.input=nullptr;s.focusIndexConfig=nullptr;s.navigation=nullptr;s.gesture=nullptr;s.groupMotion=Impl::GroupMotion{};s.snapshotGroupIndex=-1;s.navigationDot=-1;s.navigationFooterContact=false;s.pageFocus.assign(p.count,0);s.focusNode=s.focusScope=s.editNode=-1;++s.inputEpoch;s.enterAnimations();s.refresh->invalidateAll();
@@ -2283,7 +2477,7 @@ bool View::configureNavigation(const NavigationDesc *config){
   auto &s=*impl_;if(s.processing||(config&&!s.validNavigation(*config)))return false;
   s.processing=true;s.cancel();s.navigation=config;s.refresh->invalidateAll();s.endProcessing();return true;
 }
-bool View::configureRenderCache(uint16_t *storage,size_t pixels){return impl_->configureSurfaces(storage,pixels);}
+bool View::configureRenderCache(uint16_t *storage,size_t pixels,size_t compressedPixels){return impl_->configureSurfaces(storage,pixels,compressedPixels);}
 bool View::prewarmRenderCache(const char *path){return impl_->prewarmSurface(path);}
 bool View::configureCircularClip(bool enabled){
   auto &s=*impl_;if(s.processing||s.refresh->busy()||s.groupMotion.active||s.transition.active||s.backAnimation.active||s.animation.active||s.inertia.active||s.animationsRunning())return false;
@@ -2318,6 +2512,7 @@ uint32_t View::inputGeneration() const { return impl_->inputEpoch; }
 void View::setRouteGuard(RouteGuard cb,void *context){impl_->guard=cb;impl_->guardContext=context;}
 bool View::push(const char *path){return impl_->navigate(path,RouteAction::Push);}
 bool View::transitioning()const{return impl_->transition.active||impl_->groupMotion.settling;}
+bool View::transitionFramePending()const{return impl_->transition.active&&impl_->transition.pending;}
 bool View::cancelNavigation(){return !impl_->processing&&impl_->cancelDeparture();}
 bool View::replace(const char *path){return impl_->navigate(path,RouteAction::Replace);}
 bool View::replace(const char *path,const TransitionDesc &transition){return validTransition(transition)&&impl_->navigate(path,RouteAction::Replace,&transition);}
@@ -2417,7 +2612,7 @@ Id View::hitTest(int32_t x,int32_t y)const{const auto &s=*impl_;if(!s.project||s
 bool View::releasePage(const char *path){auto &s=*impl_;if(!s.project||!path||s.processing)return false;
   for(uint16_t i=0;i<s.project->count;++i)if(!strcmp(s.project->pages[i].path,path)){
     if(std::find(s.history.begin(),s.history.end(),i)!=s.history.end()||s.transition.from==&s.project->pages[i]||(s.transition.active&&s.transition.destination==i)||(s.groupMotion.active&&s.groupMotion.destination==i)||(s.refresh->busy()&&(s.snapshotPage==&s.project->pages[i]||s.previewPage==&s.project->pages[i])))return false;
-    s.clearSurfacePage(&s.project->pages[i]);std::vector<Impl::State>().swap(s.pages[i]);std::vector<Impl::MotionRuntime>().swap(s.pageMotions[i]);s.pageFocus[i]=0;return true;
+    s.clearSurfacePage(&s.project->pages[i]);RetainedVector<Impl::State>().swap(s.pages[i]);std::vector<Impl::MotionRuntime>().swap(s.pageMotions[i]);s.pageFocus[i]=0;return true;
   }return false;
 }
 RuntimeStats View::runtimeStats()const{return impl_->stats;}
@@ -2430,7 +2625,7 @@ MemoryStats View::memoryStats()const{const auto &s=*impl_;MemoryStats m;
     const uintptr_t object=reinterpret_cast<uintptr_t>(&value),data=reinterpret_cast<uintptr_t>(value.c_str());
     return data>=object&&data-object<sizeof(value)?0:value.capacity()+1;
   };
-  m.stateBytes=sizeof(Impl)+sizeof(*s.refresh)+s.pages.capacity()*sizeof(std::vector<Impl::State>)+s.history.capacity()*sizeof(uint16_t)+sizeof(std::vector<Impl::Listener>)+s.listeners->capacity()*sizeof(Impl::Listener)+s.pageFocus.capacity()*sizeof(Id)+stringStorage(s.pendingPath)+s.lookup.capacity()*sizeof(uint16_t)+s.eventPaths.capacity()*sizeof(std::vector<int>);
+  m.stateBytes=sizeof(Impl)+sizeof(*s.refresh)+s.pages.capacity()*sizeof(RetainedVector<Impl::State>)+s.history.capacity()*sizeof(uint16_t)+sizeof(std::vector<Impl::Listener>)+s.listeners->capacity()*sizeof(Impl::Listener)+s.pageFocus.capacity()*sizeof(Id)+stringStorage(s.pendingPath)+s.lookup.capacity()*sizeof(uint16_t)+s.eventPaths.capacity()*sizeof(std::vector<int>);
   for(const auto &path:s.eventPaths)m.stateBytes+=path.capacity()*sizeof(int);
   m.stateBytes+=s.focusIndex.capacity()*sizeof(size_t)+s.focusItems.capacity()*sizeof(int);
   m.stateBytes+=(s.animationNodes.capacity()+s.mediaNodes.capacity())*sizeof(uint16_t);
@@ -2439,7 +2634,7 @@ MemoryStats View::memoryStats()const{const auto &s=*impl_;MemoryStats m;
   m.snapshotBytes+=(s.snapshotMotions.capacity()+s.previewMotions.capacity()+s.transition.outgoingMotions.capacity())*sizeof(Impl::MotionRuntime);
   m.stateBytes+=s.componentLinks.capacity()*sizeof(Impl::ComponentLink)+s.componentNodes.capacity()*sizeof(int32_t);
   std::vector<const void *> seen;
-  auto payload=[&](const std::vector<Impl::State> &items){for(const auto &v:items){
+  auto payload=[&](const RetainedVector<Impl::State> &items){for(const auto &v:items){
     if(v.image.impl_&&std::find(seen.begin(),seen.end(),v.image.impl_)==seen.end()){seen.push_back(v.image.impl_);m.payloadBytes+=sizeof(Image::Impl)+v.image.storageBytes();}
     if(v.text.owned&&std::find(seen.begin(),seen.end(),v.text.owned.get())==seen.end()){seen.push_back(v.text.owned.get());m.payloadBytes+=sizeof(std::string)+stringStorage(*v.text.owned);}
     if(v.implicitInput&&std::find(seen.begin(),seen.end(),v.implicitInput.get())==seen.end()){seen.push_back(v.implicitInput.get());m.payloadBytes+=sizeof(InputFieldDesc);}
@@ -2449,12 +2644,18 @@ MemoryStats View::memoryStats()const{const auto &s=*impl_;MemoryStats m;
   }};
   for(const auto &p:s.pages){if(!p.empty())++m.residentPages;m.residentNodes+=p.size();m.stateBytes+=p.capacity()*sizeof(Impl::State);payload(p);}
   for(const auto *p:{&s.snapshot,&s.previewSnapshot,&s.transition.outgoing}){m.snapshotBytes+=p->capacity()*sizeof(Impl::State);payload(*p);}
-  for(const auto *c:{&s.snapshotCache,&s.previewCache})m.geometryBytes+=c->nodes.capacity()*sizeof(Impl::Geometry)+c->lines.capacity()*sizeof(Impl::TextLine)+c->bands.capacity()*sizeof(uint32_t);
+  for(const auto &key:s.nativeGeometryKey)if(key.dynamic&&std::find(seen.begin(),seen.end(),key.dynamic.get())==seen.end()){seen.push_back(key.dynamic.get());m.payloadBytes+=sizeof(DynamicNode);}
+  m.stateBytes+=s.nativeGeometryKey.capacity()*sizeof(Impl::NativeGeometryKey);
+  for(const auto *c:{&s.snapshotCache,&s.previewCache,&s.nativeGeometryCache})m.geometryBytes+=c->nodes.capacity()*sizeof(Impl::Geometry)+c->lines.capacity()*sizeof(Impl::TextLine)+c->bands.capacity()*sizeof(uint32_t);
   // Both SoftInput objects themselves are already part of sizeof(Impl).
   for(const auto *k:{&s.softInput,&s.snapshotKeyboard}){m.payloadBytes+=stringStorage(k->draft)+stringStorage(k->error)+stringStorage(k->pressed);if(k->keys&&std::find(seen.begin(),seen.end(),k->keys.get())==seen.end()){seen.push_back(k->keys.get());m.geometryBytes+=sizeof(std::vector<Impl::SoftKey>)+k->keys->capacity()*sizeof(Impl::SoftKey);for(const auto &key:*k->keys)m.payloadBytes+=stringStorage(key.id)+stringStorage(key.label)+stringStorage(key.value)+stringStorage(key.action);}}
   m.payloadBytes+=stringStorage(s.keyboardTextFrame.draft)+stringStorage(s.keyboardTextFrame.title);
   m.stateBytes+=s.surfaces.capacity()*sizeof(Impl::Surface)+(s.surfaceWanted.capacity()+s.surfacePrewarm.capacity())*sizeof(int);
   for(const auto &entry:s.surfaces){m.snapshotBytes+=entry.key.capacity()*sizeof(Impl::State);payload(entry.key);
+    const auto &c=entry.geometry;m.geometryBytes+=c.nodes.capacity()*sizeof(Impl::Geometry)+c.lines.capacity()*sizeof(Impl::TextLine)+c.bands.capacity()*sizeof(uint32_t);
+  }
+  m.stateBytes+=s.compressedSurfaces.capacity()*sizeof(Impl::CompressedSurface);
+  for(const auto &entry:s.compressedSurfaces){m.snapshotBytes+=entry.key.capacity()*sizeof(Impl::State);payload(entry.key);
     const auto &c=entry.geometry;m.geometryBytes+=c.nodes.capacity()*sizeof(Impl::Geometry)+c.lines.capacity()*sizeof(Impl::TextLine)+c.bands.capacity()*sizeof(uint32_t);
   }
   m.cacheBytes=s.surfacePixels*sizeof(uint16_t);

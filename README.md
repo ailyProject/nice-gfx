@@ -6,6 +6,7 @@ NICE_GFX 是面向彩色屏幕的 Arduino / ESP-IDF 图形库。显示对象在�
 
 - [快速开始](#快速开始)
 - [屏幕与触摸设备支持](docs/DeviceSupport.md)
+- [Waveshare ESP32-S3-Touch-LCD-4B：ST7701、GT911与TCA9554板级配置](examples/HTML_UI/Waveshare4B/README.md)
 - [开发平台支持表](#开发平台支持表)
 - [字体与 Sprite](#字体与-sprite)
 - [设计器界面与设备交互](#设计器界面与设备交互)

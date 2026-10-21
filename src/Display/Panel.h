@@ -37,7 +37,7 @@ class Panel {
     config_.id = profile.id;
     config_.rotationMask = profile.rotations>0&&profile.rotations<=8 ? uint8_t((1U << profile.rotations)-1) : 0;
   }
-  ~Panel() { if (ready_) finish(); }
+  ~Panel() { if (ready_) { if(frameOpen_)abortFrame();else finish(); } }
   Panel(const Panel &) = delete;
   Panel &operator=(const Panel &) = delete;
 
@@ -89,7 +89,7 @@ class Panel {
     if (s != Status::Ok) { bus_.end(); ready_ = false; }
     return record(s);
   }
-  void end() { finish(); bus_.end(); ready_ = false; window_ = false; }
+  void end() { if(frameOpen_)abortFrame();else finish(); bus_.end(); ready_ = false; window_ = false; }
   bool ready() const { return ready_; }
   uint16_t width() const { return rotation_ & 1 ? config_.height : config_.width; }
   uint16_t height() const { return rotation_ & 1 ? config_.width : config_.height; }
@@ -104,6 +104,26 @@ class Panel {
   TransportInfo transportInfo() const { return bus_.info(); }
   bool supportsFrameBlit() const { return bus_.supportsFrameBlit(); }
   bool canFrameBlit(PixelView view) const { return bus_.canFrameBlit(view); }
+  Status mapNativeFramebuffer(NativeFramebuffer &frame) {
+    frame = NativeFramebuffer();
+    if (!ready_) return Status::NotInitialized;
+    // Native storage is in the transport's physical orientation. Only expose
+    // it when it is also exactly this panel's logical coordinate space.
+    if (rotation_ || (profiled_ ? (xOffset_ || yOffset_) : (config_.xOffset[0] || config_.yOffset[0])))
+      return Status::Unsupported;
+    Status s = finish();
+    if (s != Status::Ok) return s;
+    window_ = false;
+    NativeFramebuffer mapped;
+    s = bus_.mapNativeFramebuffer(mapped);
+    if (s != Status::Ok) return s;
+    const PixelView view(mapped.pixels, mapped.width, mapped.height, mapped.stride);
+    if (!view.valid() || mapped.width != width() || mapped.height != height() ||
+        mapped.height > SIZE_MAX / mapped.stride / 2 || mapped.bytes < mapped.stride * mapped.height * 2)
+      return Status::Unsupported;
+    frame = mapped;
+    return Status::Ok;
+  }
   Status setPixelClockHz(uint32_t hz) {
     if(!ready_)return record(Status::NotInitialized);
     const Status s=finish();return s==Status::Ok?record(bus_.setPixelClockHz(hz)):s;
@@ -111,6 +131,39 @@ class Panel {
   Status status() const { return status_; }
   bool asynchronous() const { return bus_.asynchronous(); }
   bool busy() const { return bus_.busy(); }
+  bool frameOpen() const { return frameOpen_; }
+  // A View may pre-open before native/PPA composition; Refresh later accepts
+  // the same immutable dirty set. Repeating begin does not reset a back buffer.
+  Status beginFrame(const DirtyRect *regions,size_t count) {
+    if(!ready_)return record(Status::NotInitialized);
+    if(count&&!regions)return record(Status::InvalidArgument);
+    for(size_t i=0;i<count;++i){const auto &r=regions[i];
+      if(r.x<0||r.y<0||r.width<=0||r.height<=0||int64_t(r.x)+r.width>width()||int64_t(r.y)+r.height>height()||
+         r.x%windowAlignmentX()||r.y%windowAlignmentY()||r.width%windowAlignmentX()||r.height%windowAlignmentY())
+        return record(Status::InvalidArgument);
+    }
+    if(!count||frameOpen_)return Status::Ok;
+    Status s=synchronize();if(s!=Status::Ok)return s;
+    s=bus_.beginFrame(regions,count);
+    if(s==Status::Ok)frameOpen_=true;
+    else {synchronize();bus_.abortFrame();}
+    return record(s);
+  }
+  Status commitFrame() {
+    if(!frameOpen_)return Status::Ok;
+    const Status previous=status_;Status s=synchronize();
+    if(s==Status::Ok)s=bus_.commitFrame();
+    if(s!=Status::Ok){synchronize();bus_.abortFrame();}
+    frameOpen_=false;window_=false;
+    record(s==Status::Ok?previous:s);return s;
+  }
+  Status abortFrame() {
+    if(!ready_)return Status::Ok;
+    const Status previous=status_;Status s=synchronize();
+    if(frameOpen_){const Status aborted=bus_.abortFrame();if(s==Status::Ok)s=aborted;}
+    frameOpen_=false;window_=false;
+    record(s==Status::Ok?previous:s);return s;
+  }
 
   Status setRotation(uint8_t r) {
     if (!ready_) return record(Status::NotInitialized);
@@ -246,7 +299,7 @@ class Panel {
   Status finish() {
     const Status previous=status_;
     Status s=synchronize();
-    if (s==Status::Ok) s=bus_.present();
+    if (s==Status::Ok&&!frameOpen_) s=bus_.present();
     // The return value describes this synchronization attempt, allowing a
     // caller to retry a drained transfer. Keep an earlier operation error in
     // status() until the next explicit successful command/window/pixel write.
@@ -442,7 +495,7 @@ class Panel {
   int reset_;
   Status status_ = Status::NotInitialized;
   uint8_t rotation_ = 0;
-  bool ready_ = false, window_ = false, started_ = false;
+  bool ready_ = false, window_ = false, started_ = false, frameOpen_ = false;
   bool inverted_ = false;
   uint32_t remaining_ = 0;
   size_t used_ = 0;

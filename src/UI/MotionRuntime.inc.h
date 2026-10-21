@@ -14,7 +14,7 @@ std::vector<std::vector<MotionRuntime>> pageMotions;
 std::vector<MotionRuntime> snapshotMotions,previewMotions;
 bool motionCompletionPending=false;
 
-const MotionRuntime &motionPose(const PageDesc &p,const std::vector<State> &values,int i) const {
+const MotionRuntime &motionPose(const PageDesc &p,const RetainedVector<State> &values,int i) const {
   static const MotionRuntime neutral;
   if(i<0||size_t(i)>=values.size()||values[i].motionSlot==NoParent)return neutral;
   const std::vector<MotionRuntime> *poses=nullptr;

@@ -7,7 +7,7 @@
 #include "Components.h"
 #include "Navigation.h"
 #define NICE_GFX_UI_STATS_VERSION 4
-#define NICE_GFX_UI_RENDER_CACHE_VERSION 2
+#define NICE_GFX_UI_RENDER_CACHE_VERSION 3
 #define NICE_GFX_UI_CIRCULAR_CLIP_VERSION 1
 #define NICE_GFX_UI_ACTIONS_VERSION 1
 #define NICE_GFX_UI_NAVIGATION_VERSION 4
@@ -61,6 +61,8 @@ struct RenderCacheStats {
   size_t capacityPages=0, readyPages=0;
   uint64_t hits=0, misses=0, warmedTiles=0;
   uint64_t repairedPages=0, repairPixels=0, lastRepairPixels=0;
+  size_t compressedPages=0,compressedBytes=0,compressedCapacityBytes=0;
+  uint64_t compressedStores=0,compressedRestores=0,compressedRejected=0,compressedEvictions=0;
   // True while eligible cache work is pending. A slot deferred until visual
   // changes become quiet, or an unused capacity slot, is not warming.
   bool warming=false;
@@ -105,13 +107,19 @@ class View {
   // alive until cleared/replaced or destruction. nullptr,0 disables caching.
   // Warming does at most one tile per idle tick and never blocks pointer input.
   // The default remains tiled rendering without full-page allocations.
-  bool configureRenderCache(uint16_t *storage, size_t pixels);
+  // compressedPixels optionally reserves part of this same storage as a
+  // bounded RLE565 cold bank. At least two unpacked page slots must remain.
+  // The default zero preserves the existing uncompressed cache behavior.
+  bool configureRenderCache(uint16_t *storage, size_t pixels, size_t compressedPixels = 0);
   // Opt in to warming a route before its first visit; no navigation/events or
-  // immediate raster work. Requests have priority over automatic cache fills
-  // and are retained until mount/cache reconfiguration. Duplicate requests
-  // succeed. Returns false before mount/cache setup, for an unknown route, or
-  // when distinct requests already fill the configured page capacity. At most
-  // one tile is warmed by a subsequent idle tick; pointer contact pauses it.
+  // immediate raster work. One-shot requests have priority over automatic
+  // fills after the current route, and retire when exact pixels are ready.
+  // Completed routes remain in the bounded LRU cache; requesting one again
+  // refreshes its recency. Duplicate requests succeed. All project routes may
+  // be queued without increasing surface storage. Returns false before mount/
+  // cache setup or for an unknown route. At most one tile is warmed by each
+  // idle tick; pointer contact pauses it. A one-slot cache temporarily yields
+  // the live slot to finish a pending request before restoring the live route.
   bool prewarmRenderCache(const char *path);
   bool renderCacheReady(const char *path) const;
   RenderCacheStats renderCacheStats() const;
@@ -134,6 +142,7 @@ class View {
   // Authored project transition; pointer input is gated until its final frame.
   // A second programmatic navigation returns false while a transition runs.
   bool transitioning() const;
+  bool transitionFramePending() const;
   // True only while a raster frame borrows its snapshot/buffers. busy() also
   // includes animation clocks and gestures waiting for their next frame.
   bool refreshing() const;

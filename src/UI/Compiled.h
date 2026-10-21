@@ -5,6 +5,7 @@
 // Shape motion and configurable pivots are versioned independently below.
 #define NICE_GFX_UI_SHAPE_MOTION_VERSION 1
 #define NICE_GFX_UI_PIVOT_MOTION_VERSION 1
+#define NICE_GFX_UI_VERTICAL_RANGE_VERSION 1
 
 namespace nice_gfx { struct MonoFont; struct MonoIcon; }
 namespace nice_gfx { namespace htmlui {
@@ -20,7 +21,7 @@ enum class RouteAction : uint8_t { None, Push, Replace, Back, Home };
 enum NodeFlags : uint16_t { Hidden = 1, Disabled = 2, Clip = 4, Horizontal = 8, Transparent = 16,
   TouchNone = 32, TouchPanX = 64, TouchPanY = 128, OverscrollContain = 256,
   GradientActive = 512, GradientDisabled = 1024, ActiveTransparent = 2048, DisabledTransparent = 4096,
-  NoAntialias = 8192 };
+  NoAntialias = 8192, VerticalRange = 16384, RangeFillGradient = 32768 };
 struct Rect { int32_t x, y, width, height; };
 // A shared flash-resident RGB565 palette and compiler-generated
 // Q16 palette coordinates. Pixel (x,y) is local to the UNCLIPPED node;

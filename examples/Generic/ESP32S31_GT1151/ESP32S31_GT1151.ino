@@ -2,6 +2,7 @@
 // Official BSP wiring: SDA=0, SCL=1, address=0x14, no GPIO RESET/IRQ.
 // Serial uses the UART connector (115200 baud, USB CDC on boot disabled).
 #include <NICE_GFX.h>
+#include <Drivers/Touch/GT1151.h>
 #include <Platform/Arduino/TouchWire.h>
 
 nice_gfx::TouchWire touchBus(Wire);
