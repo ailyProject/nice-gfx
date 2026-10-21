@@ -1,6 +1,7 @@
 #pragma once
 #include "Compiled.h"
-#include "../Display/Transport.h"
+#include "../Core/Pixel.h"
+#include "../Core/Status.h"
 
 namespace nice_gfx { namespace htmlui {
 

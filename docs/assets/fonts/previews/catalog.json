@@ -9,7 +9,7 @@
   "totalResourceCount": 26,
   "images": [
     {
-      "file": "Fonts/previews/mono-ascii.png",
+      "file": "docs/assets/fonts/previews/mono-ascii.png",
       "width": 1402,
       "height": 2768,
       "sha256": "cd7f74469d971da68d21c3a8a0f276e17b8686b5c86e2c8a1c71d084ab64eaef",
@@ -331,7 +331,7 @@
       ]
     },
     {
-      "file": "Fonts/previews/mono-cjk.png",
+      "file": "docs/assets/fonts/previews/mono-cjk.png",
       "width": 1402,
       "height": 1870,
       "sha256": "2854fd7278d5ec37e3fd0d90b6b25c699246e779fe463fc9d48dc1fa24f7fa04",
@@ -594,7 +594,7 @@
       ]
     },
     {
-      "file": "Fonts/previews/mono/Cozette6x13.png",
+      "file": "docs/assets/fonts/previews/mono/Cozette6x13.png",
       "width": 800,
       "height": 206,
       "sha256": "4c0830b86d685baf9b758cbdd328d1229f398016c30277e85fc7b7dfdd7e4ddf",
@@ -616,7 +616,7 @@
       ]
     },
     {
-      "file": "Fonts/previews/mono/Fixed6x13.png",
+      "file": "docs/assets/fonts/previews/mono/Fixed6x13.png",
       "width": 800,
       "height": 206,
       "sha256": "2f482a8e26dd06cefb1b487e83f509874510a43dffc2891393522adaba128835",
@@ -638,7 +638,7 @@
       ]
     },
     {
-      "file": "Fonts/previews/mono/GfxKaiCN16.png",
+      "file": "docs/assets/fonts/previews/mono/GfxKaiCN16.png",
       "width": 1042,
       "height": 242,
       "sha256": "306dfdb12ca2b71aca3842ef6bad2f04d56b2b428073a5a13c94a96471a3eb60",
@@ -671,7 +671,7 @@
       ]
     },
     {
-      "file": "Fonts/previews/mono/GfxKaiCN24.png",
+      "file": "docs/assets/fonts/previews/mono/GfxKaiCN24.png",
       "width": 1330,
       "height": 282,
       "sha256": "1563b057aa9de297950734299ed3617a2c94431fb7c8f0aba98d73341ed4282a",
@@ -704,7 +704,7 @@
       ]
     },
     {
-      "file": "Fonts/previews/mono/GfxSansBoldCN24.png",
+      "file": "docs/assets/fonts/previews/mono/GfxSansBoldCN24.png",
       "width": 1258,
       "height": 290,
       "sha256": "955071fbeb4044a1ec03e575c7c14c4586b9116a9ac9903b12bd5dc29e98ad4a",
@@ -737,7 +737,7 @@
       ]
     },
     {
-      "file": "Fonts/previews/mono/GfxSansCN12.png",
+      "file": "docs/assets/fonts/previews/mono/GfxSansCN12.png",
       "width": 826,
       "height": 226,
       "sha256": "7c8a2f3c9ba9d4292cb627787668570bb9552ae683f3613a558a6c9f8dc60783",
@@ -770,7 +770,7 @@
       ]
     },
     {
-      "file": "Fonts/previews/mono/GfxSansCN16.png",
+      "file": "docs/assets/fonts/previews/mono/GfxSansCN16.png",
       "width": 970,
       "height": 250,
       "sha256": "4d396b624c93c9c854cab3307a9133f8e46972ce9b949680e62711a7352aa454",
@@ -803,7 +803,7 @@
       ]
     },
     {
-      "file": "Fonts/previews/mono/GfxSansCN24.png",
+      "file": "docs/assets/fonts/previews/mono/GfxSansCN24.png",
       "width": 1258,
       "height": 290,
       "sha256": "8c02d5da62f7b08ae9e177815f32c09a80f083196d38363189796bc049dcfef2",
@@ -836,7 +836,7 @@
       ]
     },
     {
-      "file": "Fonts/previews/mono/GfxSansLatin16.png",
+      "file": "docs/assets/fonts/previews/mono/GfxSansLatin16.png",
       "width": 800,
       "height": 206,
       "sha256": "4a36194ec54fd2180ceecbc8ad99e11cb41c2dfa0d025420bdfdf7d19b89a603",
@@ -858,7 +858,7 @@
       ]
     },
     {
-      "file": "Fonts/previews/mono/GfxSansLatin24.png",
+      "file": "docs/assets/fonts/previews/mono/GfxSansLatin24.png",
       "width": 934,
       "height": 214,
       "sha256": "8a317882439ec490de230ff5af7eaa0a4576ee449852bc561ad04ab72093ad9e",
@@ -880,7 +880,7 @@
       ]
     },
     {
-      "file": "Fonts/previews/mono/GfxSerifCN24.png",
+      "file": "docs/assets/fonts/previews/mono/GfxSerifCN24.png",
       "width": 1330,
       "height": 290,
       "sha256": "280883793338d6f64d7b421720dbcbf41330a62b7be3cb0225cd3f71af9ca80b",
@@ -913,7 +913,7 @@
       ]
     },
     {
-      "file": "Fonts/previews/mono/GfxSerifHeavyCN24.png",
+      "file": "docs/assets/fonts/previews/mono/GfxSerifHeavyCN24.png",
       "width": 1402,
       "height": 294,
       "sha256": "2eb9716aa06e1ad6054d1fbb79667e91a163e9cc8e78658b12451e25774aded4",
@@ -946,7 +946,7 @@
       ]
     },
     {
-      "file": "Fonts/previews/mono/GfxSmoothCN16.png",
+      "file": "docs/assets/fonts/previews/mono/GfxSmoothCN16.png",
       "width": 970,
       "height": 250,
       "sha256": "3d9fb4485d1d0f7c2cb3bffc763bcb2c8d354cfbd5e74083292c03a50826c185",
@@ -979,7 +979,7 @@
       ]
     },
     {
-      "file": "Fonts/previews/mono/GfxSmoothCN24.png",
+      "file": "docs/assets/fonts/previews/mono/GfxSmoothCN24.png",
       "width": 1258,
       "height": 290,
       "sha256": "965fb8233c307920736e628ea47e11e082f9c938b71622a41cbdb6f33a9e1304",
@@ -1012,7 +1012,7 @@
       ]
     },
     {
-      "file": "Fonts/previews/mono/GfxSmoothLatin16.png",
+      "file": "docs/assets/fonts/previews/mono/GfxSmoothLatin16.png",
       "width": 800,
       "height": 206,
       "sha256": "dd757a834ac15c437c14d3610acc590a73fee288b4b963b722ab073f4bb0158e",
@@ -1034,7 +1034,7 @@
       ]
     },
     {
-      "file": "Fonts/previews/mono/GfxSmoothLatin24.png",
+      "file": "docs/assets/fonts/previews/mono/GfxSmoothLatin24.png",
       "width": 934,
       "height": 214,
       "sha256": "e52442516be70bc14479d10aede3179e3e8a9ef2b0302fd46b3857970e68d3e1",
@@ -1056,7 +1056,7 @@
       ]
     },
     {
-      "file": "Fonts/previews/mono/GfxTerm8x16.png",
+      "file": "docs/assets/fonts/previews/mono/GfxTerm8x16.png",
       "width": 800,
       "height": 206,
       "sha256": "db9419ae412e385acfaafb45a4983dc79ae75a1c710a8fe3dd9175c15fd20d29",
@@ -1078,7 +1078,7 @@
       ]
     },
     {
-      "file": "Fonts/previews/mono/GfxTermBold8x16.png",
+      "file": "docs/assets/fonts/previews/mono/GfxTermBold8x16.png",
       "width": 800,
       "height": 206,
       "sha256": "2feeaf5a477cad05b8dfd79cf8fc3d72280c8cb8a0a54eafb3290b9b0d055807",
@@ -1100,7 +1100,7 @@
       ]
     },
     {
-      "file": "Fonts/previews/mono/ProFont6x12.png",
+      "file": "docs/assets/fonts/previews/mono/ProFont6x12.png",
       "width": 800,
       "height": 206,
       "sha256": "a89a44127cd06464906e224633e12b747221b6ac594fc27358a10917fa69aa33",
@@ -1122,7 +1122,7 @@
       ]
     },
     {
-      "file": "Fonts/previews/mono/Scientifica5x11.png",
+      "file": "docs/assets/fonts/previews/mono/Scientifica5x11.png",
       "width": 800,
       "height": 206,
       "sha256": "62479537d02484898ca8ee9e17338e57a7e0df6f086ac99afe17952560dbcfa2",
@@ -1144,7 +1144,7 @@
       ]
     },
     {
-      "file": "Fonts/previews/mono/Spleen12x24.png",
+      "file": "docs/assets/fonts/previews/mono/Spleen12x24.png",
       "width": 826,
       "height": 206,
       "sha256": "b0ccb32cf82995d00b4ed03e02ab75b7cee4b4012e00b96c574a95d3828fe466",
@@ -1166,7 +1166,7 @@
       ]
     },
     {
-      "file": "Fonts/previews/mono/Spleen8x16.png",
+      "file": "docs/assets/fonts/previews/mono/Spleen8x16.png",
       "width": 800,
       "height": 206,
       "sha256": "3298e5fe6dc10defeb7442f10f58c905028a85aa483f6bfb7f9281c4af7c6a1e",
@@ -1188,7 +1188,7 @@
       ]
     },
     {
-      "file": "Fonts/previews/mono/Tamzen7x14.png",
+      "file": "docs/assets/fonts/previews/mono/Tamzen7x14.png",
       "width": 800,
       "height": 206,
       "sha256": "047aa424aa8391014a4db6e77c9fb4c10532a94cd829439ab01b7f4df7d8dc29",
@@ -1210,7 +1210,7 @@
       ]
     },
     {
-      "file": "Fonts/previews/mono/TamzenBold8x16.png",
+      "file": "docs/assets/fonts/previews/mono/TamzenBold8x16.png",
       "width": 800,
       "height": 206,
       "sha256": "0a3bbbd4c7882fac8c93ae942c4232247a94f905a2fe90063fe7ddc76a250bac",
@@ -1232,7 +1232,7 @@
       ]
     },
     {
-      "file": "Fonts/previews/mono/TomThumb4x6.png",
+      "file": "docs/assets/fonts/previews/mono/TomThumb4x6.png",
       "width": 800,
       "height": 206,
       "sha256": "0040923daf97c5dda2b822bcfc02f081fccee003536ae1d1af3baa7677ff8976",
@@ -1254,7 +1254,7 @@
       ]
     },
     {
-      "file": "Fonts/previews/mono/UnifontCN16.png",
+      "file": "docs/assets/fonts/previews/mono/UnifontCN16.png",
       "width": 970,
       "height": 226,
       "sha256": "3d288d52242313cddf259c224e535d38e1312e38fec39983e5b802d583c96bdc",
@@ -1327,8 +1327,8 @@
       ],
       "lineHeight": 13,
       "scale": 2,
-      "preview": "Fonts/previews/mono-ascii.png",
-      "thumbnail": "Fonts/previews/mono/Cozette6x13.png",
+      "preview": "docs/assets/fonts/previews/mono-ascii.png",
+      "thumbnail": "docs/assets/fonts/previews/mono/Cozette6x13.png",
       "metadata": {
         "cellWidth": 6,
         "baseline": 10,
@@ -1377,8 +1377,8 @@
       ],
       "lineHeight": 13,
       "scale": 2,
-      "preview": "Fonts/previews/mono-ascii.png",
-      "thumbnail": "Fonts/previews/mono/Fixed6x13.png",
+      "preview": "docs/assets/fonts/previews/mono-ascii.png",
+      "thumbnail": "docs/assets/fonts/previews/mono/Fixed6x13.png",
       "metadata": {
         "cellWidth": 6,
         "baseline": 11,
@@ -15969,8 +15969,8 @@
       ],
       "lineHeight": 20,
       "scale": 2,
-      "preview": "Fonts/previews/mono-ascii.png",
-      "thumbnail": "Fonts/previews/mono/GfxKaiCN16.png",
+      "preview": "docs/assets/fonts/previews/mono-ascii.png",
+      "thumbnail": "docs/assets/fonts/previews/mono/GfxKaiCN16.png",
       "metadata": {
         "cellWidth": 18,
         "baseline": 16,
@@ -30561,8 +30561,8 @@
       ],
       "lineHeight": 30,
       "scale": 2,
-      "preview": "Fonts/previews/mono-ascii.png",
-      "thumbnail": "Fonts/previews/mono/GfxKaiCN24.png",
+      "preview": "docs/assets/fonts/previews/mono-ascii.png",
+      "thumbnail": "docs/assets/fonts/previews/mono/GfxKaiCN24.png",
       "metadata": {
         "cellWidth": 26,
         "baseline": 23,
@@ -45153,8 +45153,8 @@
       ],
       "lineHeight": 32,
       "scale": 2,
-      "preview": "Fonts/previews/mono-ascii.png",
-      "thumbnail": "Fonts/previews/mono/GfxSansBoldCN24.png",
+      "preview": "docs/assets/fonts/previews/mono-ascii.png",
+      "thumbnail": "docs/assets/fonts/previews/mono/GfxSansBoldCN24.png",
       "metadata": {
         "cellWidth": 24,
         "baseline": 24,
@@ -59741,8 +59741,8 @@
       ],
       "lineHeight": 16,
       "scale": 2,
-      "preview": "Fonts/previews/mono-ascii.png",
-      "thumbnail": "Fonts/previews/mono/GfxSansCN12.png",
+      "preview": "docs/assets/fonts/previews/mono-ascii.png",
+      "thumbnail": "docs/assets/fonts/previews/mono/GfxSansCN12.png",
       "metadata": {
         "cellWidth": 12,
         "baseline": 12,
@@ -74329,8 +74329,8 @@
       ],
       "lineHeight": 22,
       "scale": 2,
-      "preview": "Fonts/previews/mono-ascii.png",
-      "thumbnail": "Fonts/previews/mono/GfxSansCN16.png",
+      "preview": "docs/assets/fonts/previews/mono-ascii.png",
+      "thumbnail": "docs/assets/fonts/previews/mono/GfxSansCN16.png",
       "metadata": {
         "cellWidth": 16,
         "baseline": 16,
@@ -88917,8 +88917,8 @@
       ],
       "lineHeight": 32,
       "scale": 2,
-      "preview": "Fonts/previews/mono-ascii.png",
-      "thumbnail": "Fonts/previews/mono/GfxSansCN24.png",
+      "preview": "docs/assets/fonts/previews/mono-ascii.png",
+      "thumbnail": "docs/assets/fonts/previews/mono/GfxSansCN24.png",
       "metadata": {
         "cellWidth": 24,
         "baseline": 24,
@@ -88967,8 +88967,8 @@
       ],
       "lineHeight": 22,
       "scale": 2,
-      "preview": "Fonts/previews/mono-ascii.png",
-      "thumbnail": "Fonts/previews/mono/GfxSansLatin16.png",
+      "preview": "docs/assets/fonts/previews/mono-ascii.png",
+      "thumbnail": "docs/assets/fonts/previews/mono/GfxSansLatin16.png",
       "metadata": {
         "cellWidth": 10,
         "baseline": 16,
@@ -89017,8 +89017,8 @@
       ],
       "lineHeight": 32,
       "scale": 2,
-      "preview": "Fonts/previews/mono-ascii.png",
-      "thumbnail": "Fonts/previews/mono/GfxSansLatin24.png",
+      "preview": "docs/assets/fonts/previews/mono-ascii.png",
+      "thumbnail": "docs/assets/fonts/previews/mono/GfxSansLatin24.png",
       "metadata": {
         "cellWidth": 15,
         "baseline": 24,
@@ -103605,8 +103605,8 @@
       ],
       "lineHeight": 32,
       "scale": 2,
-      "preview": "Fonts/previews/mono-ascii.png",
-      "thumbnail": "Fonts/previews/mono/GfxSerifCN24.png",
+      "preview": "docs/assets/fonts/previews/mono-ascii.png",
+      "thumbnail": "docs/assets/fonts/previews/mono/GfxSerifCN24.png",
       "metadata": {
         "cellWidth": 26,
         "baseline": 24,
@@ -118197,8 +118197,8 @@
       ],
       "lineHeight": 33,
       "scale": 2,
-      "preview": "Fonts/previews/mono-ascii.png",
-      "thumbnail": "Fonts/previews/mono/GfxSerifHeavyCN24.png",
+      "preview": "docs/assets/fonts/previews/mono-ascii.png",
+      "thumbnail": "docs/assets/fonts/previews/mono/GfxSerifHeavyCN24.png",
       "metadata": {
         "cellWidth": 28,
         "baseline": 24,
@@ -132785,8 +132785,8 @@
       ],
       "lineHeight": 22,
       "scale": 2,
-      "preview": "Fonts/previews/mono-ascii.png",
-      "thumbnail": "Fonts/previews/mono/GfxSmoothCN16.png",
+      "preview": "docs/assets/fonts/previews/mono-ascii.png",
+      "thumbnail": "docs/assets/fonts/previews/mono/GfxSmoothCN16.png",
       "metadata": {
         "cellWidth": 16,
         "baseline": 16,
@@ -147373,8 +147373,8 @@
       ],
       "lineHeight": 32,
       "scale": 2,
-      "preview": "Fonts/previews/mono-ascii.png",
-      "thumbnail": "Fonts/previews/mono/GfxSmoothCN24.png",
+      "preview": "docs/assets/fonts/previews/mono-ascii.png",
+      "thumbnail": "docs/assets/fonts/previews/mono/GfxSmoothCN24.png",
       "metadata": {
         "cellWidth": 24,
         "baseline": 24,
@@ -147423,8 +147423,8 @@
       ],
       "lineHeight": 22,
       "scale": 2,
-      "preview": "Fonts/previews/mono-ascii.png",
-      "thumbnail": "Fonts/previews/mono/GfxSmoothLatin16.png",
+      "preview": "docs/assets/fonts/previews/mono-ascii.png",
+      "thumbnail": "docs/assets/fonts/previews/mono/GfxSmoothLatin16.png",
       "metadata": {
         "cellWidth": 10,
         "baseline": 16,
@@ -147473,8 +147473,8 @@
       ],
       "lineHeight": 32,
       "scale": 2,
-      "preview": "Fonts/previews/mono-ascii.png",
-      "thumbnail": "Fonts/previews/mono/GfxSmoothLatin24.png",
+      "preview": "docs/assets/fonts/previews/mono-ascii.png",
+      "thumbnail": "docs/assets/fonts/previews/mono/GfxSmoothLatin24.png",
       "metadata": {
         "cellWidth": 15,
         "baseline": 24,
@@ -147523,8 +147523,8 @@
       ],
       "lineHeight": 16,
       "scale": 2,
-      "preview": "Fonts/previews/mono-ascii.png",
-      "thumbnail": "Fonts/previews/mono/GfxTerm8x16.png",
+      "preview": "docs/assets/fonts/previews/mono-ascii.png",
+      "thumbnail": "docs/assets/fonts/previews/mono/GfxTerm8x16.png",
       "metadata": {
         "cellWidth": 8,
         "baseline": 12,
@@ -147573,8 +147573,8 @@
       ],
       "lineHeight": 16,
       "scale": 2,
-      "preview": "Fonts/previews/mono-ascii.png",
-      "thumbnail": "Fonts/previews/mono/GfxTermBold8x16.png",
+      "preview": "docs/assets/fonts/previews/mono-ascii.png",
+      "thumbnail": "docs/assets/fonts/previews/mono/GfxTermBold8x16.png",
       "metadata": {
         "cellWidth": 8,
         "baseline": 12,
@@ -147623,8 +147623,8 @@
       ],
       "lineHeight": 12,
       "scale": 2,
-      "preview": "Fonts/previews/mono-ascii.png",
-      "thumbnail": "Fonts/previews/mono/ProFont6x12.png",
+      "preview": "docs/assets/fonts/previews/mono-ascii.png",
+      "thumbnail": "docs/assets/fonts/previews/mono/ProFont6x12.png",
       "metadata": {
         "cellWidth": 6,
         "baseline": 10,
@@ -147673,8 +147673,8 @@
       ],
       "lineHeight": 11,
       "scale": 2,
-      "preview": "Fonts/previews/mono-ascii.png",
-      "thumbnail": "Fonts/previews/mono/Scientifica5x11.png",
+      "preview": "docs/assets/fonts/previews/mono-ascii.png",
+      "thumbnail": "docs/assets/fonts/previews/mono/Scientifica5x11.png",
       "metadata": {
         "cellWidth": 5,
         "baseline": 9,
@@ -147723,8 +147723,8 @@
       ],
       "lineHeight": 24,
       "scale": 2,
-      "preview": "Fonts/previews/mono-ascii.png",
-      "thumbnail": "Fonts/previews/mono/Spleen12x24.png",
+      "preview": "docs/assets/fonts/previews/mono-ascii.png",
+      "thumbnail": "docs/assets/fonts/previews/mono/Spleen12x24.png",
       "metadata": {
         "cellWidth": 12,
         "baseline": 19,
@@ -147773,8 +147773,8 @@
       ],
       "lineHeight": 16,
       "scale": 2,
-      "preview": "Fonts/previews/mono-ascii.png",
-      "thumbnail": "Fonts/previews/mono/Spleen8x16.png",
+      "preview": "docs/assets/fonts/previews/mono-ascii.png",
+      "thumbnail": "docs/assets/fonts/previews/mono/Spleen8x16.png",
       "metadata": {
         "cellWidth": 8,
         "baseline": 12,
@@ -147823,8 +147823,8 @@
       ],
       "lineHeight": 14,
       "scale": 2,
-      "preview": "Fonts/previews/mono-ascii.png",
-      "thumbnail": "Fonts/previews/mono/Tamzen7x14.png",
+      "preview": "docs/assets/fonts/previews/mono-ascii.png",
+      "thumbnail": "docs/assets/fonts/previews/mono/Tamzen7x14.png",
       "metadata": {
         "cellWidth": 7,
         "baseline": 11,
@@ -147873,8 +147873,8 @@
       ],
       "lineHeight": 16,
       "scale": 2,
-      "preview": "Fonts/previews/mono-ascii.png",
-      "thumbnail": "Fonts/previews/mono/TamzenBold8x16.png",
+      "preview": "docs/assets/fonts/previews/mono-ascii.png",
+      "thumbnail": "docs/assets/fonts/previews/mono/TamzenBold8x16.png",
       "metadata": {
         "cellWidth": 8,
         "baseline": 12,
@@ -147923,8 +147923,8 @@
       ],
       "lineHeight": 6,
       "scale": 2,
-      "preview": "Fonts/previews/mono-ascii.png",
-      "thumbnail": "Fonts/previews/mono/TomThumb4x6.png",
+      "preview": "docs/assets/fonts/previews/mono-ascii.png",
+      "thumbnail": "docs/assets/fonts/previews/mono/TomThumb4x6.png",
       "metadata": {
         "cellWidth": 4,
         "baseline": 5,
@@ -162511,8 +162511,8 @@
       ],
       "lineHeight": 16,
       "scale": 2,
-      "preview": "Fonts/previews/mono-ascii.png",
-      "thumbnail": "Fonts/previews/mono/UnifontCN16.png",
+      "preview": "docs/assets/fonts/previews/mono-ascii.png",
+      "thumbnail": "docs/assets/fonts/previews/mono/UnifontCN16.png",
       "metadata": {
         "cellWidth": 16,
         "baseline": 14,

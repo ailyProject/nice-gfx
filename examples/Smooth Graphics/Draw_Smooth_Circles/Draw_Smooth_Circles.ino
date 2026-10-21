@@ -5,7 +5,7 @@
 // For thicker or thinner circle outlines use the drawArc function.
 
 #include <NICE_GFX.h>       // Include the graphics library
-#include <Display/Presets/ExampleBoard.h>
+#include "Hardware.h"
 ExampleDisplay gfx;  // Create object "gfx"
 
 // -------------------------------------------------------------------------

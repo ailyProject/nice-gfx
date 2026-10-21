@@ -2,7 +2,7 @@
 // Draws smooth arcs with rounded or square smooth ends
 
 #include <NICE_GFX.h>       // Include the graphics library
-#include <Display/Presets/ExampleBoard.h>
+#include "Hardware.h"
 ExampleDisplay gfx;  // Create object "gfx"
 
 // -------------------------------------------------------------------------

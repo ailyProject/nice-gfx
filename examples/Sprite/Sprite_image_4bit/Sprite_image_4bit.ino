@@ -1,5 +1,5 @@
 #include <NICE_GFX.h>
-#include <Display/Presets/ExampleBoard.h>
+#include "Hardware.h"
 /*
 
   Sketch to show how a Sprite can use a four-bit image with

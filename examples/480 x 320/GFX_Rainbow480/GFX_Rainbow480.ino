@@ -5,11 +5,11 @@
  This sketch uses explicit MonoFont descriptors and integer text scaling.
 
  Make sure all the required fonts are loaded by editing the
- Display/Presets/ExampleBoard.h file in the NICE_GFX library folder.
+ Hardware.h file in this sketch folder.
 
 
   #########################################################################
-  ###### DON'T FORGET TO UPDATE THE Display/Presets/ExampleBoard.h FILE IN THE LIBRARY ######
+  ###### DON'T FORGET TO UPDATE THE Hardware.h FILE IN THIS SKETCH ######
   ######           TO SELECT THE FONTS AND PINS YOU USE              ######
   #########################################################################
  */
@@ -18,7 +18,7 @@
 
 #include <NICE_GFX.h>
 #include <Graphics/TextDrawing.h> // Font selection and text drawing helpers.
-#include <Display/Presets/ExampleBoard.h>
+#include "Hardware.h"
 
 ExampleDisplay gfx;       // Invoke custom library
 

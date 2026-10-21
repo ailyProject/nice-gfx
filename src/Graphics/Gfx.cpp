@@ -1,4 +1,4 @@
-// NICE_GFX graphics implementation. See license.txt for contributor notices.
+// NICE_GFX graphics implementation. See LICENSE-Bodmer.txt for contributor notices.
 
 #include "Gfx.h"
 #include "Clip.h"

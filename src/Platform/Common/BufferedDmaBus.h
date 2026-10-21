@@ -1,5 +1,6 @@
 #pragma once
-#include "../Arduino/Bus.h"
+#include "../../Display/Transport.h"
+#include "../../Core/PixelCodec.h"
 #include <new>
 namespace nice_gfx {
 // Shared bounded-memory DMA pipeline for controllers without a worker task.

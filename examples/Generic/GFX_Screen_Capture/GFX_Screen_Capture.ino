@@ -14,7 +14,7 @@
   This sketch uses explicit MonoFont descriptors and integer text scaling.
 
   Make sure all the display driver and pin connections are correct by
-  editing the Display/Presets/ExampleBoard.h file in the NICE_GFX library folder.
+  editing the Hardware.h file in this sketch folder.
 
   Maximum recommended SPI clock rate is 27MHz when reading pixels, 40MHz
   seems to be OK with ILI9341 displays but this is above the manufacturers
@@ -28,7 +28,7 @@
   >>>>   NOTE: NOT ALL TFTs SUPPORT READING THE CGRAM (pixel) MEMORY   <<<<
 
   #########################################################################
-  ###### DON'T FORGET TO UPDATE THE Display/Presets/ExampleBoard.h FILE IN THE LIBRARY ######
+  ###### DON'T FORGET TO UPDATE THE Hardware.h FILE IN THIS SKETCH ######
   #########################################################################
 */
 
@@ -41,7 +41,7 @@
 
 #include <NICE_GFX.h>
 #include <Graphics/TextDrawing.h> // Font selection and text drawing helpers.
-#include <Display/Presets/ExampleBoard.h>
+#include "Hardware.h"
 #include <SPI.h>
 
 ExampleDisplay gfx; // Invoke custom library

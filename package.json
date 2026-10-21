@@ -1,0 +1,13 @@
+{
+  "name": "nice-gfx-maintenance",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "node tools/check-library.mjs",
+    "test": "node tests/run.mjs",
+    "examples:check": "node tools/sync-example-hardware.mjs --check",
+    "examples:sync": "node tools/sync-example-hardware.mjs",
+    "metadata:sync": "node tools/sync-metadata.mjs"
+  },
+  "engines": { "node": ">=20" }
+}

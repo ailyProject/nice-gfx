@@ -51,8 +51,8 @@ Network Trash Folder
 Temporary Items
 .apdisk
 
-# Local test suites; keep the public diagnostic sketches under examples/
-tests/
+# Regression sources are versioned; only generated test output is local.
+tests/.build/
 
 # Build output and downloaded development dependencies
 build/

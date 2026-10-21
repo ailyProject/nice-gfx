@@ -1,5 +1,5 @@
 #pragma once
-#include "../../Drivers/Touch/Touch.h"
+#include "../../Drivers/Touch/XPT2046.h"
 
 #if defined(ARDUINO)
 #include <Arduino.h>

@@ -1,6 +1,6 @@
 // Comprehensive display diagnostic. See README.md for wiring and measurement rules.
 #include <NICE_GFX.h>
-#include <Display/Presets/ExampleBoard.h>
+#include "Hardware.h"
 #include "BenchmarkPlatformArduino.h"
 
 #if defined(__AVR__)

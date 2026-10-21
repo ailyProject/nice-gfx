@@ -1,4 +1,5 @@
 #pragma once
+#include "../Arduino/Bus.h"
 #include "../Common/BufferedDmaBus.h"
 #if defined(ARDUINO_ARCH_STM32) && !defined(USE_HALV2_DRIVER)
 #if defined(STM32F0xx) || defined(STM32F1xx) || defined(STM32F2xx) || defined(STM32F3xx) || defined(STM32F4xx) || defined(STM32F7xx) || defined(STM32G0xx) || defined(STM32G4xx) || defined(STM32L0xx) || defined(STM32L1xx) || defined(STM32L4xx)

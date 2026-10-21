@@ -1,11 +1,11 @@
 // NICE_GFX: one display object, constructor pins, portable graphics and DMA.
-// Contributor copyright and license notices are preserved in license.txt.
+// Contributor notices are preserved in LICENSE-Bodmer.txt.
 
 // Stop fonts etc. being loaded multiple times
 #if !defined(_NICE_GFXH_)
 #define _NICE_GFXH_
 
-#define NICE_GFX_VERSION "1.0.0"
+#include "../Core/Version.h"
 #define NICE_GFX_ANTIALIASING_VERSION 1
 
 // Bit level feature flags
@@ -31,7 +31,7 @@
 #include "Icon.h"
 #include "../Fonts/Monospace.h"
 #include "../Display/Panel.h"
-#include "../Drivers/Touch/Touch.h"
+#include "../Drivers/Touch/TouchController.h"
 #include "../Core/Geometry.h"
 #include "../Display/DisplayAccess.h"
 

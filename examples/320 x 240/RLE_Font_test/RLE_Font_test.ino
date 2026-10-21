@@ -4,7 +4,7 @@
  This sketch uses explicit MonoFont descriptors and integer text scaling.
  
  #########################################################################
- ###### DON'T FORGET TO UPDATE THE Display/Presets/ExampleBoard.h FILE IN THE LIBRARY ######
+ ###### DON'T FORGET TO UPDATE THE Hardware.h FILE IN THIS SKETCH ######
  ######       TO SELECT THE FONTS AND PINS YOU USE, SEE ABOVE       ######
  #########################################################################
 
@@ -18,10 +18,10 @@
 
 #include <NICE_GFX.h>
 #include <Graphics/TextDrawing.h> // Font selection and text drawing helpers.
-#include <Display/Presets/ExampleBoard.h>
+#include "Hardware.h"
 #include <SPI.h>
 
-ExampleDisplay gfx;  // Invoke library, pins in Display/Presets/ExampleBoard.h
+ExampleDisplay gfx;  // Invoke library, pins in Hardware.h
 
 unsigned long targetTime = 0; // Used for testing draw times
 

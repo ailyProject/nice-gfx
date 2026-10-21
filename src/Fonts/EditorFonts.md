@@ -31,16 +31,7 @@ their URLs, commits/release, SHA-256 hashes and complete license notices.
 Conversion only subsets ASCII and repacks the bitmaps; it does not rescale or
 redraw glyphs. No font software is downloaded or executed by the application.
 
-To rebuild offline from the workspace root:
-
-```sh
-node tools/generate_editor_fonts.mjs
-```
-
-This verifies source checksums, fixed advances and ink bounds, then regenerates
-the browser `.bin` files and the independent C++ font translation units in
-the main library. Refresh the editor runtime and preview assets with `node tools/check_release.mjs --prepare --target=<editor>` to update font declarations,
-licenses and the bundle manifest. The runtime archive is generated from these canonical sources.
+The committed C++ font units are the firmware build inputs. After updating them, run `node scripts/rebuild-runtime.mjs` from the editor repository to refresh the runtime archive and its integrity manifest. Font rasterization tools are maintained separately from the firmware library.
 Browser licenses are in `public/licenses/`; exported Arduino licenses are in
 `src/nice_gfx/Fonts/licenses/`. Only referenced font data needs to be linked.
 

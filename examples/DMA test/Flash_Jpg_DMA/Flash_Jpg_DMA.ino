@@ -22,7 +22,7 @@
 // Include the NICE_GFX graphics library.
 #include "SPI.h"
 #include <NICE_GFX.h>              // Hardware-specific library
-#include <Display/Presets/ExampleBoard.h>
+#include "Hardware.h"
 ExampleDisplay gfx;         // Invoke custom library
 
 // This next function will be called during decoding of the jpeg file to render each

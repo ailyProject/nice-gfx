@@ -1,7 +1,7 @@
 // Draw random coloured smooth (anti-aliased) rounded rectangles on the TFT
 
 #include <NICE_GFX.h>
-#include <Display/Presets/ExampleBoard.h>
+#include "Hardware.h"
 
 ExampleDisplay gfx;
 

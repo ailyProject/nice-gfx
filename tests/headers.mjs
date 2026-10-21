@@ -1,0 +1,11 @@
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import {root,findCompiler,isZig,compilerArgs,buildEnvironment,run} from './host-tools.mjs';
+const work=path.join(root,'tests/.build/headers');await fs.mkdir(work,{recursive:true});
+const compiler=findCompiler(),env=buildEnvironment(work);
+const touch=['TouchTypes','TouchController','TouchBus','XPT2046','Touch','I2cTouch','CST816','FT6x36','CHSC6X','AXS5106L','AXS15231B','GT911','GT1151','CST328','CST3530','CST92xx','SPD2010','TouchI2c','TouchResistive'].map(n=>'Drivers/Touch/'+n+'.h');
+const headers=[...touch,'Drivers/Display/JD9853A.h','Drivers/Display/ST7789P.h','Drivers/Display/ST7781R.h','Drivers/Display/SPFD5408.h','Drivers/Display/ModuleDrivers.h','Display/Presets/SizedPanel.h','Display/Presets/ModulePanels.h','Platform/Common/BufferedDmaBus.h','UI/Image.h','UI/Rgb565PpaBlend.h','UI/RetainedStorage.h'];
+const compile=async(name,text,standard='c++17')=>{const file=path.join(work,name+'.cpp');await fs.writeFile(file,text);run(compiler,[...compilerArgs(compiler),'-std='+standard,'-Wall','-Wextra','-Werror','-Wno-misleading-indentation',...(isZig(compiler)||/clang/i.test(compiler)?['-Wno-tautological-constant-out-of-range-compare']:[]),'-I'+path.join(root,'src'),'-c',file,'-o',path.join(work,name+'.o')],{env});};
+for(const [i,header]of headers.entries())await compile('header-'+i,`#include <${header}>\n#include <${header}>\n`);
+for(const [i,items]of [touch,[...touch].reverse()].entries())for(const standard of ['c++11','c++17'])await compile('mixed-'+i+'-'+standard,items.map(h=>`#include <${h}>`).join('\n')+'\nstatic_assert(sizeof(nice_gfx::RawTouch)==6,"raw touch layout");\n',standard);
+console.log(`PASS ${headers.length} standalone public/compatibility headers and both touch include orders.`);

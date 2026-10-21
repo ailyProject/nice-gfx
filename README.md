@@ -172,21 +172,22 @@ void loop() {
 | `src/Display/` | 显示对象、公共 Panel、传输抽象、刷新；`Presets/` 保存尺寸、接口及模组预设 |
 | `src/Drivers/Display/`、`src/Drivers/Touch/` | 芯片程序与具体驱动；显示芯片的初始化、旋转和类定义在同一文件中维护 |
 | `src/Platform/` | Arduino 通用总线，以及 ESP32、STM32、RP2040 的独立平台实现 |
-| `src/Fonts/` | 字体声明、解码与 22 个独立字模编译单元 |
+| `src/Fonts/` | 字体声明、解码与 26 个独立字模编译单元 |
 | `src/UI/` | 资源结构、View、组件、输入、导航和渲染支持 |
 | `docs/`、`examples/` | 使用文档与 Arduino 示例；IDF 示例位于同级 `../nice_gfx_idf_examples/` |
 
-完整工作区中的 `nice_gfx_editor/` 保存设计器应用与 HTML/CSS 编译器；同级 `tools/`、`sources/` 和 `design/` 保存维护工具、维护数据与设计资料。设备固件使用主库源码和生成资源。
+设计器应用与 HTML/CSS 编译器保存在独立的 `nice_gfx_editor/` 仓库。主库的维护脚本位于 `tools/`，正式主机测试位于 `tests/`；设备固件使用主库源码和生成资源。目录职责、兼容入口、板级配置和构建方式见 [架构说明](docs/Architecture.md)。
 
 修改芯片程序与窗口对齐时编辑 `src/Drivers/Display/` 中对应的文件；修改显示组合和类型别名时编辑 `src/Display/`。Arduino 与 ESP-IDF 共用图形、字体和 UI 源码；原生 IDF 选择 ESP32 平台源文件，跳过 Arduino、RP2040 和 STM32 平台实现。显示目录与能力表由维护工具更新。
 
 Arduino 草图先包含 `<NICE_GFX.h>`，使构建工具发现已安装的库；设计器资源包含 `<UI/View.h>` 和所用字体的声明。模块头是正式接口：`<Graphics/Gfx.h>` 声明绘图对象，`<Graphics/Sprite.h>` 声明 Sprite，`<Fonts/Builtin.h>` 声明内置字体，`<Display/Presets/All.h>` 提供显示预设。普通 C++ 和 ESP-IDF 可以直接按需要组合模块头，绘图与 UI 声明不引入具体显示芯片或 MCU 后端。
 
-在工作区根目录检查设备目录与控制器实现：
+在本库根目录检查发布信息、文档链接、示例配置与模块依赖：
 
 ```powershell
-node tools/generate_device_support.mjs --check
-node tools/check_bundled_fonts.mjs
+npm run check
+# 需要 PATH 中的 C++17 编译器和 CMake，或设置 CXX / CMAKE：
+npm test
 ```
 
 实际工程需验证颜色、坐标、输入、首帧与持续运行。

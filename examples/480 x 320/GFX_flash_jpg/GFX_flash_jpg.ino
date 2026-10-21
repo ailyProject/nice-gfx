@@ -15,7 +15,7 @@
 
 #include <SPI.h>
 #include <NICE_GFX.h>
-#include <Display/Presets/ExampleBoard.h>
+#include "Hardware.h"
 
 ExampleDisplay gfx;
 

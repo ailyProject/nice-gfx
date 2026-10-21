@@ -23,7 +23,7 @@
   Created by Bodmer 15/11/17
 
   #########################################################################
-  ###### DON'T FORGET TO UPDATE THE Display/Presets/ExampleBoard.h FILE IN THE LIBRARY ######
+  ###### DON'T FORGET TO UPDATE THE Hardware.h FILE IN THIS SKETCH ######
   #########################################################################
 */
 
@@ -36,7 +36,7 @@
 
 #include <NICE_GFX.h>
 #include <Graphics/TextDrawing.h> // Font selection and text drawing helpers.
-#include <Display/Presets/ExampleBoard.h>
+#include "Hardware.h"
 
 ExampleDisplay gfx;         // Create object "gfx"
 

@@ -1,7 +1,7 @@
 // Random-size antialiased arc meters with fixed-width numeric Sprite labels.
 // Digit spacing stays constant while values change. No external font renderer.
 #include <NICE_GFX.h>
-#include <Display/Presets/ExampleBoard.h>
+#include "Hardware.h"
 ExampleDisplay gfx;
 GFX_Sprite spr(&gfx);
 #define DRAW_DIGITS

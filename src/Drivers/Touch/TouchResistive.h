@@ -1,5 +1,5 @@
 #pragma once
-#include "Touch.h"
+#include "TouchController.h"
 
 namespace nice_gfx {
 // Four-wire panels have no separate touch IC. Y+ and X- must be ADC pins.

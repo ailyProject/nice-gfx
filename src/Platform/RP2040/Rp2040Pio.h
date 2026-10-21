@@ -1,4 +1,5 @@
 #pragma once
+#include "../Arduino/Bus.h"
 #include "../Common/BufferedDmaBus.h"
 #if defined(ARDUINO_ARCH_RP2040) && !defined(ARDUINO_ARCH_MBED)
 #include <hardware/pio.h>

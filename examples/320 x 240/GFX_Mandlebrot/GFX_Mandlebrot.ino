@@ -3,7 +3,7 @@
 // This will run quite slowly due to the large number of floating point calculations per pixel
 
 #include <NICE_GFX.h> // Hardware-specific library
-#include <Display/Presets/ExampleBoard.h>
+#include "Hardware.h"
 #include <SPI.h>
 
 ExampleDisplay gfx;       // Invoke custom library

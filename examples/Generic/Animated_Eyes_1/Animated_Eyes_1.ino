@@ -36,7 +36,7 @@
 // Load TFT driver library
 #include <SPI.h>
 #include <NICE_GFX.h>
-#include <Display/Presets/ExampleBoard.h>
+#include "Hardware.h"
 ExampleDisplay gfx;           // A single instance is used for 1 or 2 displays
 
 // A pixel buffer is used during eye rendering

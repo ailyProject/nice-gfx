@@ -8,7 +8,7 @@
 #include <SPI.h>
 #include <NICE_GFX.h>
 #include <Graphics/TextDrawing.h> // Font selection and text drawing helpers.
-#include <Display/Presets/ExampleBoard.h>
+#include "Hardware.h"
 
 ExampleDisplay gfx; // Invoke custom library
 

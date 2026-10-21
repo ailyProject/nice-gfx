@@ -1,5 +1,5 @@
 #pragma once
-#include "Touch.h"
+#include "TouchController.h"
 #include "../../Core/I2c.h"
 namespace nice_gfx {
 using TouchI2cBus = I2cBus; // Existing protocol-driver API.

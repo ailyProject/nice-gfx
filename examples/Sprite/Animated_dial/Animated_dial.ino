@@ -28,7 +28,7 @@
 
 #include <NICE_GFX.h>
 #include <Graphics/TextDrawing.h> // Font selection and text drawing helpers.
-#include <Display/Presets/ExampleBoard.h>
+#include "Hardware.h"
 ExampleDisplay gfx;
 GFX_Sprite needle = GFX_Sprite(&gfx); // Sprite object for needle
 GFX_Sprite spr    = GFX_Sprite(&gfx); // Sprite for meter reading

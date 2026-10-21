@@ -3,7 +3,7 @@
 #include "../Display.h"
 #include "../../Drivers/Display/All.h"
 #include "BoardPresets.h"
-#include "../../Drivers/Display/ModuleDrivers.h"
+#include "ModulePanels.h"
 using NV3022B_240x284_SPI = nice_gfx::SpiDisplay<nice_gfx::NV3022B>;
 using NV3022B_240x284_SW_SPI = nice_gfx::SoftwareSpiDisplay<nice_gfx::NV3022B>;
 using JD9853_240x284_SPI = nice_gfx::SpiDisplay<nice_gfx::JD9853>;

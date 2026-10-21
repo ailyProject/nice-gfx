@@ -7,7 +7,7 @@
 // For best performance use a Teensy 4.x (600MHz CPU clock).
 
 #include <NICE_GFX.h>       // Hardware-specific library
-#include <Display/Presets/ExampleBoard.h>
+#include "Hardware.h"
 
 ExampleDisplay gfx;  // Invoke custom library
 

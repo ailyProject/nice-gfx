@@ -1,6 +1,6 @@
 # 字体图样与调用方法
 
-本库提供 **22 套 1bpp 点阵字体和 4 套 4bpp 平滑字体**，全部通过 MonoFont 接口选择。下方图样直接解码库内字模，放大时使用整数倍像素。完整资产清单、来源、样例文字和绘图倍率见 [图样清单](../src/Fonts/previews/catalog.json)。
+本库提供 **22 套 1bpp 点阵字体和 4 套 4bpp 平滑字体**，全部通过 MonoFont 接口选择。下方图样直接解码库内字模，放大时使用整数倍像素。完整资产清单、来源、样例文字和绘图倍率见 [图样清单](assets/fonts/previews/catalog.json)。
 
 只需包含 `NICE_GFX.h`，绘制前调用 `gfx.setFont(nice_gfx::fonts::Fixed6x13)`。未选字体时，文字不绘制，`textWidth()` / `fontHeight()` 返回 0；屏幕与 Sprite 可以各自选择字体，无需启用宏或额外字体头。
 
@@ -42,37 +42,37 @@ gfx.drawString("温度 25", 8, 8);
 
 以下字体都是 **1bpp 点阵**。英文 13 套各含 95 个可打印 ASCII 字符，即 U+0020～U+007E；不包含中文、重音字母或完整 Unicode。下表尺寸是实际字符格，`fontHeight()` 在 `setTextSize(1)` 时返回其高度。
 
-![现代英文字体图样](../src/Fonts/previews/mono-ascii.png)
+![现代英文字体图样](assets/fonts/previews/mono-ascii.png)
 
 | 对象名（`nice_gfx::fonts::`） | 字符格 | 单独图样 |
 | --- | --- | --- |
-| `TomThumb4x6` | 4×6 | [查看](../src/Fonts/previews/mono/TomThumb4x6.png) |
-| `Scientifica5x11` | 5×11 | [查看](../src/Fonts/previews/mono/Scientifica5x11.png) |
-| `ProFont6x12` | 6×12 | [查看](../src/Fonts/previews/mono/ProFont6x12.png) |
-| `Fixed6x13` | 6×13 | [查看](../src/Fonts/previews/mono/Fixed6x13.png) |
-| `Cozette6x13` | 6×13 | [查看](../src/Fonts/previews/mono/Cozette6x13.png) |
-| `Tamzen7x14` | 7×14 | [查看](../src/Fonts/previews/mono/Tamzen7x14.png) |
-| `Spleen8x16` | 8×16 | [查看](../src/Fonts/previews/mono/Spleen8x16.png) |
-| `GfxTerm8x16` | 8×16 | [查看](../src/Fonts/previews/mono/GfxTerm8x16.png) |
-| `GfxTermBold8x16` | 8×16 | [查看](../src/Fonts/previews/mono/GfxTermBold8x16.png) |
-| `GfxSansLatin16` | 10×22 | [查看](../src/Fonts/previews/mono/GfxSansLatin16.png) |
-| `GfxSansLatin24` | 15×32 | [查看](../src/Fonts/previews/mono/GfxSansLatin24.png) |
-| `Spleen12x24` | 12×24 | [查看](../src/Fonts/previews/mono/Spleen12x24.png) |
-| `TamzenBold8x16` | 8×16 | [查看](../src/Fonts/previews/mono/TamzenBold8x16.png) |
+| `TomThumb4x6` | 4×6 | [查看](assets/fonts/previews/mono/TomThumb4x6.png) |
+| `Scientifica5x11` | 5×11 | [查看](assets/fonts/previews/mono/Scientifica5x11.png) |
+| `ProFont6x12` | 6×12 | [查看](assets/fonts/previews/mono/ProFont6x12.png) |
+| `Fixed6x13` | 6×13 | [查看](assets/fonts/previews/mono/Fixed6x13.png) |
+| `Cozette6x13` | 6×13 | [查看](assets/fonts/previews/mono/Cozette6x13.png) |
+| `Tamzen7x14` | 7×14 | [查看](assets/fonts/previews/mono/Tamzen7x14.png) |
+| `Spleen8x16` | 8×16 | [查看](assets/fonts/previews/mono/Spleen8x16.png) |
+| `GfxTerm8x16` | 8×16 | [查看](assets/fonts/previews/mono/GfxTerm8x16.png) |
+| `GfxTermBold8x16` | 8×16 | [查看](assets/fonts/previews/mono/GfxTermBold8x16.png) |
+| `GfxSansLatin16` | 10×22 | [查看](assets/fonts/previews/mono/GfxSansLatin16.png) |
+| `GfxSansLatin24` | 15×32 | [查看](assets/fonts/previews/mono/GfxSansLatin24.png) |
+| `Spleen12x24` | 12×24 | [查看](assets/fonts/previews/mono/Spleen12x24.png) |
+| `TamzenBold8x16` | 8×16 | [查看](assets/fonts/previews/mono/TamzenBold8x16.png) |
 
-![现代中文字体图样](../src/Fonts/previews/mono-cjk.png)
+![现代中文字体图样](assets/fonts/previews/mono-cjk.png)
 
 | 对象名（`nice_gfx::fonts::`） | 字符格 | 实际字符覆盖 | 单独图样 |
 | --- | --- | --- | --- |
-| `UnifontCN16` | 16×16 | 7,540 字形：GB2312 7,445 字符 + ASCII 95；其中汉字 6,763 个 | [查看](../src/Fonts/previews/mono/UnifontCN16.png) |
-| `GfxSansCN12` | 12×16 | 同上 | [查看](../src/Fonts/previews/mono/GfxSansCN12.png) |
-| `GfxSansCN16` | 16×22 | 同上 | [查看](../src/Fonts/previews/mono/GfxSansCN16.png) |
-| `GfxSansCN24` | 24×32 | 同上 | [查看](../src/Fonts/previews/mono/GfxSansCN24.png) |
-| `GfxSerifCN24` | 26×32 | 同上 | [查看](../src/Fonts/previews/mono/GfxSerifCN24.png) |
-| `GfxKaiCN16` | 18×20 | 9,777 字形：9,000 汉字 + GB2312 非汉字 + ASCII | [查看](../src/Fonts/previews/mono/GfxKaiCN16.png) |
-| `GfxKaiCN24` | 26×30 | 同上 | [查看](../src/Fonts/previews/mono/GfxKaiCN24.png) |
-| `GfxSansBoldCN24` | 24×32 | 同上 | [查看](../src/Fonts/previews/mono/GfxSansBoldCN24.png) |
-| `GfxSerifHeavyCN24` | 28×33 | 同上 | [查看](../src/Fonts/previews/mono/GfxSerifHeavyCN24.png) |
+| `UnifontCN16` | 16×16 | 7,540 字形：GB2312 7,445 字符 + ASCII 95；其中汉字 6,763 个 | [查看](assets/fonts/previews/mono/UnifontCN16.png) |
+| `GfxSansCN12` | 12×16 | 同上 | [查看](assets/fonts/previews/mono/GfxSansCN12.png) |
+| `GfxSansCN16` | 16×22 | 同上 | [查看](assets/fonts/previews/mono/GfxSansCN16.png) |
+| `GfxSansCN24` | 24×32 | 同上 | [查看](assets/fonts/previews/mono/GfxSansCN24.png) |
+| `GfxSerifCN24` | 26×32 | 同上 | [查看](assets/fonts/previews/mono/GfxSerifCN24.png) |
+| `GfxKaiCN16` | 18×20 | 9,777 字形：9,000 汉字 + GB2312 非汉字 + ASCII | [查看](assets/fonts/previews/mono/GfxKaiCN16.png) |
+| `GfxKaiCN24` | 26×30 | 同上 | [查看](assets/fonts/previews/mono/GfxKaiCN24.png) |
+| `GfxSansBoldCN24` | 24×32 | 同上 | [查看](assets/fonts/previews/mono/GfxSansBoldCN24.png) |
+| `GfxSerifHeavyCN24` | 28×33 | 同上 | [查看](assets/fonts/previews/mono/GfxSerifHeavyCN24.png) |
 
 中文字体也包含 ASCII，但字形居中到同一个全宽字符格。名称中的 16 / 24 是源字体栅格化字号；实际行高如表。GB2312 表示字形覆盖范围，**输入字符串仍用 UTF-8**，不是 GB2312 编码。9000 汉字集合也不等于所有中日韩统一表意文字；缺字使用 `?`，完整四字节 UTF-8 字符也会显示一个替代字符。
 
@@ -137,6 +137,6 @@ static const nice_gfx::MonoFont tinyFont = {
 
 字体声明和字模统一位于 `src/Fonts/`；22 个字库的独立定义文件为 `src/Fonts/Mono/GFX_Font_<名称>.cpp`，与各自 `.inc` 数据同目录。包含 `NICE_GFX.h` 只引入现代字体的声明，实际使用哪个对象才保留其字模。
 
-Arduino、ESP-IDF 和编辑器导出包都直接编译 22 个字体单元。`tools/check_bundled_fonts.mjs` 核对这些单元与字体目录的一致性。应用通过 `setFont()` 选择字体。
+默认构建和编辑器完整导出包含 26 个字体编译单元。ESP-IDF 可通过 `NICE_GFX_FONT_SOURCES` 按需选择；应用继续通过 `setFont()` 选择字体。维护检查运行 `npm run check`，构建方式见 [架构说明](Architecture.md)。
 
 检查字体占用时，分别编译无字体、单套英文字体和单套中文字库，并核对最终 ELF 符号与 Flash 用量；具体结果取决于目标平台与链接选项。

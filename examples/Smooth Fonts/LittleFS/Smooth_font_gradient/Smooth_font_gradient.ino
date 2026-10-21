@@ -1,7 +1,7 @@
 // Font descriptors live in Flash and are selected explicitly with setFont().
 // The existing example path is retained; these examples need no font files.
 #include <NICE_GFX.h>
-#include <Display/Presets/ExampleBoard.h>
+#include "Hardware.h"
 
 ExampleDisplay gfx;
 void setup() {

@@ -2,9 +2,9 @@
 // Smooth graphics result in less pixel resolution jaggedness.
 
 #include <NICE_GFX.h>
-#include <Display/Presets/ExampleBoard.h>
+#include "Hardware.h"
 
-ExampleDisplay gfx;  // Invoke library, pins in Display/Presets/ExampleBoard.h
+ExampleDisplay gfx;  // Invoke library, pins in Hardware.h
 
 GFX_Sprite spr = GFX_Sprite(&gfx);
 

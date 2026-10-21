@@ -1,7 +1,7 @@
 // A local MonoFont descriptor demonstrates custom bitmaps and Unicode glyphs.
 // Its bitmap and sorted index are included with this sketch, without flags.
 #include <NICE_GFX.h>
-#include <Display/Presets/ExampleBoard.h>
+#include "Hardware.h"
 #include "MyFont.h"
 ExampleDisplay gfx;
 void setup() {

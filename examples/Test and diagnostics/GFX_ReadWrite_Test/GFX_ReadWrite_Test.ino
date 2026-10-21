@@ -1,7 +1,7 @@
 // Walking 1 write and read pixel test
 
 #include <NICE_GFX.h>
-#include <Display/Presets/ExampleBoard.h>
+#include "Hardware.h"
 #include <SPI.h>
 
 #define TDELAY 500

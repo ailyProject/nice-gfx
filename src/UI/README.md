@@ -11,7 +11,7 @@ the compiler lives only in `nice_gfx_editor/packages/html-ui/`. Its preview font
 and firmware archive are generated from this library.
 It includes the editor's media, linear gradients, Gauge/Ring/LineChart/BarChart/
 Spinbox, physical-key bindings and focus navigation. See
-[version unification and migration](../../../design/UI_VERSION_UNIFICATION.md).
+[version unification and migration](../../docs/Architecture.md).
 
 `UI/View.h` provides the designer-generated UI runtime. Generated `ProjectDesc`
 resources mount into `nice_gfx::htmlui::View`; `View.cpp` is compiled independently
@@ -55,7 +55,7 @@ The designer emits a single `ui.h`: `ui_config::load(view)` mounts its immutable
 resources and routing options. Bind declared actions with `ui_config::bind_action`
 and push user-owned data with `view.setText/setValue(ui_config::id("element"), ...)`.
 Keep application data and callback implementations in the sketch. See
-[UI/logic separation](../../../design/UI_LOGIC_SEPARATION.md) for the complete workflow.
+[UI/logic separation](../../docs/ArduinoComponentInteraction.md) for the complete workflow.
 
 Media nodes, including empty `gfx-media` placeholders, support runtime image
 updates through `setImage`, immutable owning `Image` handles, and
@@ -271,7 +271,7 @@ until every referring page and in-flight frame releases them.
 with shared payloads counted once; it excludes allocator metadata, driver storage
 and immutable flash resources. `runtimeStats/resetRuntimeStats` expose cumulative
 frame, geometry, text layout, candidate, paint and transfer-pixel work. See
-[optimization measurements and examples](../../../design/UI_RUNTIME_OPTIMIZATION.md).
+[optimization measurements and examples](../../docs/Architecture.md).
 
 For component APIs, events, input handling and application scheduling, see the
 [Arduino component interaction guide](../../docs/ArduinoComponentInteraction.md).

@@ -5,29 +5,27 @@
 #if !defined(ARDUINO_ARCH_AVR) && !defined(__AVR__)
 #include "../Graphics/TileCanvas.h"
 #include "Animation.h"
-#include "RangeGeometry.h"
+#include "detail/RangeGeometry.h"
 #include "MotionGeometry.h"
 #include "Transition.h"
 #include "Instruments.h"
 #include "Shapes.h"
-#include "RasterOcclusion.h"
-#include "Rgb565Blend.h"
-#include "Rgb565PpaBlend.h"
-#include "Rle565.h"
-#include "RetainedStorage.h"
-#include "KeyboardIcons.h"
+#include "detail/RasterOcclusion.h"
+#include "detail/Rgb565Blend.h"
+#include "detail/RenderBackend.h"
+#include "detail/Rle565.h"
+#include "detail/RetainedStorage.h"
+#include "detail/KeyboardIcons.h"
 #include <vector>
 #include <string>
 #include <memory>
-#include <atomic>
 #include <new>
 #include <algorithm>
 #include <limits.h>
 #include <string.h>
 #include <math.h>
-#if defined(ESP32) || defined(ARDUINO_ARCH_ESP32) || defined(ESP_PLATFORM)
-#include <esp_heap_caps.h>
-#endif
+#include "../Platform/Common/UiMemory.h"
+#include "detail/ImageStorage.h"
 
 namespace nice_gfx { namespace htmlui {
 namespace {
@@ -39,17 +37,12 @@ class OwnedUiTile {
  public:
   OwnedUiTile() = default;
   explicit OwnedUiTile(size_t pixels) {
-#if defined(ESP32) || defined(ARDUINO_ARCH_ESP32) || defined(ESP_PLATFORM)
-    dma_ = static_cast<uint16_t *>(heap_caps_calloc(pixels, sizeof(uint16_t),
-        MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA));
-#endif
+    dma_ = static_cast<uint16_t *>(platform::allocateUiTile(pixels));
     if (dma_) pixels_ = pixels;
     else fallback_.resize(pixels);
   }
   ~OwnedUiTile() {
-#if defined(ESP32) || defined(ARDUINO_ARCH_ESP32) || defined(ESP_PLATFORM)
-    if (dma_) heap_caps_free(dma_);
-#endif
+    if (dma_) platform::freeUiMemory(dma_);
   }
   OwnedUiTile(const OwnedUiTile &) = delete;
   OwnedUiTile &operator=(const OwnedUiTile &) = delete;
@@ -61,24 +54,12 @@ class OwnedUiTile {
   size_t pixels_ = 0;
 };
 
-bool validImageView(const ImageView &source, size_t &stride, size_t &packed) {
-  if(!source.pixels||!source.width||!source.height||source.width>1024||source.height>1024||
-     uint8_t(source.format)>uint8_t(ImageFormat::RGB332)||uint8_t(source.order)>uint8_t(PixelOrder::Wire)||
-     source.byteLength>8388608)return false;
-  const size_t row=source.width*(source.format==ImageFormat::RGB565?2:1);
-  stride=source.strideBytes?source.strideBytes:row;
-  if(stride<row||source.height-1>(SIZE_MAX-row)/stride)return false;
-  const size_t required=(source.height-1)*stride+row;
-  if(source.byteLength<required||reinterpret_cast<uintptr_t>(source.pixels)>UINTPTR_MAX-required)return false;
-  packed=row*source.height;return true;
-}
 bool validMedia(const MediaDesc &m) {
   if(!m.pixels||!m.width||!m.height||m.width>1024||m.height>1024||!m.frames||m.frames>300||
      !m.fps||m.fps>30||(m.bytesPerPixel!=1&&m.bytesPerPixel!=2))return false;
   const uint64_t bytes=uint64_t(m.width)*m.height*m.frames*m.bytesPerPixel;
   return bytes<=8388608&&reinterpret_cast<uintptr_t>(m.pixels)<=UINTPTR_MAX-size_t(bytes);
 }
-void releaseCopiedImage(void *,const void *pixels) { delete[] static_cast<const uint8_t *>(pixels); }
 int32_t clamp32(int32_t v, int32_t lo, int32_t hi) { return v < lo ? lo : (v > hi ? hi : v); }
 bool contains(Rect r, int32_t x, int32_t y) { return r.width > 0 && r.height > 0 && x >= r.x && y >= r.y && int64_t(x) < int64_t(r.x)+r.width && int64_t(y) < int64_t(r.y)+r.height; }
 Rect intersect(Rect a, Rect b) {
@@ -204,58 +185,6 @@ struct MediaRoundClip {
 };
 }
 
-struct Image::Impl {
-  std::atomic<size_t> references;
-  ImageView source;
-  MediaDesc media;
-  ImageRelease deleter;
-  void *context;
-  size_t ownedBytes;
-  bool flash;
-  Impl(const ImageView &view,ImageRelease callback,void *user,size_t bytes,bool compiled=false)
-    : references(1),source(view),media{static_cast<const uint8_t *>(view.pixels),uint16_t(view.width),uint16_t(view.height),1,1,uint8_t(view.format==ImageFormat::RGB565?2:1)},deleter(callback),context(user),ownedBytes(bytes),flash(compiled) {}
-};
-Image::Image():impl_(nullptr) {}
-Image::Image(Impl *storage):impl_(storage) {}
-Image::~Image() { release(); }
-void Image::retain() { if(impl_)impl_->references.fetch_add(1,std::memory_order_relaxed); }
-void Image::release() {
-  if(impl_&&impl_->references.fetch_sub(1,std::memory_order_acq_rel)==1) {
-    if(impl_->deleter)impl_->deleter(impl_->context,impl_->source.pixels);
-    delete impl_;
-  }
-  impl_=nullptr;
-}
-Image::Image(const Image &other):impl_(other.impl_) { retain(); }
-Image &Image::operator=(const Image &other) { if(this!=&other){Image copy(other);std::swap(impl_,copy.impl_);}return *this; }
-Image::Image(Image &&other) noexcept:impl_(other.impl_) { other.impl_=nullptr; }
-Image &Image::operator=(Image &&other) noexcept { if(this!=&other){release();impl_=other.impl_;other.impl_=nullptr;}return *this; }
-bool Image::valid() const { return impl_!=nullptr; }
-ImageView Image::view() const { return impl_?impl_->source:ImageView(); }
-size_t Image::storageBytes() const { return impl_?impl_->ownedBytes:0; }
-Status Image::copy(const ImageView &source,Image &out) {
-  size_t stride,bytes;if(!validImageView(source,stride,bytes))return Status::InvalidArgument;
-  uint8_t *pixels=new(std::nothrow) uint8_t[bytes];if(!pixels)return Status::NoMemory;
-  const size_t row=bytes/source.height;
-  const auto *input=static_cast<const uint8_t *>(source.pixels);
-  for(size_t y=0;y<source.height;++y) {
-    if(source.format==ImageFormat::RGB565&&source.order==PixelOrder::Native) {
-      for(size_t x=0;x<source.width;++x){uint16_t color;memcpy(&color,input+y*stride+2*x,2);pixels[y*row+2*x]=uint8_t(color>>8);pixels[y*row+2*x+1]=uint8_t(color);}
-    } else memcpy(pixels+y*row,input+y*stride,row);
-  }
-  const ImageView packed(pixels,source.width,source.height,bytes,source.format,PixelOrder::Wire,row);
-  Impl *storage=new(std::nothrow) Impl(packed,releaseCopiedImage,nullptr,bytes);
-  if(!storage){delete[] pixels;return Status::NoMemory;}
-  Image image(storage);out=std::move(image);return Status::Ok;
-}
-Status Image::adopt(const ImageView &source,ImageRelease callback,void *context,Image &out) {
-  size_t stride,bytes;if(!callback||!validImageView(source,stride,bytes))return Status::InvalidArgument;
-  ImageView view=source;view.strideBytes=stride;
-  Impl *storage=new(std::nothrow) Impl(view,callback,context,source.byteLength);
-  if(!storage)return Status::NoMemory;
-  Image image(storage);out=std::move(image);return Status::Ok;
-}
-
 struct View::Impl {
   struct TextValue {
     const char *compiled="";
@@ -275,7 +204,7 @@ struct View::Impl {
     uint16_t motionSlot=NoParent;
     uint32_t motionRevision=0;
   };
-  #include "MotionRuntime.inc.h"
+  #include "detail/MotionRuntime.inc.h"
   struct Listener { Id id; EventType type; EventHandler callback; void *context; bool capture; };
   enum class Drag { None, Range, Scroll, Pager, Back, Home, Group, Gesture, Consumed };
   NICE_GFX &display;
@@ -704,9 +633,9 @@ struct View::Impl {
     for(size_t component=0;component<componentCount;++component)revealComponentSelection(page(),state(),components[component]);
   }
   bool renderingFullFrameSurface=false;
-#include "RenderCache.inc.h"
-#include "AnimationLayers.inc.h"
-#include "NativeRender.inc.h"
+#include "detail/RenderCache.inc.h"
+#include "detail/AnimationLayers.inc.h"
+#include "detail/NativeRender.inc.h"
   Rect poseRect(const PageDesc &p,const RetainedVector<State> &s,int i) const {
     Rect r=layoutRect(p,s,i);r.x+=s[i].animationX;r.y+=s[i].animationY;
     for(uint16_t a=p.nodes[i].parent;a!=NoParent;a=p.nodes[a].parent) { r.x+=s[a].animationX-s[a].scrollX; r.y+=s[a].animationY-s[a].scrollY; }
@@ -1904,9 +1833,9 @@ struct View::Impl {
     }
     return canvas.attach(area,pixels,size_t(area.height-1)*stride+size_t(area.width),stride,PixelOrder::Native);
   }
-#include "MotionRender.inc.h"
-#include "TextInput.inc.h"
-#include "OpaqueCover.inc.h"
+#include "detail/MotionRender.inc.h"
+#include "detail/TextInput.inc.h"
+#include "detail/OpaqueCover.inc.h"
   static Status render(void *context,const DirtyRect &requestedArea,uint16_t *pixels,size_t stride) {
     Impl &self=*static_cast<Impl *>(context);
     DirtyRect area=requestedArea;
@@ -2348,7 +2277,7 @@ struct View::Impl {
   }
 };
 
-#include "Dynamic.inc.h"
+#include "detail/Dynamic.inc.h"
 
 View::View(NICE_GFX &d,size_t n):impl_(new Impl(d,n)) {}
 View::View(NICE_GFX &d,uint16_t *a,uint16_t *b,size_t n):impl_(new Impl(d,a,b,n)) {}

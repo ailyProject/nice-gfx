@@ -13,10 +13,10 @@
 
 #include <NICE_GFX.h>
 #include <Graphics/TextDrawing.h> // Font selection and text drawing helpers.
-#include <Display/Presets/ExampleBoard.h>
+#include "Hardware.h"
 #include <SPI.h>
 
-ExampleDisplay gfx;  // Invoke library, pins in Display/Presets/ExampleBoard.h
+ExampleDisplay gfx;  // Invoke library, pins in Hardware.h
 
 #define GFX_GREY 0xBDF7
 

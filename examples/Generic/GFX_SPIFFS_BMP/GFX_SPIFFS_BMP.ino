@@ -25,7 +25,7 @@
 
 // Call up the TFT library
 #include <NICE_GFX.h> // Hardware-specific library for ESP8266
-#include <Display/Presets/ExampleBoard.h>
+#include "Hardware.h"
 
 // Invoke TFT library
 ExampleDisplay gfx;

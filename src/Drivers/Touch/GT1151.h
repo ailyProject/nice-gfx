@@ -51,7 +51,9 @@ class Gt1151 : public I2cTouch {
       const uint8_t id=p[0]&15;
       if (seenIds & uint16_t(1u<<id)) return badPacket();
       seenIds |= uint16_t(1u<<id);
-      frame.contacts[i]={candidate.x,candidate.y,uint16_t(p[5]|p[6]<<8),id};
+      Contact &contact=frame.contacts[i];
+      contact.x=candidate.x;contact.y=candidate.y;
+      contact.pressure=uint16_t(p[5]|p[6]<<8);contact.id=id;
     }
     out=frame;
     return true;

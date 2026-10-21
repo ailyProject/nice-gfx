@@ -48,7 +48,7 @@
   //*/
 
 #include <NICE_GFX.h>                 // Include the graphics library (this includes the sprite functions)
-#include <Display/Presets/ExampleBoard.h>
+#include "Hardware.h"
 
 ExampleDisplay gfx;         // Create object "gfx"
 

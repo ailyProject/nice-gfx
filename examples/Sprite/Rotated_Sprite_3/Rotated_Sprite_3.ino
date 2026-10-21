@@ -24,7 +24,7 @@
 #include <FS.h>
 #include <LittleFS.h>
 #include <NICE_GFX.h>                 // Hardware-specific library
-#include <Display/Presets/ExampleBoard.h>
+#include "Hardware.h"
 #include <JPEGDecoder.h>
 ExampleDisplay gfx;            // Invoke custom library
 GFX_Sprite spr = GFX_Sprite(&gfx);  // Create Sprite object "spr" with pointer to "gfx" object

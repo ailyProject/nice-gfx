@@ -955,7 +955,7 @@ View 中的 value、checked 和初始文字只是 UI 状态，不能替代业务
 | [Arduino 导出器](../../nice_gfx_editor/packages/html-ui/arduino.mjs) | Hardware、TouchAdapter、ButtonAdapter 与起步主程序 |
 | [HTML/CSS 支持说明](../../nice_gfx_editor/packages/html-ui/HTML_CSS_SUPPORT.md) | 组件属性、参数上限、支持范围 |
 | [组件模型说明](../../nice_gfx_editor/docs/component-model.md) | 封装组件与作者内容插槽 |
-| [UI 与业务分离说明](../../design/UI_LOGIC_SEPARATION.md) | 导出更新、AppData 与业务源码分工 |
+| [UI 与业务分离说明](Architecture.md) | 导出更新、AppData 与业务源码分工 |
 | [GfxTouchDemo](../examples/HTML_UI/GfxTouchDemo/GfxTouchDemo.ino) | 原生控件、AppData、RouteChange 和 pollUi 的完整起步实例 |
 | [Orbit 设计器工程](../../nice_gfx_editor/projects/12-orbit-reference/orbit-reference.gfx-project.json) | 圆屏多路由页面、导航和交互的可编辑项目 |
 

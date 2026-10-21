@@ -19,12 +19,12 @@
   Created by Bodmer 10/2/18
 
   #########################################################################
-  ###### DON'T FORGET TO UPDATE THE Display/Presets/ExampleBoard.h FILE IN THE LIBRARY ######
+  ###### DON'T FORGET TO UPDATE THE Hardware.h FILE IN THIS SKETCH ######
   #########################################################################
 */
 
 #include <NICE_GFX.h>       // Include the graphics library
-#include <Display/Presets/ExampleBoard.h>
+#include "Hardware.h"
 
 ExampleDisplay gfx;  // Create object "gfx"
 

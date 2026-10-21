@@ -29,7 +29,7 @@
 #include "graphic.h"
 
 #include <NICE_GFX.h> // Hardware-specific library
-#include <Display/Presets/ExampleBoard.h>
+#include "Hardware.h"
 
 ExampleDisplay gfx;       // Invoke custom library
 

@@ -14,15 +14,15 @@
  Code derived from ILI9341_due library example
 
  Make sure all the display driver and pin connections are correct by
- editing the Display/Presets/ExampleBoard.h file in the NICE_GFX library folder.
+ editing the Hardware.h file in this sketch folder.
 
  #########################################################################
- ###### DON'T FORGET TO UPDATE THE Display/Presets/ExampleBoard.h FILE IN THE LIBRARY ######
+ ###### DON'T FORGET TO UPDATE THE Hardware.h FILE IN THIS SKETCH ######
  #########################################################################
 */
 
 #include <NICE_GFX.h>       // Hardware-specific library
-#include <Display/Presets/ExampleBoard.h>
+#include "Hardware.h"
 
 ExampleDisplay gfx;  // Invoke custom library
 

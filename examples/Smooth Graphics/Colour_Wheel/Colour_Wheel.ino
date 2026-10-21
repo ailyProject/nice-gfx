@@ -1,7 +1,7 @@
 // Arc drawing example - draw a colour wheel
 
 #include <NICE_GFX.h>       // Include the graphics library
-#include <Display/Presets/ExampleBoard.h>
+#include "Hardware.h"
 ExampleDisplay gfx;  // Create object "gfx"
 
 uint16_t colors[12];

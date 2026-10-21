@@ -4,23 +4,23 @@
  This sketch used GfxTerm8x16, 4, 7
  
  Make sure all the display driver and pin connections are correct by
- editing the Display/Presets/ExampleBoard.h file in the NICE_GFX library folder.
+ editing the Hardware.h file in this sketch folder.
 
  Note that yield() or delay(0) must be called in long duration for/while
  loops to stop the ESP8266 watchdog triggering.
 
  #########################################################################
- ###### DON'T FORGET TO UPDATE THE Display/Presets/ExampleBoard.h FILE IN THE LIBRARY ######
+ ###### DON'T FORGET TO UPDATE THE Hardware.h FILE IN THIS SKETCH ######
  #########################################################################
  */
 
 
 #include <NICE_GFX.h>
 #include <Graphics/TextDrawing.h> // Font selection and text drawing helpers.
-#include <Display/Presets/ExampleBoard.h>
+#include "Hardware.h"
 #include <SPI.h>
 
-ExampleDisplay gfx;  // Invoke library, pins in Display/Presets/ExampleBoard.h
+ExampleDisplay gfx;  // Invoke library, pins in Hardware.h
 
 #define GFX_GREY 0x5AEB // New colour
 

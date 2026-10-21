@@ -27,7 +27,7 @@
 // Created by Bodmer 6/1/19; adapted for NICE_GFX:
 #include <NICE_GFX.h>
 #include <Graphics/TextDrawing.h> // Font selection and text drawing helpers.
-#include <Display/Presets/ExampleBoard.h>
+#include "Hardware.h"
 
 ExampleDisplay gfx;           // TFT object
 

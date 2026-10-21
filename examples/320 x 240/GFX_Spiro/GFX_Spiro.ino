@@ -2,7 +2,7 @@
 // Rainbow pattern generator
 
 #include <NICE_GFX.h> // Hardware-specific library
-#include <Display/Presets/ExampleBoard.h>
+#include "Hardware.h"
 #include <SPI.h>
 
 ExampleDisplay gfx;       // Invoke custom library

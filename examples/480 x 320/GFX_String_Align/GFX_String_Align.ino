@@ -25,7 +25,7 @@ So you can use lines to position text like:
  Needs fonts 2, 4, 6, 7 and 8
 
   #########################################################################
-  ###### DON'T FORGET TO UPDATE THE Display/Presets/ExampleBoard.h FILE IN THE LIBRARY ######
+  ###### DON'T FORGET TO UPDATE THE Hardware.h FILE IN THIS SKETCH ######
   ######        TO SELECT THE FONTS AND PINS YOU USE, SEE ABOVE      ######
   #########################################################################
  */
@@ -35,7 +35,7 @@ So you can use lines to position text like:
 
 #include <NICE_GFX.h>
 #include <Graphics/TextDrawing.h> // Font selection and text drawing helpers.
-#include <Display/Presets/ExampleBoard.h>
+#include "Hardware.h"
 
 ExampleDisplay gfx;       // Invoke custom library
 

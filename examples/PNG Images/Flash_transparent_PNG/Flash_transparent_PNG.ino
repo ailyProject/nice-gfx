@@ -33,7 +33,7 @@ PNG png; // PNG decoder instance
 // Include the NICE_GFX graphics library.
 #include "SPI.h"
 #include <NICE_GFX.h>              // Hardware-specific library
-#include <Display/Presets/ExampleBoard.h>
+#include "Hardware.h"
 ExampleDisplay gfx;         // Invoke custom library
 
 // Position variables must be global (PNGdec does not handle position coordinates)

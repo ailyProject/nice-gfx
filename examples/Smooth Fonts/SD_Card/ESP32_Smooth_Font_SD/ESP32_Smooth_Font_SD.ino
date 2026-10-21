@@ -2,7 +2,7 @@
 #include <SPI.h>
 #include <SD.h>
 #include <NICE_GFX.h>
-#include <Display/Presets/ExampleBoard.h>
+#include "Hardware.h"
 ExampleDisplay gfx;
 constexpr int SD_CS = 5; // Change this pin to your card's chip select.
 bool cardReady = false;

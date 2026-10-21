@@ -4,10 +4,10 @@
  Needs GfxTerm8x16 (also Spleen12x24 if using large scale label)
 
  Make sure all the required fonts are loaded by editing the
- Display/Presets/ExampleBoard.h file in the GFX_HX8357_Due library folder.
+ Hardware.h file in the GFX_HX8357_Due library folder.
 
   #########################################################################
-  ###### DON'T FORGET TO UPDATE THE Display/Presets/ExampleBoard.h FILE IN THE LIBRARY ######
+  ###### DON'T FORGET TO UPDATE THE Hardware.h FILE IN THIS SKETCH ######
   ######       TO SELECT THE FONTS AND PINS YOU USE, SEE ABOVE       ######
   #########################################################################
  
@@ -21,7 +21,7 @@ Updated by Bodmer for variable meter size
 
 #include <NICE_GFX.h>
 #include <Graphics/TextDrawing.h> // Font selection and text drawing helpers.
-#include <Display/Presets/ExampleBoard.h>
+#include "Hardware.h"
 
 ExampleDisplay gfx;       // Invoke custom library
 

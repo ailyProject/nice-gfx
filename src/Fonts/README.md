@@ -31,11 +31,11 @@
 
 思源派生字体名称中的 12/16/24 是原始栅格化字号，实际字符格和 `fontHeight()` 如表所示。保留统一基线及上下伸笔画，宋体额外保留横向衬线空间，不将原字形硬裁为正方形。24px 更适合中文标题和正文；16px 黑体适合紧凑界面，复杂汉字建议选 24px。这些仍是 1 位点阵，并非运行时矢量或抗锯齿字体。
 
-![基础字体的实际点阵对比](preview.png)
+![基础字体的实际点阵对比](../../docs/assets/fonts/preview.png)
 
-`GfxSansCN12` 从锁定的思源黑体轮廓字体按 12px 实际栅格化，字形保留在 12×16 字符格中，供 160×128 小屏正文使用。包含 7,540 字形、6,763 汉字，完整资源 256,360 B；导出可按界面文字取子集。原生字模和编辑器预览共用同一位图，来源哈希、OFL 声明见 [许可说明](licenses/GfxSansCN12-NOTICE.txt)；在仓库根目录运行 `node tools/generate_small_sans.mjs` 可使用本地轮廓字体与 Edge 重建。
+`GfxSansCN12` 从锁定的思源黑体轮廓字体按 12px 实际栅格化，字形保留在 12×16 字符格中，供 160×128 小屏正文使用。包含 7,540 字形、6,763 汉字，完整资源 256,360 B；导出可按界面文字取子集。原生字模和编辑器预览共用同一位图，来源哈希、OFL 声明见 [许可说明](licenses/GfxSansCN12-NOTICE.txt)。预览资源位于 `docs/assets/fonts/`，正常构建使用已提交的字模。
 
-`GfxSansLatin16/24` 从本地思源黑体字模提取 ASCII 并调整字符格，适合英文标题、计时、百分比和读数，避免直接使用中文全宽格造成数字间距过大。它们仍是等宽 1 位点阵；中文请使用对应的 `GfxSansCN` 字体。两套完整字模共 10,260 B，不改变渲染 API 或资源 ABI。源字模哈希记录在生成文件中，使用 SIL OFL 1.1；运行 `node tools/generate_compact_sans.mjs --check` 可从工作区根目录核对离线重建结果。
+`GfxSansLatin16/24` 从本地思源黑体字模提取 ASCII 并调整字符格，适合英文标题、计时、百分比和读数，避免直接使用中文全宽格造成数字间距过大。它们仍是等宽 1 位点阵；中文请使用对应的 `GfxSansCN` 字体。两套完整字模共 10,260 B，不改变渲染 API 或资源 ABI。源字模哈希记录在生成文件中，使用 SIL OFL 1.1；字模来源与哈希记录在字体头文件和许可声明中。
 
 预览按整数倍放大实际编译字模。可运行 [Additional_Fonts 示例](../../examples/Generic/Additional_Fonts/Additional_Fonts.ino)轮换查看新增字体；先修改屏幕型号和引脚。示例在非 AVR 平台引用全部六套新增字体，完整中文合计约 1.97 MiB；AVR 示例仅使用 `GfxTerm8x16`。
 
@@ -94,19 +94,15 @@ gfx.drawString("READY 100%", 8, 88);
 
 编译器使用 `-ffunction-sections -fdata-sections`，链接器使用 `-Wl,--gc-sections`。Arduino 的已验证 AVR / ESP32 core 提供对应配置；自定义构建系统须启用等价的段裁剪。MSVC 主机测试使用 `/Gy /Gw /OPT:REF`。LTO 不是这个设计的必要条件。
 
-所有字体实现位于 `src/Fonts/Mono/GFX_Font_*.cpp`，最终 Flash 只保留可达的字体数据。Arduino、ESP-IDF 和自包含导出都直接编译这些字体文件；`tools/check_bundled_fonts.mjs` 核对编译单元与字体目录。手动维护源文件列表时须添加所需字体实现。全部字体图样与调用方法见 [字体指南](../../docs/font.md)。
+所有字体实现位于 `src/Fonts/Mono/GFX_Font_*.cpp`，最终 Flash 只保留可达的字体数据。Arduino、ESP-IDF 和自包含导出都直接编译这些字体文件；`npm run check` 核对库与发布目录。手动维护源文件列表时须添加所需字体实现。全部字体图样与调用方法见 [字体指南](../../docs/font.md)。
 
 不要创建包含所有字体地址的可达全局表、自动注册函数，或用链接脚本 `KEEP` 保留全部字库。运行时可能被菜单选中的字体属于已引用字体，即使某次运行未选择它，也需要保留。字体级裁剪不会自动删除已选字库内没用过的汉字。
 
 ## 按界面文本生成中文子集
 
-将界面文字保存为 UTF-8 `ui-text.txt`，生成独立字体（Python 3.10+，无第三方包）：
+在编辑器的字体导出设置中选择所用字形，并补充运行时可能显示的文本。导出资源会保存所需字形，无需在固件运行时加载原始字体。手动维护独立字体时，将生成的 `.h/.cpp` 随应用保存。
 
-```sh
-python tools/generate_mono_fonts.py tools/font-sources/mono --download --text ui-text.txt --name ProjectCN --output /path/to/MySketch
-```
-
-生成 `ProjectCN.h` 和 `ProjectCN.cpp`。放在 Arduino sketch 目录，与 `.ino` 一起编译；PlatformIO 可将二者放在 `src`。其他构建系统将生成的 `.cpp` 加入源文件列表。使用：
+例如独立字体命名为 `ProjectCN.h` 和 `ProjectCN.cpp`，可放在 Arduino sketch 目录，与 `.ino` 一起编译；PlatformIO 可将二者放在 `src`。其他构建系统将生成的 `.cpp` 加入源文件列表。使用：
 
 ```cpp
 #include <Graphics/Gfx.h>
@@ -120,12 +116,9 @@ gfx.setFont(nice_gfx::fonts::ProjectCN);
 
 分发子集时也须保留下面的 Unifont 授权与作者说明。
 
-新增黑体、宋体的子集生成方式如下（仅离线生成时需要 Pillow 和 fontTools）：
+黑体、宋体等其他字库也可按界面文字选择子集：
 
-```sh
-python -m pip install -r tools/font-requirements.txt
-python tools/generate_cjk_fonts.py tools/font-sources/cjk --download --font GfxSansCN24 --text ui-text.txt --name ProjectSans --output /path/to/MySketch
-```
+中文子集可通过编辑器的字体导出设置生成，生成字体的 `.h/.cpp` 随应用保存。
 
 生成 `ProjectSans.h`、`ProjectSans.cpp` 和 `licenses/`，代码使用 `gfx.setFont(nice_gfx::fonts::ProjectSans)`。`--font` 可换成 `GfxSansCN16` 或 `GfxSerifCN24`。自动保留 ASCII、按 Unicode 去重排序，并复制该字体的完整许可与派生说明；发布时一起保留。字符数据分别占 46、98、130 字节/字符；例如黑体 24px 的 95 个 ASCII 加 14 个中文字符只占 10,682 字节。未覆盖的码点或会被裁切的字形会报错，避免静默生成缺字。自定义名称不能与内置对象、C++ 关键字或上游保留名称 `Source` 冲突。
 
@@ -144,19 +137,7 @@ python tools/generate_cjk_fonts.py tools/font-sources/cjk --download --font GfxS
 - GfxSansCN16/24：派生自 Adobe Source Han Sans CN Regular 2.005R，[完整 OFL 1.1 许可和版权](licenses/SourceHanSans-OFL-1.1.txt)，[官方固定版本](https://github.com/adobe-fonts/source-han-sans/tree/6c709ca72d3d7c46ab42ebecc1a26e7d69595a37)。转换为 1bpp 等宽单元格并裁剪字符集。
 - GfxSerifCN24：派生自 Adobe Source Han Serif CN Regular 2.003R，[完整 OFL 1.1 许可和版权](licenses/SourceHanSerif-OFL-1.1.txt)，[官方固定版本](https://github.com/adobe-fonts/source-han-serif/tree/7889f11bf31170b5d092a083b357c8c8130f89e0)。转换方式同上，保留衬线。
 
-英文 BDF 固定为 u8g2 提交 `d6c8499c5f2707cac8eccd09fd8f677d12b17977`；下载地址及 SHA-256 见 [sources.json](../../../sources/Fonts/Mono/sources.json)。生成器校验每个源文件的 SHA-256；正常编译不联网。
-
-新增英文源包与 BDF 成员见 [latin-sources.json](../../../sources/Fonts/Mono/latin-sources.json)，新增中文 OTF、版权许可和固定提交见 [cjk-sources.json](../../../sources/Fonts/Mono/cjk-sources.json)。中文栅格化固定使用 Pillow 12.3.0 / FreeType 2.14.3 / fontTools 4.64.0；生成器检查版本与 SHA-256，以保持可复现。源文件只需下载一次，后续移除 `--download` 即可离线重建：
-
-```sh
-python tools/generate_mono_fonts.py tools/font-sources/mono --download
-python tools/generate_latin_fonts.py tools/font-sources/latin --download
-python -m pip install -r tools/font-requirements.txt
-python tools/generate_cjk_fonts.py tools/font-sources/cjk --download
-python tools/preview_fonts.py
-# 无需 Python 的完整图样目录生成：
-node tools/preview_font_catalog.mjs
-```
+字模的来源、版权和固定版本记录在各字体头文件及 [许可目录](licenses) 中。预览图和目录数据位于 [字体文档资源](../../docs/assets/fonts)。正常编译不下载字体，也不依赖原始 BDF/OTF 或字体生成工具。需要更新字模时，应一并更新源码、来源记录、预览与编辑器字体资源。
 
 ## 从旧字体接口迁移
 

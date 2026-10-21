@@ -44,7 +44,7 @@
 #define CUBE_SIZE 358
 
 #include <NICE_GFX.h>
-#include <Display/Presets/ExampleBoard.h>
+#include "Hardware.h"
 
 // Library instance
 ExampleDisplay gfx;         // Declare object "gfx"

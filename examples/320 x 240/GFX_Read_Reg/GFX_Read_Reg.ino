@@ -4,7 +4,7 @@
   This sketch reports via the Serial Monitor window
 
   #########################################################################
-  ###### DON'T FORGET TO UPDATE THE Display/Presets/ExampleBoard.h FILE IN THE LIBRARY ######
+  ###### DON'T FORGET TO UPDATE THE Hardware.h FILE IN THIS SKETCH ######
   ######       SELECT ILI9341 AND CONNECT MISO TO READ REGISTERS      ######
   #########################################################################
 
@@ -17,7 +17,7 @@
 
 #include <NICE_GFX.h>
 #include <Graphics/TextDrawing.h> // Font selection and text drawing helpers.
-#include <Display/Presets/ExampleBoard.h>
+#include "Hardware.h"
 #include <SPI.h>
 
 // ILI9341 read commands; the sketch does not depend on private driver headers.
