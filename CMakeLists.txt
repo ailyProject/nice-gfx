@@ -1,7 +1,34 @@
 # Native ESP-IDF is the default. Arduino-as-a-component callers explicitly set
 # NICE_GFX_ARDUINO_COMPONENT to arduino or espressif__arduino-esp32.
 set(nice_gfx_root "${CMAKE_CURRENT_LIST_DIR}")
-set(nice_gfx_requires esp_lcd esp_driver_spi esp_driver_gpio esp_timer
+
+# Build profiles only select translation units. They do not change public APIs,
+# resource layouts or the Arduino library builder's default source discovery.
+if(NOT DEFINED NICE_GFX_BUILD_PROFILE)
+    set(NICE_GFX_BUILD_PROFILE full)
+endif()
+if(NOT NICE_GFX_BUILD_PROFILE MATCHES "^(full|graphics|minimal)$")
+    message(FATAL_ERROR "Unknown NICE_GFX_BUILD_PROFILE: ${NICE_GFX_BUILD_PROFILE}; expected full, graphics or minimal")
+endif()
+if(NOT DEFINED NICE_GFX_ENABLE_UI)
+    if(NICE_GFX_BUILD_PROFILE STREQUAL "full")
+        set(NICE_GFX_ENABLE_UI ON)
+    else()
+        set(NICE_GFX_ENABLE_UI OFF)
+    endif()
+endif()
+if(NOT DEFINED NICE_GFX_ENABLE_FONTS)
+    if(NICE_GFX_BUILD_PROFILE STREQUAL "minimal")
+        set(NICE_GFX_ENABLE_FONTS OFF)
+    else()
+        set(NICE_GFX_ENABLE_FONTS ON)
+    endif()
+endif()
+if(NOT NICE_GFX_ENABLE_FONTS AND NICE_GFX_FONT_SOURCES AND NOT NICE_GFX_FONT_SOURCES STREQUAL "NONE")
+    message(FATAL_ERROR "NICE_GFX_FONT_SOURCES requires NICE_GFX_ENABLE_FONTS=ON")
+endif()
+
+set(nice_gfx_requires esp_lcd esp_driver_spi esp_driver_gpio esp_driver_i2c esp_timer
     esp_hw_support esp_system esp_mm esp_psram heap freertos)
 if(IDF_TARGET MATCHES "^(esp32p4|esp32s31)$")
     list(APPEND nice_gfx_requires esp_driver_ppa)
@@ -16,9 +43,15 @@ if(NOT CMAKE_BUILD_EARLY_EXPANSION)
     if(NOT NICE_GFX_ARDUINO_COMPONENT)
         list(FILTER nice_gfx_sources EXCLUDE REGEX "/Platform/(Arduino|RP2040|STM32)/")
     endif()
+    if(NOT NICE_GFX_ENABLE_UI)
+        list(FILTER nice_gfx_sources EXCLUDE REGEX "/UI/")
+    endif()
     # Optional build-only selection. The default retains every bundled font.
+    # NONE excludes bundled data; applications can still supply their own fonts.
     # Names are e.g. Fixed6x13;GfxSansCN16; setFont() remains unchanged.
-    if(NICE_GFX_FONT_SOURCES)
+    if(NOT NICE_GFX_ENABLE_FONTS OR NICE_GFX_FONT_SOURCES STREQUAL "NONE")
+        list(FILTER nice_gfx_sources EXCLUDE REGEX "/Fonts/Mono/GFX_Font_[^/]+\\.cpp$")
+    elseif(NICE_GFX_FONT_SOURCES)
         list(FILTER nice_gfx_sources EXCLUDE REGEX "/Fonts/Mono/GFX_Font_[^/]+\\.cpp$")
         foreach(nice_gfx_font IN LISTS NICE_GFX_FONT_SOURCES)
             if(NOT nice_gfx_font MATCHES "^[A-Za-z0-9_]+$")

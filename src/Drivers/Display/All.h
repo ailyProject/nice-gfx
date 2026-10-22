@@ -61,7 +61,6 @@
 #include "SSD1963_800BD.h"
 #include "ILI9341_2.h"
 #include "ILI9342.h"
-#include "ILI9341_M5Stack.h"
 #include "ILI9481_Parallel.h"
 #include "ILI9486_Parallel.h"
 #include "ILI9488_Parallel.h"
@@ -84,8 +83,6 @@
 #include "ILI9481_Sequence6_Parallel.h"
 #include "ILI9481_Sequence7_Parallel.h"
 #include "ILI9481_Sequence8_Parallel.h"
-#include "RPI_ILI9486.h"
-#include "RPI_ST7796.h"
 
 #include "NV3022B.h"
 #include "JD9853.h"

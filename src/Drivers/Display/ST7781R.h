@@ -30,7 +30,7 @@ inline void init_ST7781R(PanelSequence &s) {
 
 inline ControllerProfile profile_ST7781R() {
   return {"ST7781R",240,320,0x7781,Protocol::Ili9331,PixelFormat::RGB565,
-    0x22,0,0,1,0,0,0,init_ST7781R,rotate_SeeedLegacy,PixelReadFormat::RGB565,1,0};
+    0x22,0,0,1,0,0,0,init_ST7781R,rotate_FixedEntryMode,PixelReadFormat::RGB565,1,0};
 }
 } }
 

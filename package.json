@@ -9,5 +9,5 @@
     "examples:sync": "node tools/sync-example-hardware.mjs",
     "metadata:sync": "node tools/sync-metadata.mjs"
   },
-  "engines": { "node": ">=20" }
+  "engines": { "node": ">=20.11" }
 }

@@ -23,7 +23,7 @@ struct InstrumentState {
     const auto &a=*n.instrument;data=std::make_shared<std::vector<int32_t>>(size_t(a.capacity)*a.seriesCount,ChartNone);
     for(int s=0;s<a.seriesCount;++s){count[s]=a.series[s].count;for(int j=0;j<count[s];++j)(*data)[size_t(s)*a.capacity+j]=a.series[s].values[j];}
   }
-  std::vector<int32_t> &writable() { if(!data.unique())data=std::make_shared<std::vector<int32_t>>(*data);return *data; }
+  std::vector<int32_t> &writable() { if(data.use_count()!=1)data=std::make_shared<std::vector<int32_t>>(*data);return *data; }
   int32_t value(const InstrumentDesc &a,int s,int index) const {return s<0||s>=a.seriesCount||index<0||index>=count[s]?ChartNone:(*data)[size_t(s)*a.capacity+(head[s]+index)%a.capacity];}
   bool set(const InstrumentDesc &a,int s,int index,int32_t v) {
     if(s<0||s>=a.seriesCount||index<0||index>=a.capacity)return false;

@@ -1,0 +1,27 @@
+name: Library host regressions
+
+on: [push, pull_request, workflow_dispatch]
+
+permissions:
+  contents: read
+
+jobs:
+  host:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [g++, clang++]
+    env:
+      CXX: ${{ matrix.compiler }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check host toolchain
+        run: |
+          "$CXX" --version
+          cmake --version
+      - name: Check metadata, build registration and host behavior with UBSan
+        run: npm test

@@ -205,5 +205,42 @@ void shapeEndpointAndDirtyCleanup(){
     require(animated.transport.pixels()==clean.transport.pixels(),"animation left stale pixels outside new pivot bounds");
   }
 }
+void transparentMedia(){
+  // Independent reference: replace keyed texels with this fixture's underlay.
+  // Exercise the real normal/affine kernels, source-frame offsets and publication.
+  const uint16_t key=0xf81f;uint8_t keyed[2+4*3*2*2]={0xf8,0x1f},opaque[4*3*2*2];
+  for(unsigned i=0;i<24;++i){const uint16_t color=i%3?uint16_t(0x07e0+i*9):key;
+    keyed[2+i*2]=color>>8;keyed[3+i*2]=color;const uint16_t expected=color==key?Background:color;
+    opaque[i*2]=expected>>8;opaque[i*2+1]=expected;}
+  const MediaDesc source={keyed,4,3,2,2,MediaRgb565ColorKey},reference={opaque,4,3,2,2,2};
+  for(int angle:{0,23,90})for(int scale:{512,1024,1536})for(int alpha:{128,255})for(bool dynamic:{false,true}){
+    const MotionKeyframe frames[]={{0,0,0,uint16_t(scale),int16_t(angle),1024,uint8_t(alpha)},{1024,0,0,uint16_t(scale),int16_t(angle),1024,uint8_t(alpha)}};
+    const MotionDesc motion={frames,2,0};NodeDesc n=leaf(Kind::Media);n.rect={37,31,16,12};n.media=&source;
+    const bool transformed=angle||scale!=1024||alpha!=255;if(transformed)n.motion=&motion;
+    Fixture tiled(n,3),whole(n,Height);n.media=&reference;Fixture golden(n,5);
+    if(dynamic){require(tiled.view.setMediaResource(1,source)==Status::Ok&&whole.view.setMediaResource(1,source)==Status::Ok,"publish keyed resource");}
+    if(transformed)for(auto *f:{&tiled,&whole,&golden})require(f->view.playAnimation(1,1),"keyed motion starts");
+    for(unsigned at:{1u,501u}){
+      tiled.flush(at);whole.flush(at);golden.flush(at);
+      require(tiled.transport.pixels()==whole.transport.pixels(),"keyed rendering independent of tile height");
+      require(tiled.transport.pixels()==golden.transport.pixels(),"keyed holes preserve underlay through scaling/rotation/opacity/frame changes");
+    }
+  }
+  NodeDesc n=leaf(Kind::Media);n.media=&source;Fixture f(n);MediaDesc invalid=source;invalid.bytesPerPixel=0x81;
+  require(f.view.setMediaResource(1,invalid)==Status::InvalidArgument,"unsupported keyed encoding rejected");
+}
+void filledShapeSpans(){
+  const ShapePoint points[]={{0,0},{100,100},{0,100},{100,0},{50,100}};
+  const ShapeDesc polygon={ShapeType::Polygon,0x07e0,0,0,ShapeFill,5,100,100,points};
+  uint16_t colors[256]={};const GradientDesc unused={colors,0,0,0,0};
+  for(int angle:{0,23,90,179})for(int alpha:{47,128,255})for(int scale:{512,1024,1536}){
+    const MotionKeyframe f[]={{0,0,0,uint16_t(scale),int16_t(angle),1024,uint8_t(alpha)},{1024,0,0,uint16_t(scale),int16_t(angle),1024,uint8_t(alpha)}};
+    const MotionDesc motion={f,2,0};NodeDesc n=leaf(Kind::Shape);n.shape=&polygon;n.motion=&motion;n.rect={13,9,78,65};
+    Fixture fast(n,3),whole(n,Height);n.style.gradient=&unused;Fixture reference(n,5);
+    for(auto *v:{&fast,&whole,&reference}){require(v->view.playAnimation(1,1),"shape span motion starts");v->flush(21);}
+    require(fast.transport.pixels()==reference.transport.pixels(),"direct fill spans preserve self-crossing/opacity composition");
+    require(fast.transport.pixels()==whole.transport.pixels(),"direct fill spans independent of tile height");
+  }
+}
 } // namespace
-int main(){defaultsAndValidation();geometricBounds();actualLeafRenderingAndHits();patternedMedia();shapeEndpointAndDirtyCleanup();std::printf("{\"ok\":true,\"checks\":%d,\"realView\":true,\"pivotBounds\":true,\"dirtyCleanup\":true}\n",checks);}
+int main(){defaultsAndValidation();geometricBounds();actualLeafRenderingAndHits();patternedMedia();shapeEndpointAndDirtyCleanup();transparentMedia();filledShapeSpans();std::printf("{\"ok\":true,\"checks\":%d,\"realView\":true,\"pivotBounds\":true,\"dirtyCleanup\":true,\"transparentMedia\":true,\"fillSpans\":true}\n",checks);}

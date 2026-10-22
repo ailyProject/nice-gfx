@@ -9,6 +9,10 @@ namespace nice_gfx { namespace htmlui {
 // Large retained state/geometry belongs beside the page cache in S3 PSRAM.
 // Keep tiles, input and small control allocations in internal RAM. This does
 // not change the application's global malloc policy or other target backends.
+// The standard allocator contract requires failure to throw (or terminate in
+// exception-free builds). Returning nullptr here would make vector writes
+// undefined behavior; checked View construction/mount catch bad_alloc only
+// when the application's toolchain enables C++ exceptions.
 template<class T> struct RetainedAllocator {
   using value_type=T;
   using is_always_equal=std::true_type;
@@ -20,7 +24,7 @@ template<class T> struct RetainedAllocator {
       memory=platform::allocateRetained(count*sizeof(T));
     }
     if(!memory) {
-#if defined(__cpp_exceptions)
+#if defined(__cpp_exceptions) || defined(_CPPUNWIND)
       throw std::bad_alloc();
 #else
       std::abort();

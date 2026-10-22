@@ -1,6 +1,6 @@
 # 模组与触摸接入
 
-显示芯片、触摸芯片与板级接线分别配置。完整设备和预设列表见 [设备支持](DeviceSupport.md)，源码职责见 [架构说明](Architecture.md)。同一外观或尺寸的模组可能使用不同芯片，应以实际硬件版本和接线为准。
+显示芯片、触摸芯片与板级接线分别配置。固定开发板优先使用 [开发板预设](BoardPresets.md)，其他模组按 [设备支持](DeviceSupport.md) 选择驱动。同一外观的模组也可能使用不同芯片，应核对硬件版本与接线。
 
 | 驱动或协议族 | 头文件 | 当前公开类型 |
 | --- | --- | --- |
@@ -15,13 +15,13 @@
 | SPD2010 | [SPD2010.h](../src/Drivers/Touch/SPD2010.h) | `Spd2010Touch` |
 | 四线电阻屏 | [TouchResistive.h](../src/Drivers/Touch/TouchResistive.h) | `FourWireTouch`，通过 `TouchAnalog` 接入 |
 
-这些类型位于 `nice_gfx` 命名空间。I²C 驱动使用公共 `I2cBus`；Arduino 应用可使用 [TouchWire.h](../src/Platform/Arduino/TouchWire.h)，在草图中初始化 Wire 和实际引脚。旧的 [TouchI2c.h](../src/Drivers/Touch/TouchI2c.h) 继续提供统一包含入口。
+这些类型位于 `nice_gfx` 命名空间。I²C 驱动使用公共 `I2cBus`；Arduino 可用 [TouchWire.h](../src/Platform/Arduino/TouchWire.h) 适配已初始化的 Wire，ESP32 板级代码可用 [BoardI2c.h](../src/Platform/ESP32/BoardI2c.h)。已有总线应共享同一实例。旧 [TouchI2c.h](../src/Drivers/Touch/TouchI2c.h) 保留统一包含入口。
 
 可直接运行的接入示例：
 
-- [Vendor_Capacitive_Touch](../examples/Generic/Vendor_Capacitive_Touch/Vendor_Capacitive_Touch.ino)：ST7789V2 与 CST816。
-- [ESP32S31_GT1151](../examples/Generic/ESP32S31_GT1151/ESP32S31_GT1151.ino)：GT1151 采样、释放和错误状态。
-- [Waveshare4B](../examples/HTML_UI/Waveshare4B/README.md)：ST7701、GT911 和示例本地 TCA9554 板级控制。
-- [Touch_calibrate](../examples/Generic/Touch_calibrate/Touch_calibrate.ino)：XPT2046 校准。
+- [Vendor_Capacitive_Touch](../examples/06_Touch/Vendor_Capacitive_Touch/Vendor_Capacitive_Touch.ino)：ST7789V2 与 CST816。
+- [ESP32S31_GT1151](../examples/06_Touch/ESP32S31_GT1151/ESP32S31_GT1151.ino)：GT1151 采样、释放和错误状态。
+- [Waveshare4B](../examples/07_UI/Waveshare4B/README.md)：ST7701、GT911 与库内 [TCA9554](../src/Drivers/IO/TCA9554.h)；快捷对象通过 `gfx.i2cBus()` 共享板级总线。
+- [Touch_calibrate](../examples/06_Touch/Touch_calibrate/Touch_calibrate.ino)：XPT2046 校准。
 
 显示模组变体保留独立初始化与扫描方向：JD9853A/JD9853 的 172×320 变体位于 [JD9853A.h](../src/Drivers/Display/JD9853A.h)，ST7789P 240×284 位于 [ST7789P.h](../src/Drivers/Display/ST7789P.h)。纯尺寸组合使用 [ModulePanels.h](../src/Display/Presets/ModulePanels.h) 与 `SizedPanel`。旧 Shield 的 [ST7781R](../src/Drivers/Display/ST7781R.h) 和 [SPFD5408](../src/Drivers/Display/SPFD5408.h) 保留各自初始化及来源声明；触摸电极接线由应用单独配置。

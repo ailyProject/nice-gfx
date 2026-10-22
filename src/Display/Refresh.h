@@ -12,6 +12,7 @@ class DirtyRegions {
   static_assert(Capacity > 0, "DirtyRegions requires at least one slot");
  public:
   explicit DirtyRegions(uint32_t mergeSlack = 32) : slack_(mergeSlack) {}
+  uint32_t mergeSlack() const { return slack_; }
   size_t size() const { return count_; }
   bool empty() const { return !count_; }
   const DirtyRect &operator[](size_t index) const { return regions_[index]; }
@@ -141,6 +142,29 @@ class RefreshScheduler {
   const RefreshStats &stats() const { return stats_; }
   void setProfilingClock(uint32_t (*clock)()) { profilingClock_ = clock; }
 
+  // Extra pixels worth transferring to avoid another window/submit operation.
+  // A measured setupMicros / microsPerPixel is a useful initial estimate.
+  // Change only between frames. Pending invalidations are coalesced again;
+  // lowering the value cannot split rectangles already merged by an older rule.
+  bool configureMergeSlack(uint32_t pixels) {
+    if (active_) return false;
+    DirtyRegions<Capacity> pending(pixels);
+    if (panel_) for (size_t i = 0; i < pending_.size(); ++i)
+      pending.add(pending_[i], panel_->width(), panel_->height());
+    pending_ = pending;
+    work_ = DirtyRegions<Capacity>(pixels);
+    return true;
+  }
+  uint32_t mergeSlack() const { return pending_.mergeSlack(); }
+
+  // Limit each ordinary raster tile without resizing caller-owned storage.
+  // A bounded scheduler uses its renderer instead of draining direct surfaces.
+  bool configurePixelBudget(size_t pixels) {
+    if(active_||(pixels&&panel_&&pixels<size_t(panel_->windowAlignmentX())*panel_->windowAlignmentY()))return false;
+    pixelBudget_=pixels;return true;
+  }
+  size_t pixelBudget() const {return pixelBudget_;}
+
   // An optional immutable surface is borrowed until the refresh completes or
   // cancel() drains accepted DMA. Only capable rectangular backends use it.
   Status start(Renderer renderer, void *context = nullptr, PixelOrder order = PixelOrder::Native,
@@ -155,7 +179,7 @@ class RefreshScheduler {
     order_ = order;
     screenWidth_ = panel_->width(); screenHeight_ = panel_->height();
     rotation_ = panel_->rotation();
-    direct_=(surface||slices) && !circularClip_ && panel_->supportsFrameBlit();
+    direct_=(surface||slices) && !pixelBudget_ && !circularClip_ && panel_->supportsFrameBlit();
     if(direct_){
       directCount_=0;
       if(surface){
@@ -269,11 +293,12 @@ class RefreshScheduler {
       const size_t remainingWidth = size_t(r.width - column_);
       // Reserve at least one complete aligned row group. Partial columns must
       // all use the same height, including the narrower final column.
-      const size_t maxWidth = capacity_ / ay;
+      const size_t workCapacity=pixelBudget_&&pixelBudget_<capacity_?pixelBudget_:capacity_;
+      const size_t maxWidth = workCapacity / ay;
       size_t w = remainingWidth < maxWidth ? remainingWidth : maxWidth;
       w -= w % ax;
       const size_t remainingHeight = size_t(r.height - row_);
-      size_t h = size_t(r.width) <= maxWidth ? capacity_ / w : ay;
+      size_t h = size_t(r.width) <= maxWidth ? workCapacity / w : ay;
       h -= h % ay;
       if (h > remainingHeight) h = remainingHeight;
       preparedArea_ = DirtyRect(r.x + column_, r.y + row_, int32_t(w), int32_t(h));
@@ -359,6 +384,7 @@ class RefreshScheduler {
     if (!buffers_[0] || !capacity_ || capacity_ > SIZE_MAX / sizeof(uint16_t))
       return false;
     if (capacity_ < size_t(panel_->windowAlignmentX()) * panel_->windowAlignmentY()) return false;
+    if (pixelBudget_ && pixelBudget_ < size_t(panel_->windowAlignmentX()) * panel_->windowAlignmentY()) return false;
     const uintptr_t a = reinterpret_cast<uintptr_t>(buffers_[0]);
     const uintptr_t b = reinterpret_cast<uintptr_t>(buffers_[1]);
     const size_t bytes = capacity_ * sizeof(uint16_t);
@@ -387,6 +413,7 @@ class RefreshScheduler {
   Panel *panel_;
   uint16_t *buffers_[2];
   size_t capacity_;
+  size_t pixelBudget_=0;
   DirtyRegions<Capacity> pending_, work_;
   Renderer renderer_ = nullptr;
   uint32_t (*profilingClock_)() = nullptr;

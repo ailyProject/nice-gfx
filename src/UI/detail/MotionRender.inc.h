@@ -10,7 +10,7 @@ static bool motionRoundPixel(int32_t x,int32_t y,int32_t width,int32_t height,in
   return dx*dx+dy*dy<=int64_t(radius)*radius*4;
 }
 static uint16_t motionMediaColor(const uint8_t *p,uint8_t bytesPerPixel,bool ram,PixelOrder order) {
-  if(bytesPerPixel==2){
+  if((bytesPerPixel&0x7f)==2){
     if(ram&&order==PixelOrder::Native){uint16_t color;memcpy(&color,p,2);return color;}
     return ram?uint16_t(uint16_t(p[0])<<8|p[1]):uint16_t(uint16_t(pgm_read_byte(p))<<8|pgm_read_byte(p+1));
   }
@@ -32,7 +32,7 @@ struct MotionMedia32Tile {
   int32_t localX,localY,textureX,textureY;
   int32_t localXX,localXY,localYX,localYY,textureXX,textureXY,textureYX,textureYY;
   uint32_t left,top,maskWidth,maskHeight,sourceWidth,sourceHeight;
-  const uint8_t *frame;size_t sourceStride;uint8_t bytesPerPixel,alpha;bool ram;PixelOrder order;
+  const uint8_t *frame;size_t sourceStride;uint8_t bytesPerPixel,alpha;bool ram;PixelOrder order;uint16_t colorKey;
 };
 template<int Format,bool Opaque>
 static
@@ -81,7 +81,7 @@ static bool motionClipSpan(int32_t origin,int32_t step,uint32_t lower,uint32_t u
   return first<end;
 }
 
-template<int Format,bool Opaque>
+template<int Format,bool Opaque,bool Keyed=false>
 static
 #if defined(__GNUC__)
 __attribute__((noinline))
@@ -104,6 +104,7 @@ void motionMediaSpanKernel(const MotionMedia32Tile &p) {
         if(Format==1)memcpy(&color,source,2);
         else if(Format==0)color=uint16_t(uint16_t(pgm_read_byte(source))<<8|pgm_read_byte(source+1));
         else {const uint8_t b=pgm_read_byte(source);color=uint16_t((((b>>5)*31+3)/7)<<11|(((b>>2)&7)*9)<<5|((b&3)*31+1)/3);}
+        if(Keyed&&color==p.colorKey)continue;
         *target=rgb565_blend::toWire(Opaque?color:rgb565_blend::color(color,rgb565_blend::fromWire(*target),p.alpha));
       }
     }
@@ -234,11 +235,25 @@ struct MotionShapeRow {
     for(int32_t px=first;px<last;++px){const uint8_t at=uint8_t(px-x);pixels[at]=wire;coverage|=uint64_t(1)<<at;}
   }
 };
+// Fill-only contours emit disjoint even-odd spans. Blend those spans directly
+// once per tile, instead of repeating polygon setup for each 64-pixel row block.
+struct MotionShapeFill {
+  uint16_t *pixels;DirtyRect area;size_t stride;uint8_t alpha;
+  void fillRect(int32_t x,int32_t y,int32_t width,int32_t height,uint16_t color){
+    const Rect r=intersect({x,y,width,height},{area.x,area.y,area.width,area.height});
+    const uint16_t wire=rgb565_blend::toWire(color);
+    for(int32_t row=r.y;row<r.y+r.height;++row){
+      uint16_t *target=pixels+size_t(row-area.y)*stride+size_t(r.x-area.x);
+      for(int32_t col=0;col<r.width;++col,++target)
+        *target=alpha==255?wire:rgb565_blend::toWire(rgb565_blend::color(color,rgb565_blend::fromWire(*target),alpha));
+    }
+  }
+};
 
 void paintTransformedNode(int i,Rect clipped,const DirtyRect &area,uint16_t *pixels,size_t stride,uint8_t alpha) {
-  const NodeDesc &n=snapshotPage->nodes[i];const State &v=snapshot[i];
-  const Style &style=styleFor(*snapshotPage,snapshot,i);const auto &pose=motionPose(*snapshotPage,snapshot,i);
-  Rect box=poseRect(*snapshotPage,snapshot,i);box.x+=paintOffsetX;box.y+=paintOffsetY;
+  const NodeDesc &n=rasterFrame.current.page->nodes[i];const State &v=rasterFrame.current.values[i];
+  const Style &style=styleFor(*rasterFrame.current.page,rasterFrame.current.values,i);const auto &pose=motionPose(*rasterFrame.current.page,rasterFrame.current.values,i);
+  Rect box=poseRect(*rasterFrame.current.page,rasterFrame.current.values,i);box.x+=paintOffsetX;box.y+=paintOffsetY;
   const Rect content=contentBox({0,0,box.width,box.height},style);
   const Rect mask=motion_geometry::reveal({0,0,box.width,box.height},pose.reveal,n.motion->flags);
   const motion_geometry::Inverse inverse(pose.scale,pose.rotation,n.motion->pivotX,n.motion->pivotY,n.kind==Kind::Shape);
@@ -249,8 +264,10 @@ void paintTransformedNode(int i,Rect clipped,const DirtyRect &area,uint16_t *pix
   const int32_t radius=std::min<int32_t>(style.radius,std::min(box.width,box.height)/2),border=style.borderWidth;
   const MediaDesc *source=n.kind==Kind::Media?media(n,v):nullptr;
   const Image::Impl *image=source&&v.imageOverride?v.image.impl_:nullptr;
-  const size_t sourceStride=source?(image?image->source.strideBytes:size_t(source->width)*source->bytesPerPixel):0;
-  const uint8_t *frame=source?source->pixels+size_t(v.mediaFrame)*sourceStride*source->height:nullptr;
+  const size_t sourceStride=source?(image?image->source.strideBytes:size_t(source->width)*mediaPixelBytes(*source)):0;
+  const uint8_t *frame=source?mediaPixels(*source)+size_t(v.mediaFrame)*sourceStride*source->height:nullptr;
+  const bool keyed=source&&mediaColorKeyed(*source);
+  const uint16_t colorKey=keyed?(uint16_t(pgm_read_byte(source->pixels))<<8|pgm_read_byte(source->pixels+1)):0;
   const bool plainMedia=source&&content.x==0&&content.y==0&&content.width==box.width&&content.height==box.height;
   const MediaRoundClip mediaClip({0,0,box.width,box.height},style);
   const bool roundedMedia=source&&style.radius&&mediaClip.rounded();
@@ -258,6 +275,9 @@ void paintTransformedNode(int i,Rect clipped,const DirtyRect &area,uint16_t *pix
   if(n.kind==Kind::Shape&&n.shape) {
     const Rect shapeBox{box.x+content.x,box.y+content.y,content.width,content.height};
     const shape_raster::TransformedShape shape(*n.shape,shapeBox,box,pose.scale,pose.rotation,style.radius,n.motion->pivotX,n.motion->pivotY);
+    if(transparent&&!border&&!gradient&&shape.closed&&(n.shape->flags&ShapeFill)&&shape.stroke<=0){
+      MotionShapeFill target{pixels,area,stride,alpha};shape.paint(target,clipped);return;
+    }
     uint16_t under[64];
     for(int32_t y=clipped.y;y<clipped.y+clipped.height;++y)for(int32_t x=clipped.x;x<clipped.x+clipped.width;x+=64) {
       const int32_t width=std::min<int32_t>(64,clipped.x+clipped.width-x);
@@ -339,8 +359,12 @@ void paintTransformedNode(int i,Rect clipped,const DirtyRect &area,uint16_t *pix
        motionRange32(textureY,vx,vy,clipped.width,clipped.height)){
       const MotionMedia32Tile tile{clipped,area,pixels,stride,int32_t(localX),int32_t(localY),int32_t(textureX),int32_t(textureY),
         inverse.xx,inverse.xy,inverse.yx,inverse.yy,ux,uy,vx,vy,uint32_t(left),uint32_t(top),uint32_t(right-left),uint32_t(bottom-top),
-        uint32_t(source->width)*65536,uint32_t(source->height)*65536,frame,sourceStride,source->bytesPerPixel,alpha,ram,order};
-      if(ux>=-8192&&ux<=8192&&uy>=-8192&&uy<=8192&&vx>=-8192&&vx<=8192&&vy>=-8192&&vy<=8192){
+        uint32_t(source->width)*65536,uint32_t(source->height)*65536,frame,sourceStride,source->bytesPerPixel,alpha,ram,order,colorKey};
+      if(keyed){
+        // Color-key leaves retain span clipping and 32-bit affine stepping.
+        // A transparent texel skips both the read of the underlay and blending.
+        if(alpha==255)motionMediaSpanKernel<0,true,true>(tile);else motionMediaSpanKernel<0,false,true>(tile);
+      }else if(ux>=-8192&&ux<=8192&&uy>=-8192&&uy<=8192&&vx>=-8192&&vx<=8192&&vy>=-8192&&vy<=8192){
       if(source->bytesPerPixel==1){
         if(alpha==255)motionMediaRunsKernel<2,true>(tile);else motionMediaRunsKernel<2,false>(tile);
       }else if(ram&&order==PixelOrder::Native){
@@ -371,8 +395,9 @@ void paintTransformedNode(int i,Rect clipped,const DirtyRect &area,uint16_t *pix
       const int32_t lx=int32_t(localX>>16),ly=int32_t(localY>>16);
       const bool insideMedia=!roundedMedia||mediaClip.containsFixed(localX,localY);
       if(plainMedia&&insideMedia&&textureX>=0&&textureY>=0&&textureX<int64_t(source->width)*65536&&textureY<int64_t(source->height)*65536){
-        const uint8_t *p=frame+size_t(textureY>>16)*sourceStride+size_t(textureX>>16)*source->bytesPerPixel;
+        const uint8_t *p=frame+size_t(textureY>>16)*sourceStride+size_t(textureX>>16)*mediaPixelBytes(*source);
         const uint16_t color=motionMediaColor(p,source->bytesPerPixel,ram,order);
+        if(keyed&&color==colorKey)continue;
         *target=rgb565_blend::toWire(alpha==255?color:rgb565_blend::color(color,rgb565_blend::fromWire(*target),alpha));continue;
       }
       const uint16_t under=rgb565_blend::fromWire(*target);uint16_t color=under;bool painted=false;
@@ -385,9 +410,9 @@ void paintTransformedNode(int i,Rect clipped,const DirtyRect &area,uint16_t *pix
       if(outer&&border&&!motionRoundPixel(lx-border,ly-border,box.width-2*border,box.height-2*border,std::max<int32_t>(0,radius-border))){color=style.borderColor;painted=true;}
       if(source&&insideMedia&&content.width>0&&content.height>0&&lx>=content.x&&ly>=content.y&&lx<content.x+content.width&&ly<content.y+content.height&&
          textureX>=0&&textureY>=0&&textureX<int64_t(source->width)*65536&&textureY<int64_t(source->height)*65536){
-        const uint8_t *p=frame+size_t(textureY>>16)*sourceStride+size_t(textureX>>16)*source->bytesPerPixel;
-        color=motionMediaColor(p,source->bytesPerPixel,ram,order);
-        painted=true;
+        const uint8_t *p=frame+size_t(textureY>>16)*sourceStride+size_t(textureX>>16)*mediaPixelBytes(*source);
+        const uint16_t sample=motionMediaColor(p,source->bytesPerPixel,ram,order);
+        if(!keyed||sample!=colorKey){color=sample;painted=true;}
       }else if(n.kind==Kind::Icon&&n.icon){
         const int32_t ix=lx-content.x,iy=ly-content.y;const MonoIcon &icon=*n.icon;
         if(ix>=0&&iy>=0&&ix<icon.width&&iy<icon.height){const bool gray=icon.bitsPerPixel==4;const size_t row=gray?(icon.width+1)/2:(icon.width+7)/8;

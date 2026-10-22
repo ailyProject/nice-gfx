@@ -12,7 +12,7 @@
 
 原生库也默认开启，可通过 `gfx.setAntialiasing(false)` 关闭，`gfx.getAntialiasing()` 查询。字体与 `drawIcon()` 共用此设置；1bpp 字模平滑处理角部并保留孤立像素、细直笔画，4bpp 字模保留原生灰度，在放大和回退缩放时插值。字号仍按所选字体的 1–7 倍计算，抗锯齿不改变字符格、前进宽度或排版尺寸。
 
-透明绘制需要可读背景或 Sprite；纯色显示屏可给文字指定背景色，图标使用 `gfx.drawIcon(x, y, icon, foreground, background, 1)`。1/4bpp Sprite 保留位值及调色板索引，使用二值轮廓；完整灰度效果使用 16bpp Sprite。
+直接绘制到不能读回背景的屏幕时，指定文字背景色；图标使用 `gfx.drawIcon(x, y, icon, foreground, background, 1)`。透明抗锯齿需要可读背景或 Sprite；完整灰度效果推荐 16bpp Sprite。
 
 ## 平滑字体：16 级灰度抗锯齿
 
@@ -34,7 +34,7 @@ gfx.setTextColor(GFX_WHITE, GFX_BLACK);
 gfx.drawString("温度 25", 8, 8);
 ```
 
-指定背景色时，灰度边缘与该背景混合；透明文字在 Sprite / HTML UI 的可读像素缓冲上与实际背景混合，可用于图片和渐变背景。直接绘制到不支持读回的显示屏时，透明模式只能使用二值边缘；请指定正确背景色或先绘制到 Sprite，以获得抗锯齿效果。1bpp / 4bpp Sprite 使用灰度阈值轮廓，保持布尔像素和调色板索引的原有颜色语义；8bpp Sprite 会量化灰度颜色，完整效果推荐 16bpp Sprite。
+灰度边缘与指定背景或 Sprite / HTML UI 的实际背景混合。1bpp / 4bpp Sprite 使用二值轮廓，保留位值与调色板索引；8bpp Sprite 会量化灰度颜色。
 
 `MonoFont` 描述符的尾部字段 `bitsPerPixel` 为 `4` 时表示逐行字节对齐、每字节高半字节在左的灰度覆盖率；省略或为 `0` / `1` 时保持原有 1bpp 格式。编辑器字模资源以 `GFX4` 标记灰度格式，原有 `GFXF` 文件仍然有效。
 
@@ -135,8 +135,8 @@ static const nice_gfx::MonoFont tinyFont = {
 
 ## 字体源码布局
 
-字体声明和字模统一位于 `src/Fonts/`；22 个字库的独立定义文件为 `src/Fonts/Mono/GFX_Font_<名称>.cpp`，与各自 `.inc` 数据同目录。包含 `NICE_GFX.h` 只引入现代字体的声明，实际使用哪个对象才保留其字模。
+字体声明和字模统一位于 `src/Fonts/`；26 个字库（22 套 1bpp、4 套 4bpp）的独立定义文件为 `src/Fonts/Mono/GFX_Font_<名称>.cpp`，与各自 `.inc` 数据同目录。包含 `NICE_GFX.h` 只引入声明，链接时保留实际引用的字模。
 
-默认构建和编辑器完整导出包含 26 个字体编译单元。ESP-IDF 可通过 `NICE_GFX_FONT_SOURCES` 按需选择；应用继续通过 `setFont()` 选择字体。维护检查运行 `npm run check`，构建方式见 [架构说明](Architecture.md)。
+默认构建和编辑器完整导出包含这些字体编译单元。ESP-IDF 可通过 `NICE_GFX_FONT_SOURCES` 按需选择，详见 [架构说明](Architecture.md#esp-idf-构建)。
 
 检查字体占用时，分别编译无字体、单套英文字体和单套中文字库，并核对最终 ELF 符号与 Flash 用量；具体结果取决于目标平台与链接选项。

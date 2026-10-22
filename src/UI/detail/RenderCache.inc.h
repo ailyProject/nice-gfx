@@ -63,9 +63,9 @@ static bool surfaceImageOnlyChange(State &old,const State &live) {
   return equal;
 }
 bool fastSurfaceImageRepair(uint16_t index,const Geometry &geometry) const {
-  const auto &node=snapshotPage->nodes[index];const auto &value=snapshot[index];
+  const auto &node=rasterFrame.current.page->nodes[index];const auto &value=rasterFrame.current.values[index];
   if(node.kind!=Kind::Media||node.motion||geometry.alpha!=255||!value.imageOverride||!value.image.impl_)return false;
-  const auto &image=*value.image.impl_;const auto &style=styleFor(*snapshotPage,snapshot,index);
+  const auto &image=*value.image.impl_;const auto &style=styleFor(*rasterFrame.current.page,rasterFrame.current.values,index);
   return !image.flash&&image.source.format==ImageFormat::RGB565&&!(image.source.strideBytes&1)&&
     image.media.width==geometry.rect.width&&image.media.height==geometry.rect.height&&
     !style.borderWidth&&!style.radius&&!style.paddingTop&&!style.paddingRight&&!style.paddingBottom&&!style.paddingLeft;
@@ -77,41 +77,41 @@ bool fastSurfaceImageRepair(uint16_t index,const Geometry &geometry) const {
 Surface *patchSurface(bool &geometryPrepared,uint64_t repairBudget=0) {
   if(down||snapshotInput||snapshotKeyboard.visible)return nullptr;
   Surface *slot=nullptr;
-  for(auto &entry:surfaces)if(entry.page==snapshotPage&&entry.ready&&entry.key.size()==snapshot.size()){slot=&entry;break;}
-  if(!slot||slot==previewSurface||slot->geometry.nodes.size()!=snapshot.size())return nullptr;
+  for(auto &entry:surfaces)if(entry.page==rasterFrame.current.page&&entry.ready&&entry.key.size()==rasterFrame.current.values.size()){slot=&entry;break;}
+  if(!slot||slot==previewSurface||slot->geometry.nodes.size()!=rasterFrame.current.values.size())return nullptr;
   bool visualOnly=true;
-  for(size_t i=0;i<snapshot.size();++i)if(!sameSurfaceGeometry(slot->key[i],snapshot[i])){visualOnly=false;break;}
-  if(!visualOnly){prepareCache(*snapshotPage,snapshot,snapshotCache);geometryPrepared=true;}
+  for(size_t i=0;i<rasterFrame.current.values.size();++i)if(!sameSurfaceGeometry(slot->key[i],rasterFrame.current.values[i])){visualOnly=false;break;}
+  if(!visualOnly){prepareCache(*rasterFrame.current.page,rasterFrame.current.values,rasterFrame.current.geometry);geometryPrepared=true;}
   DirtyRegions<16> damage(0),ordinaryDamage(0);
   bool fastImage=false;
-  for(uint16_t i=0;i<snapshot.size();++i)if(!sameSurfaceNode(slot->key[i],snapshot[i])) {
+  for(uint16_t i=0;i<rasterFrame.current.values.size();++i)if(!sameSurfaceNode(slot->key[i],rasterFrame.current.values[i])) {
     if(visualOnly){const auto &g=slot->geometry.nodes[i];
       if(g.visible&&g.alpha){const Rect r=intersect(g.rect,g.clip);const DirtyRect changed(r.x,r.y,r.width,r.height);
-        damage.add(changed,snapshotPage->width,snapshotPage->height);
-        if(fastSurfaceImageRepair(i,g)&&surfaceImageOnlyChange(slot->key[i],snapshot[i]))fastImage=true;
-        else ordinaryDamage.add(changed,snapshotPage->width,snapshotPage->height);
+        damage.add(changed,rasterFrame.current.page->width,rasterFrame.current.page->height);
+        if(fastSurfaceImageRepair(i,g)&&surfaceImageOnlyChange(slot->key[i],rasterFrame.current.values[i]))fastImage=true;
+        else ordinaryDamage.add(changed,rasterFrame.current.page->width,rasterFrame.current.page->height);
       }continue;
     }
-    for(uint16_t k=i;k<snapshot.size();++k){
-      int a=k;while(a>=0&&a!=i)a=snapshotPage->nodes[a].parent==NoParent?-1:snapshotPage->nodes[a].parent;
+    for(uint16_t k=i;k<rasterFrame.current.values.size();++k){
+      int a=k;while(a>=0&&a!=i)a=rasterFrame.current.page->nodes[a].parent==NoParent?-1:rasterFrame.current.page->nodes[a].parent;
       if(a!=i)continue;
-      for(const auto *geometry:{&slot->geometry,&snapshotCache}){
+      for(const auto *geometry:{&slot->geometry,&rasterFrame.current.geometry}){
         const auto &g=geometry->nodes[k];const Rect r=intersect(g.rect,g.clip);
-        damage.add(DirtyRect(r.x,r.y,r.width,r.height),snapshotPage->width,snapshotPage->height);
+        damage.add(DirtyRect(r.x,r.y,r.width,r.height),rasterFrame.current.page->width,rasterFrame.current.page->height);
       }
     }
   }
   // Selection and disclosure arrows borrow state from a component root,
   // pager or panel. Their buttons can lie outside that owner's rectangle.
   // Compare those visual dependencies before repairing the retained pixels.
-  if(componentCount)for(uint16_t i=0;i<snapshot.size();++i)if(snapshotPage->nodes[i].kind==Kind::Button){
-    const Id id=snapshotPage->nodes[i].id;
-    const auto previous=componentPaint(*snapshotPage,slot->key,id),current=componentPaint(*snapshotPage,snapshot,id);
+  if(componentCount)for(uint16_t i=0;i<rasterFrame.current.values.size();++i)if(rasterFrame.current.page->nodes[i].kind==Kind::Button){
+    const Id id=rasterFrame.current.page->nodes[i].id;
+    const auto previous=componentPaint(*rasterFrame.current.page,slot->key,id),current=componentPaint(*rasterFrame.current.page,rasterFrame.current.values,id);
     if(previous.selected==current.selected&&previous.expanded==current.expanded)continue;
-    for(const auto *geometry:{&slot->geometry,visualOnly?&slot->geometry:&snapshotCache}){
+    for(const auto *geometry:{&slot->geometry,visualOnly?&slot->geometry:&rasterFrame.current.geometry}){
       const auto &g=geometry->nodes[i];if(!g.visible||!g.alpha)continue;
-      const Rect r=intersect(g.rect,g.clip);damage.add(DirtyRect(r.x,r.y,r.width,r.height),snapshotPage->width,snapshotPage->height);
-      ordinaryDamage.add(DirtyRect(r.x,r.y,r.width,r.height),snapshotPage->width,snapshotPage->height);
+      const Rect r=intersect(g.rect,g.clip);damage.add(DirtyRect(r.x,r.y,r.width,r.height),rasterFrame.current.page->width,rasterFrame.current.page->height);
+      ordinaryDamage.add(DirtyRect(r.x,r.y,r.width,r.height),rasterFrame.current.page->width,rasterFrame.current.page->height);
     }
   }
   uint64_t pixels=0;for(size_t i=0;i<damage.size();++i)pixels+=damage[i].pixels();
@@ -124,21 +124,21 @@ Surface *patchSurface(bool &geometryPrepared,uint64_t repairBudget=0) {
     // instead of discarding a complete surface for every incoming map frame.
     // Other visual changes retain the old four-tile limit. Work never exceeds
     // one page, and geometry/alpha/scale/flash-image changes use normal fallback.
-    if(!visualOnly||!fastImage||ordinaryPixels>smallBudget||pixels>uint64_t(snapshotPage->width)*snapshotPage->height)return nullptr;
+    if(!visualOnly||!fastImage||ordinaryPixels>smallBudget||pixels>uint64_t(rasterFrame.current.page->width)*rasterFrame.current.page->height)return nullptr;
   }
-  if(visualOnly){prepareVisualCache(*snapshotPage,snapshot,slot->key,slot->geometry,snapshotCache);geometryPrepared=true;}
+  if(visualOnly){prepareVisualCache(*rasterFrame.current.page,rasterFrame.current.values,slot->key,slot->geometry,rasterFrame.current.geometry);geometryPrepared=true;}
   const uint64_t savedTiles=stats.renderedTiles,savedPixels=stats.renderedPixels;
   FrameCache *savedPaint=paintCache;const bool savedBuilding=buildingSurface;
-  const bool savedTransition=snapshotTransition;const PageDesc *savedPreview=previewPage;
-  snapshotTransition=false;previewPage=nullptr;
+  const bool savedTransition=snapshotTransition;const PageDesc *savedPreview=rasterFrame.preview.page;
+  snapshotTransition=false;rasterFrame.preview.page=nullptr;
   buildingSurface=true;
   ++slot->pixelsRevision;
   for(size_t i=0;i<damage.size();++i){const auto &area=damage[i];
-    if(render(this,area,slot->pixels+size_t(area.y)*snapshotPage->width+area.x,snapshotPage->width)!=Status::Ok){slot->ready=false;slot=nullptr;break;}
+    if(render(this,area,slot->pixels+size_t(area.y)*rasterFrame.current.page->width+area.x,rasterFrame.current.page->width)!=Status::Ok){slot->ready=false;slot=nullptr;break;}
   }
-  buildingSurface=savedBuilding;paintCache=savedPaint;snapshotTransition=savedTransition;previewPage=savedPreview;
+  buildingSurface=savedBuilding;paintCache=savedPaint;snapshotTransition=savedTransition;rasterFrame.preview.page=savedPreview;
   stats.renderedTiles=savedTiles;stats.renderedPixels=savedPixels;
-  if(slot){slot->key=snapshot;releaseSurfaceText(*slot);slot->geometry=snapshotCache;slot->used=++surfaceClock;slot->compressionAttempted=false;surfaceWarmPending=true;++surfaceStats.repairedPages;surfaceStats.repairPixels+=pixels;}
+  if(slot){slot->key=rasterFrame.current.values;releaseSurfaceText(*slot);slot->geometry=rasterFrame.current.geometry;slot->used=++surfaceClock;slot->compressionAttempted=false;surfaceWarmPending=true;++surfaceStats.repairedPages;surfaceStats.repairPixels+=pixels;}
   return slot;
 }
 Surface *findSurface(const PageDesc &p,const RetainedVector<State> &s) {
@@ -175,6 +175,7 @@ void clearSurfacePage(const PageDesc *p) {
   for(auto &entry:surfaces)if(entry.page==p){++entry.pixelsRevision;entry.page=nullptr;entry.key.clear();entry.geometry=FrameCache{};entry.ready=entry.compressionAttempted=false;entry.row=entry.column=0;}
 }
 void clearSurfaces() {
+  coldFadeSurface=nullptr;coldFadePage=nullptr;
   clearCompressedSurfaces();
   surfaces.clear();surfacePixels=0;surfaceClock=0;surfaceWarmNext=0;surfaceStats=RenderCacheStats{};
   std::vector<int>().swap(surfaceWanted);std::vector<int>().swap(surfacePrewarm);surfaceWarmPending=false;
@@ -251,7 +252,12 @@ bool activeWarmProducer(int index,const Surface *slot=nullptr) const {
 void warmSurfaceTile(uint32_t now) {
   if(!surfaceWarmPending||surfaces.empty()||!project||refresh->busy()||refresh->dirty()||processing||updateDepth||
      down||groupMotion.active||transition.active||backAnimation.active||animation.active||inertia.active)return;
-  // Counting and encoding share a fixed 8192-input-pixel budget per tick.
+  // A page fade can finish before its staggered controls. Their bounded
+  // Native565 repairs still own a raw slot; warming must not overwrite it
+  // with Wire565 tiles between two visible animation frames.
+  if(coldFadeSurface&&animationsRunning())return;
+  // Counting and encoding share at most 8192 input pixels per tick, reduced
+  // further by a configured raster budget.
   // Completed keys are published only after both resumable passes finish.
   if(stepCompressedSurfaces())return;
   // The list is bounded by cache slots and allocated once when configured.
@@ -322,23 +328,24 @@ void warmSurfaceTile(uint32_t now) {
       ++slot->pixelsRevision;slot->page=&p;slot->key=state;slot->row=slot->column=0;slot->ready=slot->paused=slot->compressionAttempted=false;
       const RuntimeStats saved=stats;prepareCache(p,slot->key,slot->geometry);stats=saved;
     }
-    const int32_t width=int32_t(std::min<size_t>(size_t(p.width-slot->column),capacity));
-    const int32_t height=int32_t(std::min<size_t>(p.height-slot->row,size_t(p.width)<=capacity?capacity/width:1));
+    const size_t workCapacity=rasterCapacity();
+    const int32_t width=int32_t(std::min<size_t>(size_t(p.width-slot->column),workCapacity));
+    const int32_t height=int32_t(std::min<size_t>(p.height-slot->row,size_t(p.width)<=workCapacity?workCapacity/width:1));
     const DirtyRect area(slot->column,slot->row,width,height);
-    const PageDesc *savedPage=snapshotPage,*savedPreview=previewPage;
+    const PageDesc *savedPage=rasterFrame.current.page,*savedPreview=rasterFrame.preview.page;
     const bool savedTransition=snapshotTransition,savedInput=snapshotInput;
     const int savedPressed=snapshotPressed,savedFocus=snapshotFocus,savedGroup=snapshotGroupIndex;
     const int32_t savedBack=snapshotBackOffset;
     FrameCache *savedPaint=paintCache;
     const RuntimeStats savedStats=stats;
-    snapshot.swap(slot->key);snapshotMotions.swap(pageMotions[size_t(index)]);std::swap(snapshotCache,slot->geometry);
-    snapshotPage=&p;previewPage=nullptr;snapshotTransition=false;snapshotInput=false;
+    rasterFrame.current.values.swap(slot->key);rasterFrame.current.motions.swap(pageMotions[size_t(index)]);std::swap(rasterFrame.current.geometry,slot->geometry);
+    rasterFrame.current.page=&p;rasterFrame.preview.page=nullptr;snapshotTransition=false;snapshotInput=false;
     snapshotPressed=snapshotFocus=snapshotGroupIndex=-1;snapshotBackOffset=0;buildingSurface=true;
     ++slot->pixelsRevision;
     const Status result=render(this,area,slot->pixels+size_t(area.y)*p.width+area.x,p.width);
     buildingSurface=false;
-    snapshot.swap(slot->key);snapshotMotions.swap(pageMotions[size_t(index)]);std::swap(snapshotCache,slot->geometry);
-    snapshotPage=savedPage;previewPage=savedPreview;snapshotTransition=savedTransition;snapshotInput=savedInput;
+    rasterFrame.current.values.swap(slot->key);rasterFrame.current.motions.swap(pageMotions[size_t(index)]);std::swap(rasterFrame.current.geometry,slot->geometry);
+    rasterFrame.current.page=savedPage;rasterFrame.preview.page=savedPreview;snapshotTransition=savedTransition;snapshotInput=savedInput;
     snapshotPressed=savedPressed;snapshotFocus=savedFocus;snapshotGroupIndex=savedGroup;snapshotBackOffset=savedBack;paintCache=savedPaint;stats=savedStats;
     if(result!=Status::Ok){slot->page=nullptr;slot->key.clear();slot->ready=false;return;}
     ++surfaceStats.warmedTiles;slot->used=++surfaceClock;

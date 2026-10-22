@@ -44,11 +44,30 @@ else()
   set(fonts \${REG_SRCS})
   list(FILTER fonts INCLUDE REGEX "/Fonts/Mono/GFX_Font_")
   list(LENGTH fonts font_count)
-  if(NICE_GFX_FONT_SOURCES)
-    list(LENGTH NICE_GFX_FONT_SOURCES expected_fonts)
-    if(NOT font_count EQUAL expected_fonts)
-      message(FATAL_ERROR "Font source selection failed")
-    endif()
+  if(NOT NICE_GFX_ENABLE_FONTS OR NICE_GFX_FONT_SOURCES STREQUAL "NONE")
+    set(expected_fonts 0)
+  elseif(NICE_GFX_FONT_SOURCES)
+    set(selected_fonts \${NICE_GFX_FONT_SOURCES})
+    list(REMOVE_DUPLICATES selected_fonts)
+    list(LENGTH selected_fonts expected_fonts)
+  else()
+    file(GLOB bundled_fonts "${path.join(root,'src/Fonts/Mono/GFX_Font_*.cpp').replaceAll('\\','/')}")
+    list(LENGTH bundled_fonts expected_fonts)
+  endif()
+  if(NOT font_count EQUAL expected_fonts)
+    message(FATAL_ERROR "Font source selection failed: \${font_count} instead of \${expected_fonts}")
+  endif()
+  set(ui_sources \${REG_SRCS})
+  list(FILTER ui_sources INCLUDE REGEX "/UI/")
+  if(NICE_GFX_ENABLE_UI)
+    foreach(unit View Image)
+      list(FIND ui_sources "${path.join(root,'src/UI').replaceAll('\\','/')}/\${unit}.cpp" found)
+      if(found LESS 0)
+        message(FATAL_ERROR "UI enabled without \${unit}.cpp")
+      endif()
+    endforeach()
+  elseif(ui_sources)
+    message(FATAL_ERROR "UI disabled but UI translation units are registered")
   endif()
 endif()
 list(FIND REG_REQUIRES esp_driver_ppa ppa)
@@ -59,7 +78,24 @@ if(IDF_TARGET STREQUAL "esp32s31" AND ppa LESS 0)
   message(FATAL_ERROR "S31 build omits PPA")
 endif()
 `);
-for(const args of [[],['-DNICE_GFX_ARDUINO_COMPONENT=arduino'],['-DNICE_GFX_ARDUINO_COMPONENT=espressif__arduino-esp32'],['-DCMAKE_BUILD_EARLY_EXPANSION=TRUE'],['-DNICE_GFX_ARDUINO_COMPONENT=arduino','-DCMAKE_BUILD_EARLY_EXPANSION=TRUE'],['-DNICE_GFX_FONT_SOURCES=Fixed6x13;GfxSansCN16'],['-DIDF_TARGET=esp32s31']])run(cmake,['-DIDF_TARGET=esp32s3',...args,'-P',path.join(work,'CMakeLists.txt')],{stdio:'pipe'});
-const invalid=spawnSync(cmake,['-DNICE_GFX_FONT_SOURCES=MissingFont','-P',path.join(work,'CMakeLists.txt')],{windowsHide:true,encoding:'utf8'});
-if(invalid.status===0||!invalid.stdout.concat(invalid.stderr).includes('Unknown bundled font'))throw Error('Invalid font selection was not rejected.');
-console.log('PASS 7 CMake modes: native, Arduino names, early expansion, font selection and S31 PPA; invalid font rejected.');
+const modes=[[],['-DNICE_GFX_ARDUINO_COMPONENT=arduino'],['-DNICE_GFX_ARDUINO_COMPONENT=espressif__arduino-esp32'],
+  ['-DCMAKE_BUILD_EARLY_EXPANSION=TRUE'],['-DNICE_GFX_ARDUINO_COMPONENT=arduino','-DCMAKE_BUILD_EARLY_EXPANSION=TRUE'],
+  ['-DNICE_GFX_FONT_SOURCES=Fixed6x13;GfxSansCN16;Fixed6x13'],['-DIDF_TARGET=esp32s31'],
+  ['-DNICE_GFX_BUILD_PROFILE=full'],['-DNICE_GFX_BUILD_PROFILE=graphics'],['-DNICE_GFX_BUILD_PROFILE=minimal'],
+  ['-DNICE_GFX_BUILD_PROFILE=minimal','-DNICE_GFX_ENABLE_UI=ON'],
+  ['-DNICE_GFX_BUILD_PROFILE=minimal','-DNICE_GFX_ENABLE_FONTS=ON','-DNICE_GFX_FONT_SOURCES=Fixed6x13'],
+  ['-DNICE_GFX_ENABLE_UI=OFF'],['-DNICE_GFX_FONT_SOURCES=NONE'],
+  ['-DNICE_GFX_BUILD_PROFILE=graphics','-DNICE_GFX_ENABLE_UI=ON'],
+  ['-DNICE_GFX_BUILD_PROFILE=minimal','-DCMAKE_BUILD_EARLY_EXPANSION=TRUE']];
+for(const args of modes)run(cmake,['-DIDF_TARGET=esp32s3',...args,'-P',path.join(work,'CMakeLists.txt')],{stdio:'pipe'});
+for(const [args,message] of [
+  [['-DNICE_GFX_FONT_SOURCES=MissingFont'],'Unknown bundled font'],
+  [['-DNICE_GFX_FONT_SOURCES=../Invalid'],'Invalid NICE_GFX_FONT_SOURCES entry'],
+  [['-DNICE_GFX_BUILD_PROFILE=invalid'],'Unknown NICE_GFX_BUILD_PROFILE'],
+  [['-DNICE_GFX_BUILD_PROFILE=minimal','-DNICE_GFX_FONT_SOURCES=Fixed6x13'],'requires NICE_GFX_ENABLE_FONTS=ON'],
+]){
+  const invalid=spawnSync(cmake,[...args,'-P',path.join(work,'CMakeLists.txt')],{windowsHide:true,encoding:'utf8'});
+  if(invalid.error)throw invalid.error;
+  if(invalid.status===0||!invalid.stdout.concat(invalid.stderr).includes(message))throw Error(`Invalid configuration was not rejected: ${args.join(' ')}`);
+}
+console.log(`PASS ${modes.length} CMake modes: profiles, overrides, native/Arduino, early expansion, fonts and S31 PPA; 4 invalid configurations rejected.`);

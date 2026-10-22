@@ -26,7 +26,7 @@ inline void init_SPFD5408(PanelSequence &s) {
 
 inline ControllerProfile profile_SPFD5408() {
   return {"SPFD5408",240,320,0x5408,Protocol::Ili9331,PixelFormat::RGB565,
-    0x22,0,0,1,0,0,0,init_SPFD5408,rotate_SeeedLegacy,PixelReadFormat::RGB565,1,0};
+    0x22,0,0,1,0,0,0,init_SPFD5408,rotate_FixedEntryMode,PixelReadFormat::RGB565,1,0};
 }
 } }
 

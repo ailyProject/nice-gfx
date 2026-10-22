@@ -37,7 +37,7 @@
 
 `GfxSansLatin16/24` 从本地思源黑体字模提取 ASCII 并调整字符格，适合英文标题、计时、百分比和读数，避免直接使用中文全宽格造成数字间距过大。它们仍是等宽 1 位点阵；中文请使用对应的 `GfxSansCN` 字体。两套完整字模共 10,260 B，不改变渲染 API 或资源 ABI。源字模哈希记录在生成文件中，使用 SIL OFL 1.1；字模来源与哈希记录在字体头文件和许可声明中。
 
-预览按整数倍放大实际编译字模。可运行 [Additional_Fonts 示例](../../examples/Generic/Additional_Fonts/Additional_Fonts.ino)轮换查看新增字体；先修改屏幕型号和引脚。示例在非 AVR 平台引用全部六套新增字体，完整中文合计约 1.97 MiB；AVR 示例仅使用 `GfxTerm8x16`。
+预览按整数倍放大实际编译字模。可运行 [Additional_Fonts 示例](../../examples/03_Text/Additional_Fonts/Additional_Fonts.ino)轮换查看新增字体；先修改屏幕型号和引脚。示例在非 AVR 平台引用全部六套新增字体，完整中文合计约 1.97 MiB；AVR 示例仅使用 `GfxTerm8x16`。
 
 字体不需要文件系统、不分配字体堆内存。字模在 AVR 使用 PROGMEM，在其他平台按只读 Flash 数据存放。表中不含少量字体描述信息、每个显示对象的字体指针及绘制代码；AVR 的字体描述信息会占用少量 RAM。完整中文只在非 AVR 平台提供；AVR 请使用小子集，并确认数据位于近地址 PROGMEM 的 64 KiB 范围内。新增字体不改变已有程序的默认字体，也不修改渲染器。
 

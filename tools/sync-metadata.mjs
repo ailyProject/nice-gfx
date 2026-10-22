@@ -8,5 +8,12 @@ await sync('src/Core/Version.h',`#pragma once\n// Generated from VERSION.txt by 
 const manifest=JSON.parse(await read('library.json'));manifest.version=version;manifest.description=manifest.description.replace(/ABI \d+/g,`ABI ${abi}`);await sync('library.json',JSON.stringify(manifest,null,2)+'\n');
 await sync('library.properties',(await read('library.properties')).replaceAll('\r\n','\n').replace(/^version=.*$/m,`version=${version}`).replace(/ABI \d+/g,`ABI ${abi}`));
 const fontCount=(await fs.readdir(path.join(root,'src/Fonts/Mono'))).filter(file=>/^GFX_Font_.*\.cpp$/.test(file)).length;
-await sync('README.md',(await read('README.md')).replaceAll('\r\n','\n').replace(/^# NICE_GFX .*$/m,`# NICE_GFX ${version}`).replace(/\d+ 个独立字模编译单元/g,`${fontCount} 个独立字模编译单元`));
+const motionHeading=/^## (Compiled keyframes and local transforms[^\r\n]*)/m.exec(await read('src/UI/README.md'))?.[1];
+if(!motionHeading)throw Error('Missing compiled motion documentation heading in src/UI/README.md.');
+const motionAnchor=motionHeading.toLowerCase().replace(/[^\p{L}\p{N}\s-]/gu,'').replace(/\s/g,'-');
+await sync('README.md',(await read('README.md')).replaceAll('\r\n','\n')
+  .replace(/^# NICE_GFX .*$/m,`# NICE_GFX ${version}`)
+  .replace(/\d+ 个独立字模编译单元/g,`${fontCount} 个独立字模编译单元`)
+  .replace(/(当前资源 ABI 为 )\d+/g,(_match,prefix)=>`${prefix}${abi}`)
+  .replace(/src\/UI\/README\.md#compiled-keyframes-and-local-transforms[^)]*/g,`src/UI/README.md#${motionAnchor}`));
 console.log(`Library ${version}, resource ABI ${abi}: metadata ${check?'checked':'updated'}.`);

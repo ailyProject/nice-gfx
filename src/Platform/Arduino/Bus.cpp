@@ -2,6 +2,13 @@
 #include <new>
 
 namespace nice_gfx {
+// Amortize the Seeed core's synchronous ZeroDMA setup over more pixels. This
+// is stack staging only; no persistent heap or full framebuffer is required.
+#if defined(SEEED_WIO_TERMINAL)
+static constexpr size_t streamBufferBytes = 1536;
+#else
+static constexpr size_t streamBufferBytes = transferBufferBytes;
+#endif
 static inline void delayMicrosecondsBounded(uint32_t us) {
   // AVR narrows the argument and multiplies it internally. Keep each call
   // within its safe range while preserving long, explicitly requested holds.
@@ -21,7 +28,7 @@ Status StreamBus::image(uint16_t c, uint8_t bits, PixelView view) {
   if (!view.valid()) return Status::InvalidArgument;
   Status status = start(c, bits, false);
   if (status != Status::Ok) return status;
-  uint8_t buffer[transferBufferBytes];
+  uint8_t buffer[streamBufferBytes];
   const size_t bpp = wirePixelBytes(format_), capacity = sizeof(buffer) / bpp;
   const bool contiguous=view.stride==view.width;
   const size_t rows=contiguous ? 1 : view.height, columns=contiguous ? view.width*view.height : view.width;
@@ -49,7 +56,7 @@ Status StreamBus::solid(uint16_t c, uint8_t bits, uint16_t color, size_t count) 
   if (!count) return Status::Ok;
   Status status = start(c, bits, false);
   if (status != Status::Ok) return status;
-  uint8_t buffer[transferBufferBytes]; const size_t bpp = wirePixelBytes(format_);
+  uint8_t buffer[streamBufferBytes]; const size_t bpp = wirePixelBytes(format_);
   encodePixels(buffer, reinterpret_cast<const uint8_t *>(&color), 1, PixelOrder::Native, format_);
   if (writeStrobe_.number >= 0 && format_ == PixelFormat::RGB565) {
     // The padded SPI bridge retains the shifted colour after its first write.
@@ -58,7 +65,10 @@ Status StreamBus::solid(uint16_t c, uint8_t bits, uint16_t color, size_t count) 
     while (--count) { writeStrobe_.write(false); writeStrobe_.write(true); }
     finish(); return Status::Ok;
   }
-  for (size_t i = bpp; i < sizeof(buffer); i += bpp) memcpy(buffer+i, buffer, bpp);
+  const size_t capacity = sizeof(buffer) / bpp;
+  const size_t buffered = count < capacity ? count : capacity;
+  // Small primitives must not initialize an entire bulk-transfer buffer.
+  for (size_t i = bpp; i < buffered * bpp; i += bpp) memcpy(buffer+i, buffer, bpp);
   while (count) {
     size_t n = count < sizeof(buffer)/bpp ? count : sizeof(buffer)/bpp;
     writeBlock(buffer, n*bpp, true); count -= n;
@@ -249,6 +259,11 @@ void ArduinoSpi::writeBlock(const uint8_t *p, size_t n, bool pixels) {
 #elif defined(ARDUINO_ARCH_RP2040) && !defined(ARDUINO_ARCH_MBED)
   spi_.transfer(p,nullptr,n);
 #elif defined(SEEED_WIO_TERMINAL)
+  // DMA setup costs more than polling short command parameters/pixel spans.
+  if (n <= 16) {
+    while (n--) spi_.transfer(*p++);
+    return;
+  }
   // Seeed SAMD's const TX / null RX overload uses ZeroDMA synchronously;
   // unlike the standard in-place API it leaves immutable flash data intact.
   spi_.transfer(p,nullptr,n);

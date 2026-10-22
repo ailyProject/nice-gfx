@@ -9,7 +9,7 @@
 namespace nice_gfx {
 
 #if defined(SEEED_WIO_TERMINAL)
-using ExampleDisplay = WioTerminalDisplay;
+using ExampleDisplay = ILI9341_240x320_SAMD_SPI;
 #elif defined(CONFIG_IDF_TARGET_ESP32S3)
 class ExampleDisplay : public CH13613_480x480_QSPI {
  public: ExampleDisplay() : CH13613_480x480_QSPI(45, 7, 17, 8, 16, 15, 18) {}
@@ -38,6 +38,15 @@ class ExampleDisplay : public ILI9341_240x320_SPI {
  public: ExampleDisplay() : ILI9341_240x320_SPI(10, 9, 8, SCK, MOSI, MISO) {}
 };
 #endif
+
+// Default orientation for the generic entry examples; change it here.
+inline uint8_t exampleRotation() {
+#if defined(SEEED_WIO_TERMINAL)
+  return 3;
+#else
+  return 0;
+#endif
+}
 
 // Most sample modules tie backlight to power; Wio has a dedicated control pin.
 // Set a GPIO here for other modules with an independent backlight input.
@@ -88,3 +97,4 @@ inline Status exampleAttachTouch(NICE_GFX &display) {
 using nice_gfx::ExampleDisplay;
 using nice_gfx::exampleAttachTouch;
 using nice_gfx::exampleBacklightPin;
+using nice_gfx::exampleRotation;

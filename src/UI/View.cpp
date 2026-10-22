@@ -26,6 +26,8 @@
 #include <math.h>
 #include "../Platform/Common/UiMemory.h"
 #include "detail/ImageStorage.h"
+#include "detail/FrameContext.h"
+#include "detail/ComponentPaintIndex.h"
 
 namespace nice_gfx { namespace htmlui {
 namespace {
@@ -48,6 +50,10 @@ class OwnedUiTile {
   OwnedUiTile &operator=(const OwnedUiTile &) = delete;
   uint16_t *data() { return dma_ ? dma_ : fallback_.data(); }
   size_t size() const { return dma_ ? pixels_ : fallback_.size(); }
+  void swap(OwnedUiTile &other) noexcept {
+    fallback_.swap(other.fallback_);
+    std::swap(dma_,other.dma_);std::swap(pixels_,other.pixels_);
+  }
  private:
   std::vector<uint16_t> fallback_;
   uint16_t *dma_ = nullptr;
@@ -56,8 +62,8 @@ class OwnedUiTile {
 
 bool validMedia(const MediaDesc &m) {
   if(!m.pixels||!m.width||!m.height||m.width>1024||m.height>1024||!m.frames||m.frames>300||
-     !m.fps||m.fps>30||(m.bytesPerPixel!=1&&m.bytesPerPixel!=2))return false;
-  const uint64_t bytes=uint64_t(m.width)*m.height*m.frames*m.bytesPerPixel;
+     !m.fps||m.fps>30||(m.bytesPerPixel!=1&&m.bytesPerPixel!=2&&!mediaColorKeyed(m)))return false;
+  const uint64_t bytes=uint64_t(m.width)*m.height*m.frames*mediaPixelBytes(m)+(mediaColorKeyed(m)?2:0);
   return bytes<=8388608&&reinterpret_cast<uintptr_t>(m.pixels)<=UINTPTR_MAX-size_t(bytes);
 }
 int32_t clamp32(int32_t v, int32_t lo, int32_t hi) { return v < lo ? lo : (v > hi ? hi : v); }
@@ -192,7 +198,7 @@ struct View::Impl {
     uint64_t revision=0; // Exact mutation identity; retained raster keys need no old string owner.
     const char *c_str() const { return owned?owned->c_str():compiled; }
     void init(const char *s) { compiled=s?s:"";owned.reset();++revision; }
-    bool set(const char *s) { s=s?s:"";if(!strcmp(c_str(),s))return false;if(owned&&owned.unique())owned->assign(s);else owned=std::make_shared<std::string>(s);++revision;return true; }
+    bool set(const char *s) { s=s?s:"";if(!strcmp(c_str(),s))return false;if(owned&&owned.use_count()==1)owned->assign(s);else owned=std::make_shared<std::string>(s);++revision;return true; }
   };
   struct State { uint16_t mediaFrame=0; uint32_t mediaAt=0; bool mediaPending=true; TextValue text; int32_t value=0, scrollX=0, scrollY=0; uint16_t flags=0; int32_t animationX=0, animationY=0; uint32_t animationAt=0; uint8_t opacity=255; bool animating=false, animationPending=false;
     Image image;
@@ -229,16 +235,14 @@ struct View::Impl {
   mutable std::vector<int32_t> componentNodes;
   std::vector<uint16_t> underlay; // Allocated only when an animation uses opacity.
   std::vector<uint16_t> mediaRow; // Reusable wire-order scanline, never a framebuffer.
-  RetainedVector<State> snapshot;
-  const PageDesc *snapshotPage=nullptr;
-  const PageDesc *previewPage=nullptr;
-  RetainedVector<State> previewSnapshot;
-  struct TextLine { size_t begin,end;int32_t width; };
-  struct Geometry { Rect rect,clip;uint32_t lineFirst=0;uint16_t lineCount=0,children=0;int32_t textY=0;uint8_t alpha=255;bool visible=true,inputVisible=true; };
-  struct FrameCache { RetainedVector<Geometry> nodes;RetainedVector<TextLine> lines;std::vector<uint32_t> bands;size_t words=0;int32_t bandHeight=1; };
-  FrameCache snapshotCache,previewCache;
-  FrameCache *paintCache=&snapshotCache;
+  detail::FrameContext<State,MotionRuntime> rasterFrame;
+  using TextLine=detail::FrameTextLine;
+  using Geometry=detail::FrameGeometry;
+  using FrameCache=detail::FrameGeometryCache;
+  FrameCache *paintCache=&rasterFrame.current.geometry;
   mutable RuntimeStats stats;
+  mutable detail::ComponentPaintIndex componentPaintIndices[2];
+  mutable uint64_t componentPaintUsed[2]={0,0},componentPaintClock=0;
   mutable const PageDesc *tickPage=nullptr;
   mutable std::vector<uint16_t> animationNodes,mediaNodes;
   void ensureTickNodes() const {
@@ -250,6 +254,15 @@ struct View::Impl {
     }
   }
   uint32_t (*profilingClock)()=nullptr;
+  RenderBudget renderBudget;
+  size_t rasterCapacity() const {return renderBudget.maxPixelsPerTick?std::min(capacity,renderBudget.maxPixelsPerTick):capacity;}
+  uint32_t workClock() const {return profilingClock?profilingClock():platform::micros();}
+  struct TickTimer {
+    Impl &owner;uint32_t started;bool enabled;
+    explicit TickTimer(Impl &s):owner(s),started(0),enabled(s.profilingClock||s.renderBudget.maxMicrosPerTick){if(enabled)started=s.workClock();}
+    bool expired() const {return owner.renderBudget.maxMicrosPerTick&&uint32_t(owner.workClock()-started)>=owner.renderBudget.maxMicrosPerTick;}
+    ~TickTimer(){if(enabled){const uint32_t elapsed=owner.workClock()-started;owner.stats.tickMicros+=elapsed;owner.stats.maxTickMicros=std::max(owner.stats.maxTickMicros,elapsed);}}
+  };
   struct RenderTimer {
     Impl &owner;uint32_t started;
     explicit RenderTimer(Impl &s):owner(s),started(s.profilingClock?s.profilingClock():0){}
@@ -378,7 +391,7 @@ struct View::Impl {
     auto &value=state()[index];value.image=image;value.imageOverride=overrideSource;
     value.mediaFrame=0;value.mediaAt=0;value.mediaPending=true;invalidate(index);
   }
-  InstrumentState &instrument(int i) { auto &v=state()[i].instrument;if(!v.unique())v=std::make_shared<InstrumentState>(*v);return *v; }
+  InstrumentState &instrument(int i) { auto &v=state()[i].instrument;if(v.use_count()!=1)v=std::make_shared<InstrumentState>(*v);return *v; }
   int routeIndex(const char *path) const {
     if(!project||!path)return -1;
     for(uint16_t i=0;i<project->count;++i)if(!strcmp(project->pages[i].path,path))return i;
@@ -635,6 +648,7 @@ struct View::Impl {
   bool renderingFullFrameSurface=false;
 #include "detail/RenderCache.inc.h"
 #include "detail/AnimationLayers.inc.h"
+#include "detail/FrameGeometryMemo.inc.h"
 #include "detail/NativeRender.inc.h"
   Rect poseRect(const PageDesc &p,const RetainedVector<State> &s,int i) const {
     Rect r=layoutRect(p,s,i);r.x+=s[i].animationX;r.y+=s[i].animationY;
@@ -924,7 +938,7 @@ struct View::Impl {
     return a.capture<b.capture;
   }
   void addListener(const Listener &listener) {
-    if(!listeners.unique())listeners=std::make_shared<std::vector<Listener>>(*listeners);
+    if(listeners.use_count()!=1)listeners=std::make_shared<std::vector<Listener>>(*listeners);
     const auto at=std::upper_bound(listeners->begin(),listeners->end(),listener,listenerBefore);
     listeners->insert(at,listener);
   }
@@ -1504,14 +1518,14 @@ struct View::Impl {
 #endif
         candidates&=candidates-1;const uint16_t i=uint16_t(word*32+size_t(bit));
         const Geometry &g=paintCache->nodes[i];if(!g.visible||g.alpha!=255)continue;
-        if(snapshotPage->nodes[i].motion){const auto &m=motionPose(*snapshotPage,snapshot,i);if(m.scale!=1024||m.rotation%360!=0)continue;}
-        const State &v=snapshot[i];
+        if(rasterFrame.current.page->nodes[i].motion){const auto &m=motionPose(*rasterFrame.current.page,rasterFrame.current.values,i);if(m.scale!=1024||m.rotation%360!=0)continue;}
+        const State &v=rasterFrame.current.values[i];
         const bool disabled=(v.flags&Disabled)!=0,pressed=i==snapshotPressed;
         if(disabled?(v.flags&DisabledTransparent)!=0:pressed?(v.flags&ActiveTransparent)!=0:(v.flags&Transparent)!=0)continue;
         Rect r=g.rect;r.x+=paintOffsetX;r.y+=paintOffsetY;
         Rect clip=g.clip;clip.x+=paintOffsetX;clip.y+=paintOffsetY;
         const Rect visible=intersect(clipped,intersect(r,clip));if(visible.width<=0||visible.height<=0)continue;
-        const Style &style=styleFor(*snapshotPage,snapshot,i);
+        const Style &style=styleFor(*rasterFrame.current.page,rasterFrame.current.values,i);
         const int32_t radius=std::min<int32_t>(style.radius,std::min<int32_t>(r.width,r.height)/2);
         const Rect cover=raster_occlusion::interior(r,radius,visible);
         const int64_t area=int64_t(cover.width)*cover.height;
@@ -1569,6 +1583,7 @@ struct View::Impl {
     if(i>begin&&y<r.height)line(i);
   }
   void prepareCache(const PageDesc &p,const RetainedVector<State> &s,FrameCache &cache,int32_t visibleHeight=-1) {
+    cache.visibleHeight=visibleHeight;
     cache.nodes.resize(p.count);cache.words=(size_t(p.count)+31)/32;cache.bandHeight=(int32_t(p.height)+31)/32;
     cache.bands.assign(cache.words*32,0);
     cache.lines.clear();
@@ -1597,15 +1612,16 @@ struct View::Impl {
   // grow a history of obsolete layouts in the retained surface.
   template<class Previous> void prepareVisualCache(const PageDesc &p,const RetainedVector<State> &s,const Previous &previous,
                           const FrameCache &source,FrameCache &cache) {
-    cache.nodes=source.nodes;cache.bands=source.bands;cache.words=source.words;cache.bandHeight=source.bandHeight;cache.lines.clear();
+    cache.nodes=source.nodes;cache.bands=source.bands;cache.words=source.words;cache.bandHeight=source.bandHeight;cache.visibleHeight=source.visibleHeight;cache.lines.clear();
+    stats.geometryReuses+=p.count;
     for(uint16_t i=0;i<p.count;++i){auto &g=cache.nodes[i];const auto &old=source.nodes[i];
       if(previous[i].text.revision!=s[i].text.revision||previous[i].text.compiled!=s[i].text.compiled){
-        const Rect c=intersect(g.rect,g.clip);
+        Rect c=intersect(g.rect,g.clip);if(cache.visibleHeight>=0)c=intersect(c,{0,0,p.width,cache.visibleHeight});
         if(g.visible&&g.alpha&&c.width>0&&c.height>0)prepareText(cache,g,p.nodes[i],s[i],styleFor(p,s,i));
         else {g.lineFirst=uint32_t(cache.lines.size());g.lineCount=0;g.textY=0;}
       }else{
         g.lineFirst=uint32_t(cache.lines.size());
-        if(old.lineCount)cache.lines.insert(cache.lines.end(),source.lines.begin()+old.lineFirst,source.lines.begin()+old.lineFirst+old.lineCount);
+        if(old.lineCount){cache.lines.insert(cache.lines.end(),source.lines.begin()+old.lineFirst,source.lines.begin()+old.lineFirst+old.lineCount);++stats.textLayoutReuses;}
       }
     }
   }
@@ -1620,25 +1636,19 @@ struct View::Impl {
     }y+=h;}
     canvas.setViewport(clipped.x,clipped.y,clipped.width,clipped.height,false);
   }
-  struct ComponentPaint { bool selected=false,select=false,expanded=false,list=false; };
-  ComponentPaint componentPaint(const PageDesc &p,const RetainedVector<State> &values,Id id) const {
-    ComponentPaint result;
-    // A transition may paint an outgoing page while page() already points at
-    // its destination. Read selection and expansion from the painted snapshot.
-    for(size_t component=0;component<componentCount;++component){const auto &d=components[component];
-      if(d.kind!=ComponentKind::Choice&&d.kind!=ComponentKind::Tabs&&d.kind!=ComponentKind::Select&&d.kind!=ComponentKind::List)continue;
-      const bool trigger=d.kind==ComponentKind::Select&&d.textId==id;int option=-1;
-      if(!trigger)for(uint8_t n=0;n<d.optionCount;++n)if(d.options[n].id==id){option=n;break;}
-      if(!trigger&&option<0)continue;
-      int root=-1,value=-1,panel=-1;const Id valueId=d.kind==ComponentKind::Tabs?d.pageId:d.id;
-      for(uint16_t n=0;n<p.count;++n){const Id node=p.nodes[n].id;
-        if(node==d.id)root=n;if(node==valueId)value=n;if(node==d.expandedId)panel=n;}
-      if(root<0)continue;
-      result.select=trigger;result.expanded=trigger&&panel>=0&&!(values[panel].flags&Hidden);
-      result.list=d.kind==ComponentKind::List&&option>=0;
-      result.selected=!result.list&&option>=0&&value>=0&&values[value].value==option;return result;
+  using ComponentPaint=detail::ComponentPaint;
+  detail::ComponentPaintIndex &prepareComponentPaint(const PageDesc &p) const {
+    size_t slot=0;
+    if(componentPaintIndices[0].matches(p,components,componentCount))slot=0;
+    else if(componentPaintIndices[1].matches(p,components,componentCount))slot=1;
+    else {
+      slot=componentPaintUsed[0]<=componentPaintUsed[1]?0:1;
+      componentPaintIndices[slot].prepare(p,components,componentCount);++stats.componentIndexBuilds;
     }
-    return result;
+    componentPaintUsed[slot]=++componentPaintClock;return componentPaintIndices[slot];
+  }
+  ComponentPaint componentPaint(const PageDesc &p,const RetainedVector<State> &values,Id id) const {
+    return componentCount?prepareComponentPaint(p).paint(id,values):ComponentPaint{};
   }
   void paintRoundedMedia(const MediaDesc &m,const Image::Impl *image,const uint8_t *frame,size_t stride,
                          Rect r,Rect clipped,const MediaRoundClip &clip) {
@@ -1672,8 +1682,31 @@ struct View::Impl {
       sourceY+=yStep;remainderY+=yRemainder;if(remainderY>=r.height){remainderY-=r.height;++sourceY;}
     }
   }
+  void paintKeyedMedia(const MediaDesc &m,const uint8_t *frame,size_t stride,Rect r,Rect clipped,
+                       const MediaRoundClip *roundClip=nullptr) {
+    const Rect area=intersect(r,clipped);if(area.width<=0||area.height<=0)return;
+    const uint16_t key=uint16_t(pgm_read_byte(m.pixels))<<8|pgm_read_byte(m.pixels+1);
+    mediaRow.resize(size_t(area.width));uint8_t *bytes=reinterpret_cast<uint8_t *>(mediaRow.data());
+    const int32_t xStep=m.width/r.width,xRemainder=m.width%r.width;
+    for(int32_t y=area.y;y<area.y+area.height;++y){
+      int32_t first=area.x,end=area.x+area.width;if(roundClip)roundClip->span(y,first,end);
+      if(first>=end)continue;
+      const size_t sourceY=size_t(int64_t(y-r.y)*m.height/r.height);
+      const int64_t initialX=int64_t(first-r.x)*m.width;
+      int32_t sourceX=int32_t(initialX/r.width),remainderX=int32_t(initialX%r.width);
+      int32_t run=-1;
+      for(int32_t x=first;x<=end;++x){
+        uint16_t color=key;
+        if(x<end){const uint8_t *p=frame+sourceY*stride+size_t(sourceX)*2;
+          color=uint16_t(pgm_read_byte(p))<<8|pgm_read_byte(p+1);
+          sourceX+=xStep;remainderX+=xRemainder;if(remainderX>=r.width){remainderX-=r.width;++sourceX;}}
+        if(color!=key){if(run<0)run=x;bytes[2*(x-first)]=uint8_t(color>>8);bytes[2*(x-first)+1]=uint8_t(color);}
+        else if(run>=0){canvas.blit(run,y,PixelView(bytes+2*(run-first),size_t(x-run),1,0,PixelOrder::Wire));run=-1;}
+      }
+    }
+  }
   void paintNode(int i,Rect clipped) {
-    const NodeDesc &n=snapshotPage->nodes[i];const State &v=snapshot[i];const Style &s=styleFor(*snapshotPage,snapshot,i);
+    const NodeDesc &n=rasterFrame.current.page->nodes[i];const State &v=rasterFrame.current.values[i];const Style &s=styleFor(*rasterFrame.current.page,rasterFrame.current.values,i);
     canvas.setAntialiasing(!(v.flags&NoAntialias));
     Rect r=paintCache->nodes[i].rect;r.x+=paintOffsetX;r.y+=paintOffsetY;
     // Opaque dynamic RGB565 completely replaces its own box background. Keep
@@ -1688,9 +1721,9 @@ struct View::Impl {
       }
     }
     bool disabled=(v.flags&Disabled)!=0;
-    for(uint16_t ancestor=n.parent;ancestor!=NoParent&&!disabled;ancestor=snapshotPage->nodes[ancestor].parent)disabled=(snapshot[ancestor].flags&Disabled)!=0;
+    for(uint16_t ancestor=n.parent;ancestor!=NoParent&&!disabled;ancestor=rasterFrame.current.page->nodes[ancestor].parent)disabled=(rasterFrame.current.values[ancestor].flags&Disabled)!=0;
     const bool pressed=i==snapshotPressed;
-    const ComponentPaint component=n.kind==Kind::Button?componentPaint(*snapshotPage,snapshot,n.id):ComponentPaint{};
+    const ComponentPaint component=n.kind==Kind::Button?componentPaint(*rasterFrame.current.page,rasterFrame.current.values,n.id):ComponentPaint{};
     const bool selected=component.selected&&!disabled;
     uint16_t bg=selected?s.thumbColor:disabled?s.disabledColor:(pressed?s.pressedColor:s.background);
     const bool transparent=!selected&&(disabled?(v.flags&DisabledTransparent)!=0:
@@ -1721,13 +1754,16 @@ struct View::Impl {
     if(source&&r.width>0&&r.height>0) {
       const MediaDesc &m=*source;
       const Image::Impl *image=v.imageOverride?v.image.impl_:nullptr;
-      const size_t stride=image?image->source.strideBytes:size_t(m.width)*m.bytesPerPixel;
+      const size_t stride=image?image->source.strideBytes:size_t(m.width)*mediaPixelBytes(m);
       // Public viewport getters describe the coordinate datum, which stays
       // full-screen for setViewport(..., false). Use the renderer's real tile
       // intersection so a 16-row refresh never samples the entire image.
       const Rect area=intersect(r,clipped);
       if(area.width<=0||area.height<=0)return;
-      const uint8_t *frame=m.pixels+size_t(v.mediaFrame)*stride*m.height;
+      const uint8_t *frame=mediaPixels(m)+size_t(v.mediaFrame)*stride*m.height;
+      if(mediaColorKeyed(m)){
+        const MediaRoundClip clip(borderBox,s);paintKeyedMedia(m,frame,stride,r,clipped,s.radius&&clip.rounded()?&clip:nullptr);return;
+      }
       if(s.radius){const MediaRoundClip clip(borderBox,s);
         if(clip.rounded()){paintRoundedMedia(m,image,frame,stride,r,clipped,clip);return;}}
       // Native-size RGB565 needs no nearest-neighbor sampling. RAM sources
@@ -1841,17 +1877,17 @@ struct View::Impl {
     DirtyRect area=requestedArea;
     const Rect v=self.snapshotMotionRect;
     if(self.snapshotTransition&&!self.buildingSurface&&!self.renderingViewport&&v.width>0&&
-       (v.x||v.y||v.width!=self.snapshotPage->width||v.height!=self.snapshotPage->height)){
+       (v.x||v.y||v.width!=self.rasterFrame.current.page->width||v.height!=self.rasterFrame.current.page->height)){
       // Paint stationary navigation from the incoming route, then replace only
       // the moving viewport. This is also the exact portable fallback to DMA.
-      const bool savedTransition=self.snapshotTransition;const PageDesc *savedPreview=self.previewPage;
-      const PageDesc *savedPage=self.snapshotPage;const Surface *savedSurface=self.snapshotSurface;
+      const bool savedTransition=self.snapshotTransition;const PageDesc *savedPreview=self.rasterFrame.preview.page;
+      const PageDesc *savedPage=self.rasterFrame.current.page;const Surface *savedSurface=self.snapshotSurface;
       const bool keepSource=self.groupMotion.active&&self.groupMotion.prepared&&savedPreview;
-      if(keepSource){self.snapshotPage=savedPreview;self.snapshot.swap(self.previewSnapshot);self.snapshotMotions.swap(self.previewMotions);std::swap(self.snapshotCache,self.previewCache);self.snapshotSurface=self.previewSurface;}
-      self.snapshotTransition=false;self.previewPage=nullptr;
+      if(keepSource){self.rasterFrame.current.page=savedPreview;self.rasterFrame.current.values.swap(self.rasterFrame.preview.values);self.rasterFrame.current.motions.swap(self.rasterFrame.preview.motions);std::swap(self.rasterFrame.current.geometry,self.rasterFrame.preview.geometry);self.snapshotSurface=self.previewSurface;}
+      self.snapshotTransition=false;self.rasterFrame.preview.page=nullptr;
       const Status base=render(context,area,pixels,stride);
-      if(keepSource){self.snapshot.swap(self.previewSnapshot);self.snapshotMotions.swap(self.previewMotions);std::swap(self.snapshotCache,self.previewCache);self.snapshotPage=savedPage;self.snapshotSurface=savedSurface;}
-      self.snapshotTransition=savedTransition;self.previewPage=savedPreview;if(base!=Status::Ok)return base;
+      if(keepSource){self.rasterFrame.current.values.swap(self.rasterFrame.preview.values);self.rasterFrame.current.motions.swap(self.rasterFrame.preview.motions);std::swap(self.rasterFrame.current.geometry,self.rasterFrame.preview.geometry);self.rasterFrame.current.page=savedPage;self.snapshotSurface=savedSurface;}
+      self.snapshotTransition=savedTransition;self.rasterFrame.preview.page=savedPreview;if(base!=Status::Ok)return base;
       const Rect content=intersect(v,{area.x,area.y,area.width,area.height});
       if(content.width<=0||content.height<=0)return Status::Ok;
       self.renderingViewport=true;
@@ -1867,19 +1903,19 @@ struct View::Impl {
     // covered page node; a dock leaves only the band above it to rasterize.
     // This also applies to circular output, whose physical clip is imposed by
     // the scheduler on both layers rather than by the keyboard background.
-    if(!self.buildingSurface&&!self.snapshotTransition&&!self.previewPage&&self.snapshotKeyboard.visible&&self.snapshotKeyboard.node>=0){
+    if(!self.buildingSurface&&!self.snapshotTransition&&!self.rasterFrame.preview.page&&self.snapshotKeyboard.visible&&self.snapshotKeyboard.node>=0){
       area.height=std::max<int32_t>(0,std::min<int32_t>(area.height,self.snapshotKeyboard.rect.y-area.y));
       if(!area.height){self.paintKeyboard({requestedArea.x,requestedArea.y,requestedArea.width,requestedArea.height});self.canvas.detach();return Status::Ok;}
     }
     // A stationary cached enter/exit fade uses a constant background.
     // Blend immutable pixels directly without materializing an underlay.
-    if(self.renderOrder==PixelOrder::Wire&&!self.buildingSurface&&self.snapshotTransition&&!self.previewPage&&self.snapshotSurface&&
+    if(self.renderOrder==PixelOrder::Wire&&!self.buildingSurface&&self.snapshotTransition&&!self.rasterFrame.preview.page&&self.snapshotSurface&&
        (self.snapshotPhase==TransitionPhase::Enter||self.snapshotPhase==TransitionPhase::Exit)&&
        !self.snapshotKeyboard.visible&&!self.snapshotInput&&
        (self.snapshotGroupIndex<0||!self.snapshotGroup.indicatorHeight)&&
-       !v.x&&!v.y&&v.width==self.snapshotPage->width&&v.height==self.snapshotPage->height&&
+       !v.x&&!v.y&&v.width==self.rasterFrame.current.page->width&&v.height==self.rasterFrame.current.page->height&&
        !self.transitionFrame.outX&&!self.transitionFrame.outY&&!self.transitionFrame.inX&&!self.transitionFrame.inY){
-      const size_t pageWidth=self.snapshotPage->width;
+      const size_t pageWidth=self.rasterFrame.current.page->width;
       const size_t offset=size_t(area.y)*pageWidth+size_t(area.x);
       rgb565_blend::wireRowsSolid(pixels,stride,self.snapshotSurface->pixels+offset,pageWidth,
         size_t(area.width),size_t(area.height),self.snapshotBackground,self.transitionFrame.opacity);
@@ -1889,42 +1925,42 @@ struct View::Impl {
     // them straight into the tile instead of copying the outgoing page,
     // saving its underlay, painting the incoming page, then blending in place.
     if(self.renderOrder==PixelOrder::Wire&&!self.buildingSurface&&self.snapshotTransition&&self.snapshotPhase==TransitionPhase::Paired&&
-       self.previewPage&&self.snapshotSurface&&self.previewSurface&&!self.snapshotKeyboard.visible&&
+       self.rasterFrame.preview.page&&self.snapshotSurface&&self.previewSurface&&!self.snapshotKeyboard.visible&&
        !self.snapshotInput&&(self.snapshotGroupIndex<0||!self.snapshotGroup.indicatorHeight)&&
        !self.transitionFrame.outX&&!self.transitionFrame.outY&&!self.transitionFrame.inX&&!self.transitionFrame.inY){
-      const size_t pageWidth=self.snapshotPage->width;
+      const size_t pageWidth=self.rasterFrame.current.page->width;
       const size_t offset=size_t(area.y)*pageWidth+size_t(area.x);
       rgb565_blend::wireRowsFrom(pixels,stride,self.snapshotSurface->pixels+offset,pageWidth,
         self.previewSurface->pixels+offset,pageWidth,size_t(area.width),size_t(area.height),self.transitionFrame.opacity);
       self.surfaceStats.hits+=self.transitionFrame.opacity&&self.transitionFrame.opacity<255?2:1;
       self.canvas.detach();return Status::Ok;
     }
-    const PageDesc *activePage=self.snapshotPage;
+    const PageDesc *activePage=self.rasterFrame.current.page;
     const int activePressed=self.snapshotPressed;
     const bool transitionCover=self.renderOrder==PixelOrder::Native&&!self.buildingSurface&&self.opaqueCoverTransition()&&
-      self.opaqueCoverAt(self.snapshotCache,area,
+      self.opaqueCoverAt(self.rasterFrame.current.geometry,area,
         self.snapshotPhase==TransitionPhase::Enter?self.transitionFrame.inX:self.transitionFrame.outX,
         self.snapshotPhase==TransitionPhase::Enter?self.transitionFrame.inY:self.transitionFrame.outY)>=0;
-    if(self.snapshotTransition&&!self.previewPage&&!transitionCover){
+    if(self.snapshotTransition&&!self.rasterFrame.preview.page&&!transitionCover){
       self.canvas.setViewport(area.x,area.y,area.width,area.height,false);
       self.canvas.fillRect(area.x,area.y,area.width,area.height,self.snapshotBackground);
     }
     // An opaque incoming page covers this tile completely at a fade/slide
     // endpoint. Its background also overwrites all outgoing content, so omit
     // that layer without allocating or touching its saved underlay.
-    const bool incomingCovers=self.previewPage&&self.snapshotTransition&&self.transitionFrame.opacity==255&&
+    const bool incomingCovers=self.rasterFrame.preview.page&&self.snapshotTransition&&self.transitionFrame.opacity==255&&
       area.x>=self.transitionFrame.inX+(self.renderingViewport?v.x:0)&&area.y>=self.transitionFrame.inY+(self.renderingViewport?v.y:0)&&
       int64_t(area.x)+area.width<=int64_t(self.transitionFrame.inX)+(self.renderingViewport?v.x+v.width:activePage->width)&&
       int64_t(area.y)+area.height<=int64_t(self.transitionFrame.inY)+(self.renderingViewport?v.y+v.height:activePage->height);
-    if(self.previewPage&&!incomingCovers) { self.snapshotPage=self.previewPage;self.snapshot.swap(self.previewSnapshot);self.snapshotMotions.swap(self.previewMotions); }
-    const int layers=self.previewPage?2:1;
+    if(self.rasterFrame.preview.page&&!incomingCovers) { self.rasterFrame.current.page=self.rasterFrame.preview.page;self.rasterFrame.current.values.swap(self.rasterFrame.preview.values);self.rasterFrame.current.motions.swap(self.rasterFrame.preview.motions); }
+    const int layers=self.rasterFrame.preview.page?2:1;
     for(int layer=incomingCovers?1:0;layer<layers;++layer) {
-      self.paintCache=self.previewPage&&layer==0?&self.previewCache:&self.snapshotCache;
-      const bool entering=!self.previewPage&&self.snapshotPhase==TransitionPhase::Enter;
-      self.paintOffsetX=self.snapshotTransition?(entering||layer==1?self.transitionFrame.inX:self.transitionFrame.outX):self.previewPage&&layer==1?self.snapshotBackOffset:0;
+      self.paintCache=self.rasterFrame.preview.page&&layer==0?&self.rasterFrame.preview.geometry:&self.rasterFrame.current.geometry;
+      const bool entering=!self.rasterFrame.preview.page&&self.snapshotPhase==TransitionPhase::Enter;
+      self.paintOffsetX=self.snapshotTransition?(entering||layer==1?self.transitionFrame.inX:self.transitionFrame.outX):self.rasterFrame.preview.page&&layer==1?self.snapshotBackOffset:0;
       self.paintOffsetY=self.snapshotTransition?(entering||layer==1?self.transitionFrame.inY:self.transitionFrame.outY):0;
-      self.snapshotPressed=self.previewPage&&layer==0?-1:activePressed;
-      const bool fade=self.snapshotTransition&&(layer==1||!self.previewPage)&&self.transitionFrame.opacity<255;
+      self.snapshotPressed=self.rasterFrame.preview.page&&layer==0?-1:activePressed;
+      const bool fade=self.snapshotTransition&&(layer==1||!self.rasterFrame.preview.page)&&self.transitionFrame.opacity<255;
       // At alpha zero the outgoing tile is already the final image. In
       // particular, do not rasterize a fully invisible incoming page.
       if(fade&&!self.transitionFrame.opacity)continue;
@@ -1934,19 +1970,19 @@ struct View::Impl {
         for(int32_t y=0;y<area.height;++y)memcpy(self.transitionUnderlay.data()+size_t(y)*area.width,pixels+size_t(y)*stride,size_t(area.width)*2);
       }
       self.canvas.setViewport(area.x,area.y,area.width,area.height,false);
-      const Surface *surface=self.previewPage&&layer==0?self.previewSurface:self.snapshotSurface;
-      if(!self.buildingSurface&&self.snapshotAnimationSurface&&!self.previewPage){
+      const Surface *surface=self.rasterFrame.preview.page&&layer==0?self.previewSurface:self.snapshotSurface;
+      if(!self.buildingSurface&&self.snapshotAnimationSurface&&!self.rasterFrame.preview.page){
         result=self.paintAnimationSurface(area);
         if(result!=Status::Ok){self.canvas.detach();return result;}
       }else if(!self.buildingSurface&&surface){
         ++self.surfaceStats.hits;
-        const Rect source=self.renderingViewport?v:Rect{0,0,self.snapshotPage->width,self.snapshotPage->height};
+        const Rect source=self.renderingViewport?v:Rect{0,0,self.rasterFrame.current.page->width,self.rasterFrame.current.page->height};
         result=self.canvas.blit(source.x+self.paintOffsetX,source.y+self.paintOffsetY,
-          PixelView(surface->pixels+size_t(source.y)*self.snapshotPage->width+source.x,source.width,source.height,self.snapshotPage->width,PixelOrder::Wire));
+          PixelView(surface->pixels+size_t(source.y)*self.rasterFrame.current.page->width+source.x,source.width,source.height,self.rasterFrame.current.page->width,PixelOrder::Wire));
         if(result!=Status::Ok){self.canvas.detach();return result;}
       } else {
       if(!self.buildingSurface&&!self.surfaces.empty())++self.surfaceStats.misses;
-      const Rect source=self.renderingViewport?v:Rect{0,0,self.snapshotPage->width,self.snapshotPage->height};
+      const Rect source=self.renderingViewport?v:Rect{0,0,self.rasterFrame.current.page->width,self.rasterFrame.current.page->height};
       const int opaqueCover=self.opaqueCover(area);
       int firstPaint=opaqueCover;
       if(opaqueCover>=0)if(auto *panel=nice_gfx::detail::DisplayAccess::panel(self.display)){
@@ -1954,7 +1990,7 @@ struct View::Impl {
         if(result!=Status::Ok){self.canvas.detach();return result;}
         if(painted)++firstPaint;
       }
-      if(opaqueCover<0)self.canvas.fillRect(source.x+self.paintOffsetX,source.y+self.paintOffsetY,source.width,source.height,self.snapshotPage->background);
+      if(opaqueCover<0)self.canvas.fillRect(source.x+self.paintOffsetX,source.y+self.paintOffsetY,source.width,source.height,self.rasterFrame.current.page->background);
       const FrameCache &cache=*self.paintCache;
       const int firstBand=clamp32((area.y-self.paintOffsetY)/cache.bandHeight,0,31),lastBand=clamp32((area.y+area.height-1-self.paintOffsetY)/cache.bandHeight,0,31);
       for(size_t word=0;word<cache.words;++word){uint32_t candidates=0;
@@ -1965,7 +2001,7 @@ struct View::Impl {
       clipped.x+=self.paintOffsetX;clipped.y+=self.paintOffsetY;
       clipped=intersect(clipped,{area.x,area.y,area.width,area.height});if(clipped.width<=0||clipped.height<=0)continue;
       const uint8_t alpha=g.alpha;if(!alpha)continue;++self.stats.paintedNodes;
-      if(self.snapshotPage->nodes[i].motion){const auto &m=self.motionPose(*self.snapshotPage,self.snapshot,i);
+      if(self.rasterFrame.current.page->nodes[i].motion){const auto &m=self.motionPose(*self.rasterFrame.current.page,self.rasterFrame.current.values,i);
         if(m.scale!=1024||m.rotation%360!=0){self.paintTransformedNode(i,clipped,area,pixels,stride,alpha);continue;}}
       if(alpha<255&&self.renderOrder==PixelOrder::Native){
         result=self.paintNativeAlphaNode(i,clipped,area,pixels,stride,alpha);
@@ -1982,7 +2018,7 @@ struct View::Impl {
         self.underlay.data(),size_t(clipped.width),size_t(clipped.width),size_t(clipped.height),alpha);
       }
       }
-      if(self.snapshotInput&&!self.snapshotTransition&&!self.previewPage&&self.snapshotFocus>=0&&cache.nodes[self.snapshotFocus].inputVisible) {
+      if(self.snapshotInput&&!self.snapshotTransition&&!self.rasterFrame.preview.page&&self.snapshotFocus>=0&&cache.nodes[self.snapshotFocus].inputVisible) {
         const Geometry &g=cache.nodes[self.snapshotFocus];const Rect r=g.rect,c=intersect(r,g.clip);
         self.canvas.setViewport(c.x,c.y,c.width,c.height,false);
         for(int n=0;n<self.snapshotFocusWidth&&2*n<std::min(r.width,r.height);++n)self.canvas.drawRect(r.x+n,r.y+n,r.width-2*n,r.height-2*n,self.snapshotFocusColor);
@@ -1990,7 +2026,7 @@ struct View::Impl {
       }
       if(fade)rgb565_blend::wireRows(pixels,stride,self.transitionUnderlay.data(),size_t(area.width),
         size_t(area.width),size_t(area.height),self.transitionFrame.opacity);
-      if(self.previewPage&&layer==0) { self.snapshotPage=activePage;self.snapshot.swap(self.previewSnapshot);self.snapshotMotions.swap(self.previewMotions); }
+      if(self.rasterFrame.preview.page&&layer==0) { self.rasterFrame.current.page=activePage;self.rasterFrame.current.values.swap(self.rasterFrame.preview.values);self.rasterFrame.current.motions.swap(self.rasterFrame.preview.motions); }
     }
     self.snapshotPressed=activePressed;
     if(self.snapshotGroupIndex>=0&&self.snapshotGroup.indicatorHeight){
@@ -2001,7 +2037,7 @@ struct View::Impl {
       if(!g.backgroundTransparent)self.canvas.fillRect(footer.x,top,width,g.indicatorHeight,g.background);
       for(uint16_t i=0;i<g.count;++i)self.canvas.fillRoundRect(left+i*step,dotsY,g.dotSize,g.dotSize,g.dotSize/2,i==self.snapshotGroupIndex?g.fillColor:g.trackColor);
     }
-    if(!self.buildingSurface&&!self.snapshotTransition&&!self.previewPage)self.paintKeyboard({requestedArea.x,requestedArea.y,requestedArea.width,requestedArea.height});
+    if(!self.buildingSurface&&!self.snapshotTransition&&!self.rasterFrame.preview.page)self.paintKeyboard({requestedArea.x,requestedArea.y,requestedArea.width,requestedArea.height});
     self.canvas.detach();return Status::Ok;
   }
   Status start() {
@@ -2024,20 +2060,21 @@ struct View::Impl {
     snapshotFocus=focusNode;
     snapshotKeyInput=keyInput;
     snapshotInput=input!=nullptr&&snapshotKeyInput&&!transition.active;snapshotFocusColor=input?input->color:0;snapshotFocusWidth=input?input->width:0;
-    snapshotPage=&page();snapshot=state();snapshotMotions=pageMotions[history.back()];snapshotPressed=down&&!canceled&&activeControl>=0&&nodeContains(activeControl,x,y)?activeControl:-1;
+    rasterFrame.current.page=&page();rasterFrame.current.values=state();rasterFrame.current.motions=pageMotions[history.back()];snapshotPressed=down&&!canceled&&activeControl>=0&&nodeContains(activeControl,x,y)?activeControl:-1;
     if(buildKeyboard(softInput))invalidateKeyboardKeys();snapshotKeyboard=softInput;snapshotKeyboard.pressed=keyboardPressed;
     prepareKeyboardText();
     snapshotGroupIndex=-1;if(const auto *g=navigationGroup(page().path,&snapshotGroupIndex))snapshotGroup=*g;
-    previewPage=nullptr;snapshotBackOffset=backOffset;snapshotTransition=transition.active&&transition.phase!=TransitionPhase::Components;transitionFrame=transition.sample;
+    rasterFrame.preview.page=nullptr;snapshotBackOffset=backOffset;snapshotTransition=transition.active&&transition.phase!=TransitionPhase::Components;transitionFrame=transition.sample;
     snapshotPhase=transition.phase;snapshotBackground=transition.background;
     snapshotMotionRect=transitionViewport();
     snapshotTransitionEpoch=transition.active?transitionEpoch:0;
+    if(!snapshotTransition&&coldFadeSurface&&(coldFadePage!=rasterFrame.current.page||coldFadeEpoch!=transitionEpoch))releaseColdFadeSurface();
     if(transition.active) {
-      if(transition.phase==TransitionPhase::Paired){previewPage=transition.from;previewSnapshot=transition.outgoing;previewMotions=transition.outgoingMotions;}
+      if(transition.phase==TransitionPhase::Paired){rasterFrame.preview.page=transition.from;rasterFrame.preview.values=transition.outgoing;rasterFrame.preview.motions=transition.outgoingMotions;}
       snapshotPressed=-1;
     }
-    if(backPrepared&&backOffset>0&&history.size()>1) { const uint16_t previous=history[history.size()-2];previewPage=&project->pages[previous];previewSnapshot=pages[previous];previewMotions=pageMotions[previous];
-      snapshotMotionRect=navigationViewport(page().path,previewPage->path);snapshotTransition=true;snapshotPhase=TransitionPhase::Paired;
+    if(backPrepared&&backOffset>0&&history.size()>1) { const uint16_t previous=history[history.size()-2];rasterFrame.preview.page=&project->pages[previous];rasterFrame.preview.values=pages[previous];rasterFrame.preview.motions=pageMotions[previous];
+      snapshotMotionRect=navigationViewport(page().path,rasterFrame.preview.page->path);snapshotTransition=true;snapshotPhase=TransitionPhase::Paired;
       transitionFrame={0,0,backOffset,0,255,false};
     }
     if(groupMotion.active){
@@ -2046,40 +2083,40 @@ struct View::Impl {
       const int32_t incoming=offset-groupMotion.sign*motionDistance();
       snapshotTransition=true;snapshotPhase=TransitionPhase::Paired;snapshotBackground=page().background;
       transitionFrame=groupMotion.vertical?TransitionSample{0,offset,0,incoming,255,true}:TransitionSample{offset,0,incoming,0,255,true};snapshotPressed=-1;
-      if(groupMotion.prepared){previewPage=&page();previewSnapshot=state();previewMotions=pageMotions[history.back()];snapshotPage=&project->pages[groupMotion.destination];snapshot=pages[groupMotion.destination];snapshotMotions=pageMotions[groupMotion.destination];}
+      if(groupMotion.prepared){rasterFrame.preview.page=&page();rasterFrame.preview.values=state();rasterFrame.preview.motions=pageMotions[history.back()];rasterFrame.current.page=&project->pages[groupMotion.destination];rasterFrame.current.values=pages[groupMotion.destination];rasterFrame.current.motions=pageMotions[groupMotion.destination];}
     }
     snapshotSurface=previewSurface=nullptr;snapshotAnimationSurface=nullptr;snapshotAnimationLayerCount=0;
     // Hydrate a retained terminal key before exact-match and animation-atlas
     // checks. The other page remains protected throughout a paired snapshot.
     // CPU RGB fades can merge exact cold run streams without decoding two
     // complete pages merely to read them back for this one transition.
-    if(!compressedFadeKeysReady()){
-      restoreSurfacePage(*snapshotPage,previewPage);
-      if(previewPage)restoreSurfacePage(*previewPage,snapshotPage);
+    if(!renderBudget.maxPixelsPerTick&&!compressedFadeKeysReady()){
+      restoreSurfacePage(*rasterFrame.current.page,rasterFrame.preview.page);
+      if(rasterFrame.preview.page)restoreSurfacePage(*rasterFrame.preview.page,rasterFrame.current.page);
     }
-    const bool keyboardCovers=snapshotKeyboard.visible&&snapshotKeyboard.fullscreen&&!snapshotTransition&&!previewPage;
-    const bool plainFocus=snapshotInput&&!snapshotTransition&&!previewPage&&snapshotFocus>=0;
-    if(!keyboardCovers&&snapshotPressed<0&&!plainFocus)snapshotSurface=findSurface(*snapshotPage,snapshot);
-    if(previewPage)previewSurface=findSurface(*previewPage,previewSnapshot);
+    const bool keyboardCovers=snapshotKeyboard.visible&&snapshotKeyboard.fullscreen&&!snapshotTransition&&!rasterFrame.preview.page;
+    const bool plainFocus=snapshotInput&&!snapshotTransition&&!rasterFrame.preview.page&&snapshotFocus>=0;
+    if(!keyboardCovers&&snapshotPressed<0&&!plainFocus)snapshotSurface=findSurface(*rasterFrame.current.page,rasterFrame.current.values);
+    if(rasterFrame.preview.page)previewSurface=findSurface(*rasterFrame.preview.page,rasterFrame.preview.values);
     const bool exactBeforePatch=snapshotSurface!=nullptr;
     // With an exact outgoing surface, prefetch beside its cheap first copy.
     // A stale first frame already pays for repair; defer its prefetch until
     // the following PPA fade step to keep both completion intervals bounded.
-    if(snapshotTransition&&snapshotPhase==TransitionPhase::Exit&&transition.config.effect==TransitionEffect::Fade&&
+    if(!renderBudget.maxPixelsPerTick&&snapshotTransition&&snapshotPhase==TransitionPhase::Exit&&transition.config.effect==TransitionEffect::Fade&&
        transitionFrame.opacity>0&&(transitionFrame.opacity<255||exactBeforePatch)&&transition.destination>=0)
-      restoreSurfacePage(project->pages[transition.destination],snapshotPage,previewPage);
-    if(!snapshotSurface)findAnimationSurface();
+      restoreSurfacePage(project->pages[transition.destination],rasterFrame.current.page,rasterFrame.preview.page);
+    if(!snapshotSurface&&!renderBudget.maxPixelsPerTick)findAnimationSurface();
     bool geometryPrepared=false,previewGeometryPrepared=false,transitionRepairAttempted=false;
     // Prefer a bounded retained repair during page motion. Native rendering
     // remains first for ordinary live maps, while changed route labels must
     // not force a static page to rerasterize at every slide sample.
-    if(!keyboardCovers&&!snapshotSurface&&!snapshotAnimationSurface&&snapshotPressed<0&&!plainFocus){
+    if(!renderBudget.maxPixelsPerTick&&!keyboardCovers&&!snapshotSurface&&!snapshotAnimationSurface&&snapshotPressed<0&&!plainFocus){
       uint64_t repairBudget=0;
-      if(snapshotTransition&&snapshotPhase==TransitionPhase::Enter&&!previewPage&&transitionFrame.opacity==255&&
-         !snapshotMotionRect.x&&!snapshotMotionRect.y&&snapshotMotionRect.width==snapshotPage->width&&snapshotMotionRect.height==snapshotPage->height){
-        const Rect visible=intersect({0,0,snapshotPage->width,snapshotPage->height},
-          {transitionFrame.inX,transitionFrame.inY,snapshotPage->width,snapshotPage->height});
-        if(visible.width<=0||visible.height<=0)repairBudget=std::max<uint64_t>(uint64_t(capacity)*4,uint64_t(snapshotPage->width)*snapshotPage->height/2);
+      if(snapshotTransition&&snapshotPhase==TransitionPhase::Enter&&!rasterFrame.preview.page&&transitionFrame.opacity==255&&
+         !snapshotMotionRect.x&&!snapshotMotionRect.y&&snapshotMotionRect.width==rasterFrame.current.page->width&&snapshotMotionRect.height==rasterFrame.current.page->height){
+        const Rect visible=intersect({0,0,rasterFrame.current.page->width,rasterFrame.current.page->height},
+          {transitionFrame.inX,transitionFrame.inY,rasterFrame.current.page->width,rasterFrame.current.page->height});
+        if(visible.width<=0||visible.height<=0)repairBudget=std::max<uint64_t>(uint64_t(capacity)*4,uint64_t(rasterFrame.current.page->width)*rasterFrame.current.page->height/2);
       }
       // Always keep supported slide roots in their terminal pose in a retained
       // atlas. The larger first-entry budget is available only while the whole
@@ -2103,44 +2140,44 @@ struct View::Impl {
       nice_gfx::Panel *panel;
       ~SnapshotFrameGuard(){if(panel)panel->abortFrame();}
     } frameGuard{framePanel};
-    NativeRenderFrame nativeFrame;const Status nativeStatus=prepareNativeRender(nativeFrame);
+    NativeRenderFrame nativeFrame;const Status nativeStatus=renderBudget.maxPixelsPerTick?Status::Unsupported:prepareNativeRender(nativeFrame);
     if(nativeStatus!=Status::Ok&&nativeStatus!=Status::Unsupported)return nativeStatus;
     const bool nativeReady=nativeStatus==Status::Ok;
     ++stats.frames;
     if(nativeReady){
-      prepareNativeGeometry(*snapshotPage,snapshot,snapshotCache);geometryPrepared=true;
-      if(previewPage&&!previewSurface){prepareNativeGeometry(*previewPage,previewSnapshot,previewCache);previewGeometryPrepared=true;}
+      prepareFrameGeometry(*rasterFrame.current.page,rasterFrame.current.values,rasterFrame.current.geometry);geometryPrepared=true;
+      if(rasterFrame.preview.page&&!previewSurface){prepareFrameGeometry(*rasterFrame.preview.page,rasterFrame.preview.values,rasterFrame.preview.geometry);previewGeometryPrepared=true;}
       partitionNativeRegions(nativeFrame);
     }
-    if(!nativeReady&&previewPage&&!previewSurface&&snapshotTransition&&snapshotPhase==TransitionPhase::Paired){
+    if(!renderBudget.maxPixelsPerTick&&!nativeReady&&rasterFrame.preview.page&&!previewSurface&&snapshotTransition&&snapshotPhase==TransitionPhase::Paired){
       // A dynamic image can be published just before navigation, before its
       // page surface receives a normal refresh. Repair against the captured
       // outgoing key once, using the same bounded policy as the incoming page.
       // start() has already rejected live DMA frames; both immutable snapshot
       // leases survive these swaps. Never substitute the old page's live state.
-      const PageDesc *incomingPage=snapshotPage,*outgoingPage=previewPage;
+      const PageDesc *incomingPage=rasterFrame.current.page,*outgoingPage=rasterFrame.preview.page;
       FrameCache *savedPaint=paintCache;
       const int savedPressed=snapshotPressed,savedFocus=snapshotFocus,savedGroup=snapshotGroupIndex;
-      snapshot.swap(previewSnapshot);snapshotMotions.swap(previewMotions);std::swap(snapshotCache,previewCache);
-      snapshotPage=outgoingPage;previewPage=nullptr;paintCache=&snapshotCache;
+      rasterFrame.current.values.swap(rasterFrame.preview.values);rasterFrame.current.motions.swap(rasterFrame.preview.motions);std::swap(rasterFrame.current.geometry,rasterFrame.preview.geometry);
+      rasterFrame.current.page=outgoingPage;rasterFrame.preview.page=nullptr;paintCache=&rasterFrame.current.geometry;
       snapshotPressed=snapshotFocus=snapshotGroupIndex=-1;
       previewSurface=patchSurface(previewGeometryPrepared);
-      snapshot.swap(previewSnapshot);snapshotMotions.swap(previewMotions);std::swap(snapshotCache,previewCache);
-      snapshotPage=incomingPage;previewPage=outgoingPage;paintCache=savedPaint;
+      rasterFrame.current.values.swap(rasterFrame.preview.values);rasterFrame.current.motions.swap(rasterFrame.preview.motions);std::swap(rasterFrame.current.geometry,rasterFrame.preview.geometry);
+      rasterFrame.current.page=incomingPage;rasterFrame.preview.page=outgoingPage;paintCache=savedPaint;
       snapshotPressed=savedPressed;snapshotFocus=savedFocus;snapshotGroupIndex=savedGroup;
     }
-    if(!nativeReady&&!transitionRepairAttempted&&!keyboardCovers&&!snapshotSurface&&!snapshotAnimationSurface&&snapshotPressed<0&&!plainFocus)snapshotSurface=patchSurface(geometryPrepared);
-    if(!keyboardCovers&&!snapshotSurface&&!snapshotAnimationSurface&&!geometryPrepared)prepareCache(*snapshotPage,snapshot,snapshotCache,
-      snapshotKeyboard.visible&&!snapshotTransition&&!previewPage?snapshotKeyboard.rect.y:-1);
-    if(previewPage&&!previewSurface&&!previewGeometryPrepared)prepareCache(*previewPage,previewSnapshot,previewCache);
-    bool direct=snapshotSurface&&!snapshotTransition&&!previewPage&&!snapshotKeyboard.visible&&!snapshotInput&&
+    if(!renderBudget.maxPixelsPerTick&&!nativeReady&&!transitionRepairAttempted&&!keyboardCovers&&!snapshotSurface&&!snapshotAnimationSurface&&snapshotPressed<0&&!plainFocus)snapshotSurface=patchSurface(geometryPrepared);
+    if(!keyboardCovers&&!snapshotSurface&&!snapshotAnimationSurface&&!geometryPrepared)prepareFrameGeometry(*rasterFrame.current.page,rasterFrame.current.values,rasterFrame.current.geometry,
+      snapshotKeyboard.visible&&!snapshotTransition&&!rasterFrame.preview.page?snapshotKeyboard.rect.y:-1);
+    if(rasterFrame.preview.page&&!previewSurface&&!previewGeometryPrepared)prepareCache(*rasterFrame.preview.page,rasterFrame.preview.values,rasterFrame.preview.geometry);
+    bool direct=snapshotSurface&&!snapshotTransition&&!rasterFrame.preview.page&&!snapshotKeyboard.visible&&!snapshotInput&&
       (snapshotGroupIndex<0||!snapshotGroup.indicatorHeight);
-    PixelView surface(direct?snapshotSurface->pixels:nullptr,snapshotPage->width,snapshotPage->height,0,PixelOrder::Wire);
+    PixelView surface(direct?snapshotSurface->pixels:nullptr,rasterFrame.current.page->width,rasterFrame.current.page->height,0,PixelOrder::Wire);
     FrameSlice pieces[6];size_t count=0;
-    const int32_t w=snapshotPage->width,h=snapshotPage->height;
+    const int32_t w=rasterFrame.current.page->width,h=rasterFrame.current.page->height;
     const Rect viewport=snapshotMotionRect;
     const auto &t=transitionFrame;
-    if(!direct){const Status cpuFade=prepareCpuCachedFade(surface);
+    if(!renderBudget.maxPixelsPerTick&&!direct){const Status cpuFade=prepareCpuCachedFade(surface);
       if(cpuFade==Status::Ok)direct=true;
       else if(cpuFade!=Status::Unsupported)return cpuFade;}
     // Preserve authored fade timing. Cached immutable pages permit one PPA
@@ -2148,16 +2185,16 @@ struct View::Impl {
     // the start() busy gate prevents reuse while a transfer still reads it.
     const bool pairedFade=rgb565_ppa::Context::available()&&snapshotTransition&&
       snapshotPhase==TransitionPhase::Paired&&transition.config.effect==TransitionEffect::Fade&&
-      snapshotSurface&&previewSurface&&previewPage&&previewPage->width==w&&previewPage->height==h&&
+      snapshotSurface&&previewSurface&&rasterFrame.preview.page&&rasterFrame.preview.page->width==w&&rasterFrame.preview.page->height==h&&
       viewport.x==0&&viewport.y==0&&viewport.width==w&&viewport.height==h&&
       t.outX==0&&t.outY==0&&t.inX==0&&t.inY==0&&
       !snapshotKeyboard.visible&&!snapshotInput&&(snapshotGroupIndex<0||!snapshotGroup.indicatorHeight);
-    const bool singleFade=rgb565_ppa::Context::available()&&snapshotTransition&&!previewPage&&snapshotSurface&&
+    const bool singleFade=rgb565_ppa::Context::available()&&snapshotTransition&&!rasterFrame.preview.page&&snapshotSurface&&
       (snapshotPhase==TransitionPhase::Enter||snapshotPhase==TransitionPhase::Exit)&&transition.config.effect==TransitionEffect::Fade&&
       viewport.x==0&&viewport.y==0&&viewport.width==w&&viewport.height==h&&
       !t.outX&&!t.outY&&!t.inX&&!t.inY&&!snapshotKeyboard.visible&&!snapshotInput&&
       (snapshotGroupIndex<0||!snapshotGroup.indicatorHeight);
-    if(pairedFade||singleFade){
+    if(!renderBudget.maxPixelsPerTick&&(pairedFade||singleFade)){
       auto *panel=nice_gfx::detail::DisplayAccess::panel(display);
       const PixelView incoming(snapshotSurface->pixels,w,h,0,PixelOrder::Wire);
       const PixelView outgoing(previewSurface?previewSurface->pixels:nullptr,w,h,0,PixelOrder::Wire);
@@ -2208,7 +2245,7 @@ struct View::Impl {
       };
       add(previewSurface,t.outX,t.outY);add(snapshotSurface,t.inX,t.inY);
     }
-    if(snapshotTransition&&!previewPage&&snapshotSurface&&
+    if(snapshotTransition&&!rasterFrame.preview.page&&snapshotSurface&&
        (snapshotPhase==TransitionPhase::Enter||snapshotPhase==TransitionPhase::Exit)&&t.opacity==255&&
        transition.config.effect!=TransitionEffect::Fade&&
        viewport.x==0&&viewport.y==0&&viewport.width==w&&viewport.height==h&&
@@ -2227,7 +2264,7 @@ struct View::Impl {
           visible.width,visible.height,w,PixelOrder::Wire);
       }
     }
-    if(!direct&&!count){
+    if(!renderBudget.maxPixelsPerTick&&!direct&&!count){
       const Status coldFade=prepareColdFade(surface);
       if(coldFade==Status::Ok)direct=true;
       else if(coldFade!=Status::Unsupported)return coldFade;
@@ -2236,7 +2273,7 @@ struct View::Impl {
     // Compose directly into a mapped native framebuffer when available. The
     // transport performs conversion and card copies with PPA on ESP32-S31.
     // Other displays can borrow an existing cache slot for one full-frame blit.
-    if(!direct&&!count&&snapshotAnimationSurface&&(!snapshotTransition||t.opacity==255)){
+    if(!renderBudget.maxPixelsPerTick&&!direct&&!count&&snapshotAnimationSurface&&(!snapshotTransition||t.opacity==255)){
       auto *panel=nice_gfx::detail::DisplayAccess::panel(display);
       if(panel&&panel->supportsFrameBlit()){
         nice_gfx::NativeFramebuffer native{};Status composed;
@@ -2260,7 +2297,7 @@ struct View::Impl {
     if(started==Status::Ok&&refresh->busy())frameGuard.panel=nullptr;
     return started;
   }
-  void releaseSnapshot() { if(!refresh->busy()){snapshot.clear();snapshotMotions.clear();previewSnapshot.clear();previewMotions.clear();previewPage=nullptr;snapshotSurface=previewSurface=nullptr;} }
+  void releaseSnapshot() { if(!refresh->busy()){rasterFrame.release();snapshotSurface=previewSurface=nullptr;} }
   void completedFrame() {
     ++stats.completedFrames;
     completeMotionFrame();
@@ -2282,9 +2319,46 @@ struct View::Impl {
 View::View(NICE_GFX &d,size_t n):impl_(new Impl(d,n)) {}
 View::View(NICE_GFX &d,uint16_t *a,uint16_t *b,size_t n):impl_(new Impl(d,a,b,n)) {}
 View::~View(){delete impl_;}
+Status View::create(NICE_GFX &d,View *&output,size_t n) noexcept {
+  if(n>std::vector<uint16_t>().max_size())return Status::InvalidArgument;
+#if defined(__cpp_exceptions) || defined(_CPPUNWIND)
+  try {
+#endif
+    std::unique_ptr<Impl> prepared(new(std::nothrow) Impl(d,n));
+    if(!prepared)return Status::NoMemory;
+    View *created=new(std::nothrow) View(prepared.get());
+    if(!created)return Status::NoMemory;
+    prepared.release();output=created;return Status::Ok;
+#if defined(__cpp_exceptions) || defined(_CPPUNWIND)
+  } catch(const std::bad_alloc &) {return Status::NoMemory;}
+#endif
+}
+Status View::create(NICE_GFX &d,uint16_t *a,uint16_t *b,size_t n,View *&output) noexcept {
+  if(!a||!n||a==b||n>std::vector<uint16_t>().max_size())return Status::InvalidArgument;
+#if defined(__cpp_exceptions) || defined(_CPPUNWIND)
+  try {
+#endif
+    std::unique_ptr<Impl> prepared(new(std::nothrow) Impl(d,a,b,n));
+    if(!prepared)return Status::NoMemory;
+    View *created=new(std::nothrow) View(prepared.get());
+    if(!created)return Status::NoMemory;
+    prepared.release();output=created;return Status::Ok;
+#if defined(__cpp_exceptions) || defined(_CPPUNWIND)
+  } catch(const std::bad_alloc &) {return Status::NoMemory;}
+#endif
+}
 Status View::mount(const ProjectDesc &p) {
   Impl &s=*impl_;if(s.processing)return Status::Busy;
   if(p.version!=ResourceVersion||!p.pages||!p.count||p.initial>=p.count||!validTransition(p.transition))return Status::InvalidArgument;
+  std::unique_ptr<Impl> prepared;
+  std::vector<std::vector<int>> cancellationPaths;
+  std::vector<uint16_t> cancellationLookup;
+  std::vector<Impl::ComponentLink> cancellationLinks;
+  std::vector<int32_t> cancellationNodes;
+  const PageDesc *cancellationPage=nullptr;
+#if defined(__cpp_exceptions) || defined(_CPPUNWIND)
+  try {
+#endif
   std::vector<const MonoFont *> validatedFonts;std::vector<Id> validatedIds;size_t chartSamples=0;
   for(uint16_t j=0;j<p.count;++j) {
     const PageDesc &page=p.pages[j];if(!page.path||!*page.path||!page.nodes||!page.count||page.width!=s.display.width()||page.height!=s.display.height()||
@@ -2337,13 +2411,62 @@ Status View::mount(const ProjectDesc &p) {
     validatedIds.resize(page.count);for(uint16_t i=0;i<page.count;++i)validatedIds[i]=page.nodes[i].id;
     std::sort(validatedIds.begin(),validatedIds.end());if(std::adjacent_find(validatedIds.begin(),validatedIds.end())!=validatedIds.end())return Status::InvalidArgument;
   }
-  s.refresh->cancel();s.processing=true;s.cancel();s.processing=false;s.animation.active=s.inertia.active=s.backAnimation.active=false;s.backOffset=0;s.backPrepared=false;s.project=&p;s.lookupPage=nullptr;s.components=nullptr;s.componentCount=0;s.componentsPage=nullptr;s.componentLinks.clear();s.componentNodes.clear();s.pages.clear();s.pages.resize(p.count);s.pageMotions.clear();s.pageMotions.resize(p.count);s.history.assign(1,p.initial);s.pendingNavigation=false;
-  s.tickPage=nullptr;s.animationNodes.clear();s.mediaNodes.clear();
-  s.clearSurfaces();s.clearNativeGeometryMemo();s.snapshot.clear();s.snapshotMotions.clear();s.previewSnapshot.clear();s.previewMotions.clear();s.snapshotCache=Impl::FrameCache{};s.previewCache=Impl::FrameCache{};s.updateDepth=0;s.transition=Impl::Transition{};s.initializeActive();
-  s.softInput=Impl::SoftInput{};s.snapshotKeyboard=Impl::SoftInput{};s.keyboardPointer=s.keyboardFieldPointer=s.keyboardSpacePointer=s.keyboardTrackpad=s.keyboardPickerPointer=s.keyboardBackspaceRepeat=s.keyboardBackspacePaused=false;s.keyboardPressed.clear();s.keyInput=s.snapshotKeyInput=s.snapshotInput=false;
-  s.snapshotTransition=false;s.previewPage=nullptr;s.previewSnapshot.clear();
-  s.history[0]=p.initial;s.input=nullptr;s.focusIndexConfig=nullptr;s.navigation=nullptr;s.gesture=nullptr;s.groupMotion=Impl::GroupMotion{};s.snapshotGroupIndex=-1;s.navigationDot=-1;s.navigationFooterContact=false;s.pageFocus.assign(p.count,0);s.focusNode=s.focusScope=s.editNode=-1;++s.inputEpoch;s.enterAnimations();s.refresh->invalidateAll();
-  if(s.page().enterTransition&&s.page().enterTransition->effect!=TransitionEffect::None){s.transition.background=s.page().background;s.pagePhase(Impl::TransitionPhase::Enter,*s.page().enterTransition);}
+  // Borrow the existing tiles during preparation. Nothing here writes pixels
+  // or submits a frame, so an old DMA transfer can safely keep borrowing them.
+  prepared.reset(new(std::nothrow) Impl(s.display,s.tileBuffers[0],s.tileBuffers[1],s.capacity));
+  if(!prepared)return Status::NoMemory;
+  auto &next=*prepared;
+  if(s.down&&s.target>=0&&!s.canceled) {
+    size_t depth=0;for(int i=s.target;i>=0;i=s.parent(i))++depth;
+    cancellationPaths.resize(1);cancellationPaths.front().reserve(depth);
+    // PointerCancel resolves public component IDs. Prepare those indexes off
+    // to the side as well, rather than allocating after the commit begins.
+    if(s.componentCount) {
+      next.project=s.project;next.history.assign(1,s.history.back());
+      next.components=s.components;next.componentCount=s.componentCount;
+      next.prepareComponents();cancellationPage=&s.page();
+      cancellationLookup.swap(next.lookup);cancellationLinks.swap(next.componentLinks);
+      cancellationNodes.swap(next.componentNodes);
+      next.components=nullptr;next.componentCount=0;next.componentsPage=nullptr;next.lookupPage=nullptr;
+    }
+  }
+  next.project=&p;next.pages.resize(p.count);next.pageMotions.resize(p.count);
+  next.history.assign(1,p.initial);next.pageFocus.assign(p.count,0);
+  next.initializeActive();next.enterAnimations();next.refresh->invalidateAll();
+  if(next.page().enterTransition&&next.page().enterTransition->effect!=TransitionEffect::None) {
+    next.transition.background=next.page().background;
+    next.pagePhase(Impl::TransitionPhase::Enter,*next.page().enterTransition);
+  }
+#if defined(__cpp_exceptions) || defined(_CPPUNWIND)
+  } catch(const std::bad_alloc &) {return Status::NoMemory;}
+#endif
+  // All library-owned allocations completed. Keep application callback
+  // exceptions outside the allocation boundary: they must not be mistaken for
+  // a failed preparation after PointerCancel has already been delivered.
+  if(!cancellationPaths.empty())s.eventPaths.swap(cancellationPaths);
+  if(cancellationPage) {
+    s.lookup.swap(cancellationLookup);s.lookupPage=cancellationPage;
+    s.componentLinks.swap(cancellationLinks);s.componentNodes.swap(cancellationNodes);s.componentsPage=cancellationPage;
+  }
+  s.refresh->cancel();
+  {
+    struct ProcessingGuard {bool &flag;explicit ProcessingGuard(bool &v):flag(v){flag=true;}~ProcessingGuard(){flag=false;}} guard(s.processing);
+    s.cancel();
+  }
+  auto &mounted=*prepared;
+  mounted.listeners=s.listeners;mounted.guard=s.guard;mounted.guardContext=s.guardContext;
+  mounted.edgeBack=s.edgeBack;mounted.swipeHome=s.swipeHome;
+  mounted.circularKeyboard=s.circularKeyboard;mounted.refresh->configureCircularClip(s.circularKeyboard);
+  mounted.keyboardThemeOverride=s.keyboardThemeOverride;
+  mounted.profilingClock=s.profilingClock;mounted.refresh->setProfilingClock(s.profilingClock);
+  mounted.stats=s.stats;mounted.inputEpoch=s.inputEpoch+1;mounted.inputLayoutEpoch=s.inputLayoutEpoch;
+  mounted.renderBudget=s.renderBudget;
+  mounted.refresh->configurePixelBudget(s.refresh->pixelBudget());
+  mounted.refresh->configureMergeSlack(s.refresh->mergeSlack());
+  // Transfer tile ownership only after accepted DMA has drained. The new
+  // scheduler already points at these same buffers; no framebuffer is copied.
+  mounted.first.swap(s.first);mounted.second.swap(s.second);
+  impl_=prepared.release();delete &s;
   return Status::Ok;
 }
 bool View::on(Id id,EventType type,EventHandler cb,void *context,bool capture) { if(!cb)return false;impl_->addListener({id,type,cb,context,capture});return true; }
@@ -2355,7 +2478,7 @@ bool View::onOnce(Id id,EventType type,EventHandler cb,void *context,bool captur
   return on(id,type,cb,context,capture);
 }
 bool View::configureComponents(const ComponentDesc *config,size_t count) {
-  auto &s=*impl_;if(!s.project||s.processing||count>65535||(!config&&count))return false;
+  auto &s=*impl_;if(!s.project||s.processing||s.refresh->busy()||count>65535||(!config&&count))return false;
   std::vector<size_t> ordered(count);std::vector<uint8_t> found(count,0);std::vector<uint16_t> nodes;
   for(size_t c=0;c<count;++c){ordered[c]=c;const auto &d=config[c];
     if(!d.id||uint8_t(d.kind)>uint8_t(ComponentKind::Confirm)||d.optionCount>12||(d.optionCount&&!d.options))return false;
@@ -2389,7 +2512,10 @@ bool View::configureComponents(const ComponentDesc *config,size_t count) {
     }
   }
   if(std::find(found.begin(),found.end(),uint8_t(0))!=found.end())return false;
-  s.components=config;s.componentCount=count;s.componentsPage=nullptr;s.prepareComponents();
+  s.components=config;s.componentCount=count;s.componentsPage=nullptr;
+  for(auto &index:s.componentPaintIndices)index=detail::ComponentPaintIndex{};
+  s.componentPaintUsed[0]=s.componentPaintUsed[1]=0;s.componentPaintClock=0;
+  s.prepareComponents();
   for(uint16_t p=0;p<s.project->count;++p)for(size_t component=0;component<count;++component)
     s.revealComponentSelection(s.project->pages[p],s.pages[p],config[component]);
   return true;
@@ -2495,8 +2621,8 @@ bool View::hasImage(Id id,const Image &image) const {
 Status View::setMediaResource(Id id,const MediaDesc &resource) {
   int index=-1;const Status target=impl_->imageTarget(id,index);if(target!=Status::Ok)return target;
   if(!validMedia(resource))return Status::InvalidArgument;
-  const size_t bytes=size_t(resource.width)*resource.height*resource.frames*resource.bytesPerPixel;
-  const ImageView view(resource.pixels,resource.width,resource.height,bytes,resource.bytesPerPixel==2?ImageFormat::RGB565:ImageFormat::RGB332,PixelOrder::Wire,size_t(resource.width)*resource.bytesPerPixel);
+  const size_t bytes=size_t(resource.width)*resource.height*resource.frames*mediaPixelBytes(resource);
+  const ImageView view(mediaPixels(resource),resource.width,resource.height,bytes,mediaPixelBytes(resource)==2?ImageFormat::RGB565:ImageFormat::RGB332,PixelOrder::Wire,size_t(resource.width)*mediaPixelBytes(resource));
   auto *storage=new(std::nothrow) Image::Impl(view,nullptr,nullptr,0,true);if(!storage)return Status::NoMemory;
   storage->media=resource;Image image(storage);impl_->replaceImage(index,image,true);return Status::Ok;
 }
@@ -2540,13 +2666,20 @@ Rect View::bounds(Id id)const{int i=impl_->find(id);return i<0?Rect{0,0,0,0}:imp
 Id View::hitTest(int32_t x,int32_t y)const{const auto &s=*impl_;if(!s.project||s.history.empty())return 0;const int i=s.hit(x,y);return i<0?0:s.page().nodes[i].id;}
 bool View::releasePage(const char *path){auto &s=*impl_;if(!s.project||!path||s.processing)return false;
   for(uint16_t i=0;i<s.project->count;++i)if(!strcmp(s.project->pages[i].path,path)){
-    if(std::find(s.history.begin(),s.history.end(),i)!=s.history.end()||s.transition.from==&s.project->pages[i]||(s.transition.active&&s.transition.destination==i)||(s.groupMotion.active&&s.groupMotion.destination==i)||(s.refresh->busy()&&(s.snapshotPage==&s.project->pages[i]||s.previewPage==&s.project->pages[i])))return false;
+    if(std::find(s.history.begin(),s.history.end(),i)!=s.history.end()||s.transition.from==&s.project->pages[i]||(s.transition.active&&s.transition.destination==i)||(s.groupMotion.active&&s.groupMotion.destination==i)||(s.refresh->busy()&&(s.rasterFrame.current.page==&s.project->pages[i]||s.rasterFrame.preview.page==&s.project->pages[i])))return false;
     s.clearSurfacePage(&s.project->pages[i]);RetainedVector<Impl::State>().swap(s.pages[i]);std::vector<Impl::MotionRuntime>().swap(s.pageMotions[i]);s.pageFocus[i]=0;return true;
   }return false;
 }
 RuntimeStats View::runtimeStats()const{return impl_->stats;}
 void View::resetRuntimeStats(){impl_->stats=RuntimeStats{};}
 void View::setProfilingClock(uint32_t (*clock)()){impl_->profilingClock=clock;impl_->refresh->setProfilingClock(clock);}
+bool View::configureRenderBudget(const RenderBudget &budget){
+  auto &s=*impl_;if(s.processing||!s.refresh->configurePixelBudget(budget.maxPixelsPerTick))return false;
+  s.renderBudget=budget;return true;
+}
+RenderBudget View::renderBudget()const{return impl_->renderBudget;}
+bool View::configureMergeSlack(uint32_t pixels){return !impl_->processing&&impl_->refresh->configureMergeSlack(pixels);}
+uint32_t View::mergeSlack()const{return impl_->refresh->mergeSlack();}
 MemoryStats View::memoryStats()const{const auto &s=*impl_;MemoryStats m;
   // Object sizes already include inline string storage. Count only separately
   // stored character capacity; allocator/shared-ownership metadata is excluded.
@@ -2560,7 +2693,7 @@ MemoryStats View::memoryStats()const{const auto &s=*impl_;MemoryStats m;
   m.stateBytes+=(s.animationNodes.capacity()+s.mediaNodes.capacity())*sizeof(uint16_t);
   m.stateBytes+=s.pageMotions.capacity()*sizeof(std::vector<Impl::MotionRuntime>);
   for(const auto &poses:s.pageMotions)m.stateBytes+=poses.capacity()*sizeof(Impl::MotionRuntime);
-  m.snapshotBytes+=(s.snapshotMotions.capacity()+s.previewMotions.capacity()+s.transition.outgoingMotions.capacity())*sizeof(Impl::MotionRuntime);
+  m.snapshotBytes+=(s.rasterFrame.current.motions.capacity()+s.rasterFrame.preview.motions.capacity()+s.transition.outgoingMotions.capacity())*sizeof(Impl::MotionRuntime);
   m.stateBytes+=s.componentLinks.capacity()*sizeof(Impl::ComponentLink)+s.componentNodes.capacity()*sizeof(int32_t);
   std::vector<const void *> seen;
   auto payload=[&](const RetainedVector<Impl::State> &items){for(const auto &v:items){
@@ -2572,10 +2705,10 @@ MemoryStats View::memoryStats()const{const auto &s=*impl_;MemoryStats m;
     if(v.dynamic&&std::find(seen.begin(),seen.end(),v.dynamic.get())==seen.end()){seen.push_back(v.dynamic.get());m.payloadBytes+=sizeof(DynamicNode);}
   }};
   for(const auto &p:s.pages){if(!p.empty())++m.residentPages;m.residentNodes+=p.size();m.stateBytes+=p.capacity()*sizeof(Impl::State);payload(p);}
-  for(const auto *p:{&s.snapshot,&s.previewSnapshot,&s.transition.outgoing}){m.snapshotBytes+=p->capacity()*sizeof(Impl::State);payload(*p);}
-  for(const auto &key:s.nativeGeometryKey)if(key.dynamic&&std::find(seen.begin(),seen.end(),key.dynamic.get())==seen.end()){seen.push_back(key.dynamic.get());m.payloadBytes+=sizeof(DynamicNode);}
-  m.stateBytes+=s.nativeGeometryKey.capacity()*sizeof(Impl::NativeGeometryKey);
-  for(const auto *c:{&s.snapshotCache,&s.previewCache,&s.nativeGeometryCache})m.geometryBytes+=c->nodes.capacity()*sizeof(Impl::Geometry)+c->lines.capacity()*sizeof(Impl::TextLine)+c->bands.capacity()*sizeof(uint32_t);
+  for(const auto *p:{&s.rasterFrame.current.values,&s.rasterFrame.preview.values,&s.transition.outgoing}){m.snapshotBytes+=p->capacity()*sizeof(Impl::State);payload(*p);}
+  for(const auto &key:s.geometryMemoKey)if(key.dynamic&&std::find(seen.begin(),seen.end(),key.dynamic.get())==seen.end()){seen.push_back(key.dynamic.get());m.payloadBytes+=sizeof(DynamicNode);}
+  m.stateBytes+=s.geometryMemoKey.capacity()*sizeof(Impl::FrameGeometryKey);
+  for(const auto *c:{&s.rasterFrame.current.geometry,&s.rasterFrame.preview.geometry,&s.geometryMemoCache})m.geometryBytes+=c->nodes.capacity()*sizeof(Impl::Geometry)+c->lines.capacity()*sizeof(Impl::TextLine)+c->bands.capacity()*sizeof(uint32_t);
   // Both SoftInput objects themselves are already part of sizeof(Impl).
   for(const auto *k:{&s.softInput,&s.snapshotKeyboard}){m.payloadBytes+=stringStorage(k->draft)+stringStorage(k->error)+stringStorage(k->pressed);if(k->keys&&std::find(seen.begin(),seen.end(),k->keys.get())==seen.end()){seen.push_back(k->keys.get());m.geometryBytes+=sizeof(std::vector<Impl::SoftKey>)+k->keys->capacity()*sizeof(Impl::SoftKey);for(const auto &key:*k->keys)m.payloadBytes+=stringStorage(key.id)+stringStorage(key.label)+stringStorage(key.value)+stringStorage(key.action);}}
   m.payloadBytes+=stringStorage(s.keyboardTextFrame.draft)+stringStorage(s.keyboardTextFrame.title);
@@ -2621,6 +2754,7 @@ void View::stopPointerRepeat(){impl_->keyboardBackspaceRepeat=impl_->keyboardBac
 void View::pausePointerRepeat(bool paused){impl_->keyboardBackspacePaused=paused;}
 Status View::tick(uint32_t now){
   Impl &s=*impl_;if(!s.project)return Status::NotInitialized;if(s.processing)return Status::Busy;
+  Impl::TickTimer timer(s);const uint64_t rasterBefore=s.stats.renderedTiles;
   if(s.pendingNavigation&&!s.transition.active)s.endProcessing();
   if(s.groupMotion.active&&s.groupMotion.settling){
     const uint32_t elapsed=uint32_t(now-s.groupMotion.started);
@@ -2696,7 +2830,10 @@ Status View::tick(uint32_t now){
   s.stats.directPixels+=s.refresh->stats().directPixels-beforeDirect.directPixels;
   if(frameActive&&!s.refresh->busy()&&status==Status::Ok)s.completedFrame();
   if(status==Status::Ok){s.settleMotions();s.settleTransition();}s.releaseSnapshot();
-  if(status==Status::Ok&&!s.softInput.visible)s.warmSurfaceTile(now);
+  if(status==Status::Ok&&!s.softInput.visible){
+    if(timer.expired()||(s.renderBudget.maxPixelsPerTick&&s.stats.renderedTiles!=rasterBefore))++s.stats.budgetDeferrals;
+    else s.warmSurfaceTile(now);
+  }
   return status;
 }
 Status View::finish(){

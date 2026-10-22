@@ -2,7 +2,7 @@
 #include "../../Display/ControllerProfile.h"
 
 namespace nice_gfx { namespace controllers {
-inline void init_ILI9341(PanelSequence &s) {
+inline void init_ILI9341(PanelSequence &s, uint8_t scan) {
 {
   s.writecommand(0xEF);
   s.writedata(0x03);
@@ -42,7 +42,7 @@ inline void init_ILI9341(PanelSequence &s) {
   s.writecommand(0xC7);
   s.writedata(0x86);
   s.writecommand(0x36);
-  s.writedata(uint8_t(0x40 | s.colorOrder));
+  s.writedata(uint8_t(scan | s.colorOrder));
   s.writecommand(0x3A);
   s.writedata(0x55);
   s.writecommand(0xB1);
@@ -95,51 +95,17 @@ inline void init_ILI9341(PanelSequence &s) {
   s.writecommand(0x29);
 }
 }
-inline void rotate_ILI9341(PanelSequence &s, uint8_t m) {
-s.rotation = m % 8;
+inline void init_ILI9341(PanelSequence &s) { init_ILI9341(s, 0x40); }
+inline void rotate_ILI9341(PanelSequence &s, uint8_t m, const uint8_t (&scan)[8]) {
+  s.rotation = m % 8;
   s.writecommand(0x36);
-  switch (s.rotation) {
-    case 0:
-      s.writedata(uint8_t(0x40 | s.colorOrder));
-      s._width  = s._init_width;
-      s._height = s._init_height;
-      break;
-    case 1:
-      s.writedata(uint8_t(0x20 | s.colorOrder));
-      s._width  = s._init_height;
-      s._height = s._init_width;
-      break;
-    case 2:
-      s.writedata(uint8_t(0x80 | s.colorOrder));
-      s._width  = s._init_width;
-      s._height = s._init_height;
-      break;
-    case 3:
-      s.writedata(0x40 | 0x80 | uint8_t(0x20 | s.colorOrder));
-      s._width  = s._init_height;
-      s._height = s._init_width;
-      break;
-    case 4:
-      s.writedata(0x40 | uint8_t(0x80 | s.colorOrder));
-      s._width  = s._init_width;
-      s._height = s._init_height;
-      break;
-    case 5:
-      s.writedata(0x20 | uint8_t(0x40 | s.colorOrder));
-      s._width  = s._init_height;
-      s._height = s._init_width;
-      break;
-    case 6:
-      s.writedata(s.colorOrder);
-      s._width  = s._init_width;
-      s._height = s._init_height;
-      break;
-    case 7:
-      s.writedata(0x80 | uint8_t(0x20 | s.colorOrder));
-      s._width  = s._init_height;
-      s._height = s._init_width;
-      break;
-  }
+  s.writedata(uint8_t(scan[s.rotation] | s.colorOrder));
+  s._width  = s.rotation & 1 ? s._init_height : s._init_width;
+  s._height = s.rotation & 1 ? s._init_width : s._init_height;
+}
+inline void rotate_ILI9341(PanelSequence &s, uint8_t m) {
+  static const uint8_t scan[] = {0x40,0x20,0x80,0xE0,0xC0,0x60,0x00,0xA0};
+  rotate_ILI9341(s, m, scan);
 }
 inline ControllerProfile profile_ILI9341() {
   return {"ILI9341",240,320,0x9341,Protocol::Dcs,PixelFormat::RGB565,

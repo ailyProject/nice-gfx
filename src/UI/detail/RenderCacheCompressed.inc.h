@@ -114,7 +114,7 @@ bool stepCompressedSurfaces(){
     for(auto &entry:surfaces)if(entry.ready&&!entry.compressionAttempted){beginCompressedSurface(entry);if(!compressedBuilder.surface)return true;break;}
   }
   if(!compressedBuilder.surface)return false;
-  size_t budget=8192;
+  size_t budget=renderBudget.maxPixelsPerTick?std::min<size_t>(8192,rasterCapacity()):8192;
   auto &job=compressedBuilder;
   for(;;){
     if(job.phase==1){

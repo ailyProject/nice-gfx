@@ -2,7 +2,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <vector>
-#include "../examples/HTML_UI/Waveshare4B/TCA9554.h"
+#include "../examples/07_UI/Waveshare4B/TCA9554.h"
 #include <Drivers/Display/Video/ST7701_RGB.h>
 #include <Drivers/Touch/GT911.h>
 using namespace nice_gfx;

@@ -417,9 +417,9 @@
   void prepareKeyboardText() {
     auto &frame=keyboardTextFrame;frame.draft.clear();frame.title.clear();frame.cursor=0;frame.titleFontSize=1;
     const auto &k=snapshotKeyboard;if(!k.visible||k.node<0)return;
-    const auto &d=k.descriptor;const NodeDesc &n=snapshotPage->nodes[k.node];
+    const auto &d=k.descriptor;const NodeDesc &n=rasterFrame.current.page->nodes[k.node];
     if(!k.error.empty())frame.title=k.error;else{frame.title=d.label?d.label:n.text?n.text:"";if(d.unit&&*d.unit){frame.title+=" (";frame.title+=d.unit;frame.title+=")";}}
-    Style style=styleFor(*snapshotPage,snapshot,k.node);if(d.keyboardFont)style.font=d.keyboardFont;
+    Style style=styleFor(*rasterFrame.current.page,rasterFrame.current.values,k.node);if(d.keyboardFont)style.font=d.keyboardFont;
     if(style.font){
       // Prepare title fitting once, so DMA tiles share the same typography and
       // UTF-8 suffix. Normal 32px titles have 8px of space above and below.
@@ -513,7 +513,7 @@
     else if(key.id=="shift")kind=IconKind::Shift;
     else if(key.id=="groups")kind=IconKind::Groups;
     else if(key.id=="done"&&k.descriptor.enterAction==InputEnterAction::Search)kind=IconKind::Search;
-    else if(key.id=="done") {Style label=styleFor(*snapshotPage,snapshot,k.node);if(k.descriptor.keyboardFont)label.font=k.descriptor.keyboardFont;label.fontSize=1;if(label.font&&inputLineWidth(key.label,label,0,key.label.size(),true)+12<=key.rect.width&&int32_t(label.font->height)+8<=key.rect.height)return false;kind=key.value=="next"?IconKind::Next:IconKind::Check;}
+    else if(key.id=="done") {Style label=styleFor(*rasterFrame.current.page,rasterFrame.current.values,k.node);if(k.descriptor.keyboardFont)label.font=k.descriptor.keyboardFont;label.fontSize=1;if(label.font&&inputLineWidth(key.label,label,0,key.label.size(),true)+12<=key.rect.width&&int32_t(label.font->height)+8<=key.rect.height)return false;kind=key.value=="next"?IconKind::Next:IconKind::Check;}
     else return false;
     const Rect r=key.rect;const int32_t available=std::min(r.width,r.height);if(available<16)return true;
     // The smallest flash mask is 16px. Small numeric rows are only 24px
@@ -536,8 +536,8 @@
   void paintKeyboard(Rect tile) {
     const SoftInput &k=snapshotKeyboard;if(!k.visible||k.node<0)return;
     const Rect keyboardClip=intersect(k.rect,tile);if(keyboardClip.width<=0||keyboardClip.height<=0)return;++stats.keyboardPaints;
-    const auto &d=k.descriptor;Style style=styleFor(*snapshotPage,snapshot,k.node);if(d.keyboardFont)style.font=d.keyboardFont;style.fontSize=1;style.radius=6;style.borderWidth=1;style.textAlign=1;
-    canvas.setAntialiasing(!(snapshot[k.node].flags&NoAntialias));
+    const auto &d=k.descriptor;Style style=styleFor(*rasterFrame.current.page,rasterFrame.current.values,k.node);if(d.keyboardFont)style.font=d.keyboardFont;style.fontSize=1;style.radius=6;style.borderWidth=1;style.textAlign=1;
+    canvas.setAntialiasing(!(rasterFrame.current.values[k.node].flags&NoAntialias));
     // The complete theme belongs to the immutable keyboard frame snapshot.
     auto color=[](uint32_t rgb){return uint16_t(((rgb>>8)&0xf800)|((rgb>>5)&0x07e0)|((rgb>>3)&0x001f));};const bool dark=k.theme==KeyboardTheme::Dark;
     style.background=color(dark?0x303641:0xffffff);style.color=color(dark?0xf1f5f9:0x1f2937);style.borderColor=color(dark?0x414a5b:0xccd5e2);style.trackColor=color(dark?0x171a21:0xe8edf4);style.fillColor=color(dark?0x3b82f6:0x2563eb);style.pressedColor=color(dark?0x475569:0xbfdbfe);

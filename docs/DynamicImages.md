@@ -1,8 +1,8 @@
 # Arduino 图片组件的运行时更新
 
-图片更新通过 `nice_gfx::htmlui::View` 完成，新图与文字、数值一样成为组件状态，参与分块绘制、裁剪、缩放、动画、页面切换和缓存管理。不要在持续运行的 View 上用 `gfx.pushImage()` 绕过组件状态。
+通过 `nice_gfx::htmlui::View` 更新图片，使像素参与正常的裁剪、动画、页面与缓存管理。直接调用 `gfx.pushImage()` 不会更新组件状态。
 
-此功能要求 `NICE_GFX_UI_DYNAMIC_IMAGE_VERSION >= 1`，当前使用 ABI 15 的 Media 资源。更新工程时同步运行库与设计器导出的 `ui.h`。
+此功能要求 `NICE_GFX_UI_DYNAMIC_IMAGE_VERSION >= 1`，Media 资源格式以 [UI/Compiled.h](../src/UI/Compiled.h) 中的 `ResourceVersion` 为准。更新工程时同步运行库与设计器导出的 `ui.h`。
 
 ## 1. 在设计器中准备图片区域
 
@@ -13,18 +13,11 @@
   style="width:240px;height:180px"></gfx-media>
 ```
 
-空区域仍导出为原生 Media，保留几何与事件。图片更新改变像素源，不自动改变组件位置或尺寸；当前采用最近邻缩放，拉伸到组件扣除边框和 padding 后的内容区。
+空区域仍保留 Media 节点、几何与事件。换图不改变组件尺寸，使用最近邻缩放填满扣除边框和 padding 的内容区。
 
-图片内容支持 `border-radius` 裁剪，包括 `setImage()` / `setMediaResource()` 换图、逐帧播放及组件动画。半径先限制为组件短边的一半，再减去各边的边框与 padding，形成内容区内圆角。正方形组件设置半径为边长一半即可显示圆形图片，例如：
+图片、逐帧播放与动画均支持 `border-radius` 裁剪。例如 80×80px 组件设置 `border-radius:40px` 可显示圆形图片。半径上限为短边一半，内容区再扣除边框与 padding；支持单一非百分比长度、最大 255px，0 为矩形，不支持 `50%`。
 
-```html
-<gfx-media id="avatar" data-media-dynamic="true"
-  style="width:80px;height:80px;border-radius:40px"></gfx-media>
-```
-
-半径设为 0 恢复矩形；支持单一非百分比长度，最大 255px，不支持 `50%`。圆角效果由渲染器裁剪，不依赖源图片透明度。完整导出工程会携带更新后的运行库；手动维护固件时需同步运行库源码。
-
-“设备端更新”是作者意图提示，并要求显式 ID；带初始资源的普通图片同样可以调用新接口。没有额外的后台数据绑定或图片 URL 表达式。
+“设备端更新”要求显式 ID；带初始资源的普通图片也能调用更新接口。下载与解码由应用完成。
 
 ## 2. 普通更新：默认复制像素
 
@@ -45,9 +38,7 @@ Status updatePhoto(const uint16_t *pixels, size_t width, size_t height,
 }
 ```
 
-`Status::Ok` 返回时像素已复制，调用方可以立即复用或释放原缓冲区。新图不会在此调用中阻塞等待屏幕显示完毕；正常运行 `pollUi()` / `tick()` 即可完成刷新。
-
-输入 RGB565 的默认字节序是 `PixelOrder::Native`，即数组元素是 `0xF800` 这样的颜色数值，与 `gfx.setSwapBytes()` 无关。复制时将其转换为紧凑的高字节优先像素，绘制不用反复转换。
+`Status::Ok` 表示像素已复制，可立即释放或复用输入；屏幕刷新由后续 `pollUi()` / `tick()` 完成。默认 `PixelOrder::Native` 表示 `uint16_t` 颜色值，例如红色为 `0xF800`，与 `gfx.setSwapBytes()` 无关。复制结果为紧凑的高字节优先像素。
 
 对于已经保存为高字节优先的 RGB565 字节流：
 
@@ -63,7 +54,7 @@ ui.setImage(photoId, ImageView(bytes, width, height, byteCount,
   nice_gfx::htmlui::ImageFormat::RGB332, nice_gfx::PixelOrder::Native, rowStrideBytes));
 ```
 
-格式范围为 RGB565 / RGB332。PNG、JPEG 等压缩文件需要在应用侧先解码；网络下载、文件系统与解码器不耦合到 View。当前像素源没有独立 alpha 通道，透明图需先合成到目标背景。
+支持 RGB565 / RGB332。PNG、JPEG 等先在应用侧解码；像素源无独立 alpha 通道，透明图需先合成背景。
 
 ## 3. 大图：交接不可变缓冲区所有权
 
@@ -84,8 +75,7 @@ Status installDecodedPhoto(uint16_t *pixels, size_t width, size_t height,
   const Status result = Image::adopt(
     ImageView(pixels, width, height, availableBytes), freePixels, nullptr, image);
   if (result != Status::Ok) {
-    // 本函数约定接管调用方交来的 malloc 缓冲区，因此失败也自行释放。
-    // adopt 本身失败时不会接管或释放它。
+    // 本函数约定接管 malloc 缓冲区；adopt 失败时仍由本函数释放。
     std::free(pixels);
     return result;
   }
@@ -93,15 +83,15 @@ Status installDecodedPhoto(uint16_t *pixels, size_t width, size_t height,
 }
 ```
 
-这里 `pixels` 必须来自与 `std::free` 匹配的分配方式；其他分配器提供对应 release 回调。成功 adopt 后不能继续写入或自行释放像素。更新组件后，Image 局部变量可以销毁，View 和已经提交的帧会持有各自引用。
+`pixels` 必须由与 `std::free` 匹配的分配器创建；其他分配器提供对应 release 回调。adopt 仅成功时接管，之后不可改写或自行释放。局部 Image 可在 setImage 后销毁，View 与在途帧持有各自引用；setImage 失败也会正确释放已接管的局部图像。
 
-若 setImage 失败，例如组件不在当前路由页，局部 Image 销毁时仍正确释放已经接管的像素。release 在最后一个句柄、页面状态、帧快照或缓存引用释放时调用一次；不一定紧随 setImage，也可能在最后释放句柄的任务运行。回调应快速、非阻塞，不抛异常、不重入 View，context 必须活到它执行时。
+最后一个句柄、页面、帧或缓存引用释放时，release 调用一次，可能在释放引用的任务执行。回调须快速、非阻塞、不抛异常、不重入 View，context 保持有效。
 
-可把一个 Image 交给多个组件，像素只持有一份。`Image::copy(source, image)` 提供显式创建可共享复制图的方式；`view()` 返回借用像素描述，不能通过它修改存储。
+同一 Image 可供多个组件共享；`Image::copy()` 显式创建复制图，`view()` 只返回借用描述。
 
 ## 4. 同一个组件切换预置资源
 
-所有工程媒体资源都在导出的 ui.h 中拥有稳定查找入口，包括没有用作某个组件初始图的资源。无需为每个候选图片建立重叠节点：
+工程媒体资源可按资源 ID 查找，包括未用作初始图的资源：
 
 ```cpp
 // asset-online / asset-offline 是工程媒体资源 ID，不是元素 ID或文件路径。
@@ -116,7 +106,7 @@ const auto *resource = ui_config::media("asset-online");
 if (resource) ui.setMediaResource(photoId, *resource);
 ```
 
-该路径复制资源描述符并借用不可变预置像素，避免把 Flash 中的整图搬入 RAM。资源像素必须在所有页面、快照和缓存引用释放前一直有效。生成 ui.h 的静态资源满足该契约；可变解码缓冲区应使用 setImage 或 adopt。
+该路径复制描述符、借用不可变像素，不复制整图。像素须在页面、快照与缓存引用释放前有效；生成 ui.h 的静态资源满足要求，可变缓冲区应使用 setImage 或 adopt。
 
 预置多帧资源也可切换。换源会从第 0 帧重新开始，tick 按资源帧率推进；用单帧动态图覆盖动画后，原动画不再驱动该组件。恢复初始资源时重新开始初始动画。
 
@@ -127,7 +117,7 @@ ui.clearImage(photoId); // 清空像素内容，组件布局、外观和交互�
 ui.resetImage(photoId); // 恢复 ui.h 中该组件的初始资源；初始为空则恢复空内容。
 ```
 
-与此不同，`setVisible(photoId, false)` 隐藏整个组件。隐藏不会主动丢弃其图片，重新显示仍能绘制现有图。
+`setVisible(photoId, false)` 隐藏整个组件但保留图像。`hasImage(photoId, image)` 检查当前 Media 是否持有同一不可变 Image 源，不比较像素内容。
 
 ## 6. 失败、调度与内存约定
 
@@ -142,17 +132,21 @@ ui.resetImage(photoId); // 恢复 ui.h 中该组件的初始资源；初始为�
 
 所有 View 更新从一个 UI 任务执行。后台下载/解码可准备独立 Image，通过队列把它交给 UI 任务；入队交接必须保证句柄有效、像素不可变及适当同步。路由切换后 setter 只查当前页：跨页结果留在应用中，进入目标页再安装。
 
-在 DMA 帧途中换图不会修改旧帧：旧帧完整使用旧源，随后新帧使用新源。缓存比较图片身份，避免同一帧号误命中旧缓存。旧图片释放时机由帧和缓存引用决定，不需要应用用 delay 猜测。
+在途帧继续使用旧源，后续帧使用新源；缓存按图片身份失效。旧图由引用自动保留和释放，无需用 delay 等待。
 
 内存要允许旧、新图片短暂共存。例如 240×180 RGB565 是约 84.4 KiB 像素；复制上传期间输入与复制图、在途旧图可能同时存在。大图优先 adopt，仍须为在途帧保留的旧图预留空间。`memoryStats()` 去重计入拥有的像素及所有权描述块，预置 Flash 像素不计入动态像素占用。
 
-图片更新使用组件的布局、样式、裁剪、滚动、分块缓冲和批处理机制；更新像素源不会建立整屏帧缓冲或执行 HTML/CSS 重排。刷新吞吐取决于图片尺寸、缓冲预算和实际硬件总线。
+换图不建立整屏帧缓冲，也不执行 HTML/CSS 重排。刷新吞吐取决于尺寸、缓冲预算与实际总线。
 
 ## 7. 示例与实现
 
-- [完整 Arduino 动态图片示例](../examples/HTML_UI/DynamicImageDemo/DynamicImageDemo.ino)
+- [完整 Arduino 动态图片示例](../examples/07_UI/DynamicImageDemo/DynamicImageDemo.ino)
 - [图片输入与所有权 API](../src/UI/Image.h)
 - [View 公共接口](../src/UI/View.h)
 - [组件交互说明](ArduinoComponentInteraction.md)
 
-主机回归覆盖像素格式、行步距、裁剪缩放、复制/所有权交接、失败原子性、异步快照、资源动画、跨页保留与缓存失效。实际屏幕的颜色、吞吐和输入仍需按硬件配置验证。
+## Transparent compiled RGB565 media
+
+Compiled media may set `MediaDesc::bytesPerPixel` to `MediaRgb565ColorKey` (0x82). The source starts with a shared two-byte, MSB-first RGB565 transparent color, followed by ordinary wire-order RGB565 frames. Matching texels preserve the already-painted underlay, including scaled, rounded and affine rendering. Descriptor layout and resource ABI 17 remain unchanged. Check `NICE_GFX_UI_MEDIA_COLOR_KEY_VERSION >= 1` when generating these resources. Ordinary RGB565/RGB332 and dynamic `Image` sources retain their existing representation.
+
+The editor project field is optional `media[].transparentColor` (integer 0–65535, RGB565 only). Its value is separate from the base64 pixel payload; export adds the shared prefix and capability guard. This is binary transparency, not fractional alpha. Node opacity still blends visible texels normally. Avoid using the selected key for visible foreground colors.

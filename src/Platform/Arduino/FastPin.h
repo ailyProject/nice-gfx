@@ -91,6 +91,12 @@ struct FastPin {
     }
 #endif
     mask = uint32_t(1) << (pin & 31);
+#elif defined(ARDUINO_ARCH_SAMD)
+    if (valid(pin)) {
+      auto &port = PORT->Group[g_APinDescription[pin].ulPort];
+      set = &port.OUTSET.reg; clear = &port.OUTCLR.reg;
+      mask = uint32_t(1) << g_APinDescription[pin].ulPin;
+    }
 #elif defined(ESP8266)
     if (pin < 16) { set = &GPOS; clear = &GPOC; mask = uint32_t(1) << pin; }
 #elif defined(ARDUINO_ARCH_AVR)

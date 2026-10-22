@@ -11,15 +11,14 @@ struct MotionRuntime {
   bool ending=false,hiding=false;
 };
 std::vector<std::vector<MotionRuntime>> pageMotions;
-std::vector<MotionRuntime> snapshotMotions,previewMotions;
 bool motionCompletionPending=false;
 
 const MotionRuntime &motionPose(const PageDesc &p,const RetainedVector<State> &values,int i) const {
   static const MotionRuntime neutral;
   if(i<0||size_t(i)>=values.size()||values[i].motionSlot==NoParent)return neutral;
   const std::vector<MotionRuntime> *poses=nullptr;
-  if(&values==&snapshot)poses=&snapshotMotions;
-  else if(&values==&previewSnapshot)poses=&previewMotions;
+  if(&values==&rasterFrame.current.values)poses=&rasterFrame.current.motions;
+  else if(&values==&rasterFrame.preview.values)poses=&rasterFrame.preview.motions;
   else if(&values==&transition.outgoing)poses=&transition.outgoingMotions;
   else if(project && &p>=project->pages && &p<project->pages+project->count)
     poses=&pageMotions[size_t(&p-project->pages)];
@@ -40,8 +39,8 @@ void initializeMotionPage(uint16_t index) {
     if(n.motion||n.animation.effect!=AnimationEffect::None||n.exitAnimation){values[i].motionSlot=uint16_t(slot);poses[slot++].node=i;}
   }
   // Reserve both raster sides and the departure copy before any clock starts.
-  snapshotMotions.reserve(std::max(snapshotMotions.capacity(),count));
-  previewMotions.reserve(std::max(previewMotions.capacity(),count));
+  rasterFrame.current.motions.reserve(std::max(rasterFrame.current.motions.capacity(),count));
+  rasterFrame.preview.motions.reserve(std::max(rasterFrame.preview.motions.capacity(),count));
   transition.outgoingMotions.reserve(std::max(transition.outgoingMotions.capacity(),count));
   if(count){
     size_t depth=0;
@@ -92,9 +91,9 @@ bool motionsPending() const {
   return motionCompletionPending;
 }
 void completeMotionFrame() {
-  if(!project||snapshotPage!=&page())return;
+  if(!project||rasterFrame.current.page!=&page())return;
   auto &poses=pageMotions[history.back()];
-  for(size_t i=0;i<snapshotMotions.size()&&i<poses.size();++i){const auto &shown=snapshotMotions[i];auto &live=poses[i];
+  for(size_t i=0;i<rasterFrame.current.motions.size()&&i<poses.size();++i){const auto &shown=rasterFrame.current.motions[i];auto &live=poses[i];
     if(shown.ending&&shown.epoch==live.epoch&&live.ending)live.presented=shown.epoch;
   }
 }

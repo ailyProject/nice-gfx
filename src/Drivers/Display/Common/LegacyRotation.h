@@ -3,7 +3,7 @@
 
 namespace nice_gfx { namespace controllers {
 
-inline void rotate_SeeedLegacy(PanelSequence &s, uint8_t) {
+inline void rotate_FixedEntryMode(PanelSequence &s, uint8_t) {
   s.colstart = s.rowstart = 0;
   s.writeRegister16(3,0x1030);
 }

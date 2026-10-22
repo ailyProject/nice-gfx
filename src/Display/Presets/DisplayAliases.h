@@ -3,6 +3,7 @@
 // Public single-object displays: profile_defaultWidthxHeight_interface.
 // Dimensions are the default at rotation 0. Controller and transport types are internal.
 #pragma once
+#include "PanelVariants.h"
 #include "../Display.h"
 #include "../../Drivers/Display/All.h"
 #include "BoardPresets.h"
@@ -246,10 +247,10 @@ using ILI9342_240x320_SPI = nice_gfx::SpiDisplay<nice_gfx::ILI9342>;
 using ILI9342_240x320_SW_SPI = nice_gfx::SoftwareSpiDisplay<nice_gfx::ILI9342>;
 using ILI9342_240x320_PARALLEL8 = nice_gfx::Parallel8Display<nice_gfx::ILI9342>;
 using ILI9342_240x320_PARALLEL16 = nice_gfx::Parallel16Display<nice_gfx::ILI9342>;
-using ILI9341_M5Stack_240x320_SPI = nice_gfx::SpiDisplay<nice_gfx::ILI9341_M5Stack>;
-using ILI9341_M5Stack_240x320_SW_SPI = nice_gfx::SoftwareSpiDisplay<nice_gfx::ILI9341_M5Stack>;
-using ILI9341_M5Stack_240x320_PARALLEL8 = nice_gfx::Parallel8Display<nice_gfx::ILI9341_M5Stack>;
-using ILI9341_M5Stack_240x320_PARALLEL16 = nice_gfx::Parallel16Display<nice_gfx::ILI9341_M5Stack>;
+using ILI9341_Transposed_240x320_SPI = nice_gfx::SpiDisplay<nice_gfx::ILI9341_Transposed>;
+using ILI9341_Transposed_240x320_SW_SPI = nice_gfx::SoftwareSpiDisplay<nice_gfx::ILI9341_Transposed>;
+using ILI9341_Transposed_240x320_PARALLEL8 = nice_gfx::Parallel8Display<nice_gfx::ILI9341_Transposed>;
+using ILI9341_Transposed_240x320_PARALLEL16 = nice_gfx::Parallel16Display<nice_gfx::ILI9341_Transposed>;
 using ILI9481_Parallel_320x480_SPI = nice_gfx::SpiDisplay<nice_gfx::ILI9481_Parallel>;
 using ILI9481_Parallel_320x480_SW_SPI = nice_gfx::SoftwareSpiDisplay<nice_gfx::ILI9481_Parallel>;
 using ILI9481_Parallel_320x480_PARALLEL8 = nice_gfx::Parallel8Display<nice_gfx::ILI9481_Parallel>;
@@ -338,14 +339,14 @@ using ILI9481_Sequence8_Parallel_320x480_SPI = nice_gfx::SpiDisplay<nice_gfx::IL
 using ILI9481_Sequence8_Parallel_320x480_SW_SPI = nice_gfx::SoftwareSpiDisplay<nice_gfx::ILI9481_Sequence8_Parallel>;
 using ILI9481_Sequence8_Parallel_320x480_PARALLEL8 = nice_gfx::Parallel8Display<nice_gfx::ILI9481_Sequence8_Parallel>;
 using ILI9481_Sequence8_Parallel_320x480_PARALLEL16 = nice_gfx::Parallel16Display<nice_gfx::ILI9481_Sequence8_Parallel>;
-using RPI_ILI9486_320x480_SPI = nice_gfx::SpiDisplay<nice_gfx::RPI_ILI9486>;
-using RPI_ILI9486_320x480_SW_SPI = nice_gfx::SoftwareSpiDisplay<nice_gfx::RPI_ILI9486>;
-using RPI_ILI9486_320x480_PARALLEL8 = nice_gfx::Parallel8Display<nice_gfx::RPI_ILI9486>;
-using RPI_ILI9486_320x480_PARALLEL16 = nice_gfx::Parallel16Display<nice_gfx::RPI_ILI9486>;
-using RPI_ST7796_320x480_SPI = nice_gfx::SpiDisplay<nice_gfx::RPI_ST7796>;
-using RPI_ST7796_320x480_SW_SPI = nice_gfx::SoftwareSpiDisplay<nice_gfx::RPI_ST7796>;
-using RPI_ST7796_320x480_PARALLEL8 = nice_gfx::Parallel8Display<nice_gfx::RPI_ST7796>;
-using RPI_ST7796_320x480_PARALLEL16 = nice_gfx::Parallel16Display<nice_gfx::RPI_ST7796>;
+using ILI9486_PaddedSPI_320x480_SPI = nice_gfx::SpiDisplay<nice_gfx::ILI9486_PaddedSPI>;
+using ILI9486_PaddedSPI_320x480_SW_SPI = nice_gfx::SoftwareSpiDisplay<nice_gfx::ILI9486_PaddedSPI>;
+using ILI9486_PaddedSPI_320x480_PARALLEL8 = nice_gfx::Parallel8Display<nice_gfx::ILI9486_PaddedSPI>;
+using ILI9486_PaddedSPI_320x480_PARALLEL16 = nice_gfx::Parallel16Display<nice_gfx::ILI9486_PaddedSPI>;
+using ST7796_PaddedSPI_320x480_SPI = nice_gfx::SpiDisplay<nice_gfx::ST7796_PaddedSPI>;
+using ST7796_PaddedSPI_320x480_SW_SPI = nice_gfx::SoftwareSpiDisplay<nice_gfx::ST7796_PaddedSPI>;
+using ST7796_PaddedSPI_320x480_PARALLEL8 = nice_gfx::Parallel8Display<nice_gfx::ST7796_PaddedSPI>;
+using ST7796_PaddedSPI_320x480_PARALLEL16 = nice_gfx::Parallel16Display<nice_gfx::ST7796_PaddedSPI>;
 #if defined(ESP32) && defined(CONFIG_IDF_TARGET_ESP32S3)
 using nice_gfx::CH13613_480x480_QSPI;
 #endif

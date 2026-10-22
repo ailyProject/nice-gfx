@@ -57,25 +57,25 @@ bool animationBackground(const Surface &surface,uint16_t root,Rect swept,uint16_
 }
 const Surface *findAnimationSurface() {
   snapshotAnimationSurface=nullptr;snapshotAnimationLayerCount=0;
-  if(buildingSurface||snapshotSurface||previewPage||snapshotPressed>=0||snapshotInput||snapshotKeyboard.visible||
+  if(buildingSurface||snapshotSurface||rasterFrame.preview.page||snapshotPressed>=0||snapshotInput||snapshotKeyboard.visible||
      (snapshotGroupIndex>=0&&snapshotGroup.indicatorHeight)||
      (snapshotTransition&&snapshotPhase!=TransitionPhase::Enter))return nullptr;
-  const PageDesc &p=*snapshotPage;const Rect pageRect{0,0,p.width,p.height};
+  const PageDesc &p=*rasterFrame.current.page;const Rect pageRect{0,0,p.width,p.height};
   if(snapshotTransition&&(snapshotMotionRect.x||snapshotMotionRect.y||
      snapshotMotionRect.width!=p.width||snapshotMotionRect.height!=p.height))return nullptr;
   for(auto &entry:surfaces){
-    if(!entry.ready||entry.page!=&p||entry.key.size()!=snapshot.size()||entry.geometry.nodes.size()!=snapshot.size())continue;
+    if(!entry.ready||entry.page!=&p||entry.key.size()!=rasterFrame.current.values.size()||entry.geometry.nodes.size()!=rasterFrame.current.values.size())continue;
     uint8_t count=0;bool valid=true;
     for(uint16_t i=0;i<p.count&&valid;++i){
-      if(sameSurfaceNode(entry.key[i],snapshot[i]))continue;
-      const auto &node=p.nodes[i];const auto &before=entry.key[i];const auto &live=snapshot[i];
-      if(count==16||node.kind!=Kind::Container||node.motion||before.animationX||before.animationY||
+      if(sameSurfaceNode(entry.key[i],rasterFrame.current.values[i]))continue;
+      const auto &node=p.nodes[i];const auto &before=entry.key[i];const auto &live=rasterFrame.current.values[i];
+      if(count==16||(node.kind!=Kind::Container&&node.kind!=Kind::Button)||node.motion||before.animationX||before.animationY||
          before.opacity!=255||live.opacity!=255||
          node.animation.effect<AnimationEffect::SlideLeft||node.animation.effect>AnimationEffect::SlideDown){valid=false;break;}
       State normalized=live;normalized.animationX=before.animationX;normalized.animationY=before.animationY;
       if(!sameSurfaceNode(before,normalized)){valid=false;break;}
       const auto &g=entry.geometry.nodes[i];
-      const Rect source=poseRect(p,entry.key,i),target=poseRect(p,snapshot,i);
+      const Rect source=poseRect(p,entry.key,i),target=poseRect(p,rasterFrame.current.values,i);
       if(!g.visible||g.alpha!=255||!animationContains(pageRect,source)||!animationContains(pageRect,target)||
          !animationContains(g.clip,source)){valid=false;break;}
       const int32_t left=std::min(source.x,target.x),top=std::min(source.y,target.y);
@@ -119,35 +119,35 @@ const Surface *findAnimationSurface() {
 // staggered slide samples into the atlas. Only this immutable render snapshot
 // is normalized; live animation state, opacity and event clocks stay intact.
 bool repairTerminalAnimationSurface(bool &geometryPrepared,uint64_t repairBudget=0) {
-  if(snapshotPhase!=TransitionPhase::Enter||previewPage||snapshotSurface||snapshotAnimationSurface||
+  if(snapshotPhase!=TransitionPhase::Enter||rasterFrame.preview.page||snapshotSurface||snapshotAnimationSurface||
      down||snapshotInput||snapshotKeyboard.visible)return false;
   const Surface *source=nullptr;
-  for(const auto &entry:surfaces)if(entry.ready&&entry.page==snapshotPage&&entry.key.size()==snapshot.size()){source=&entry;break;}
-  if(!source||source->geometry.nodes.size()!=snapshot.size())return false;
+  for(const auto &entry:surfaces)if(entry.ready&&entry.page==rasterFrame.current.page&&entry.key.size()==rasterFrame.current.values.size()){source=&entry;break;}
+  if(!source||source->geometry.nodes.size()!=rasterFrame.current.values.size())return false;
   struct Pose {uint16_t index;int32_t x,y;};Pose poses[16];uint8_t count=0;
-  const auto &p=*snapshotPage;
-  for(uint16_t i=0;i<p.count;++i){const auto &live=snapshot[i],&terminal=source->key[i];
+  const auto &p=*rasterFrame.current.page;
+  for(uint16_t i=0;i<p.count;++i){const auto &live=rasterFrame.current.values[i],&terminal=source->key[i];
     if(live.animationX==terminal.animationX&&live.animationY==terminal.animationY)continue;
     const auto &n=p.nodes[i];
-    if(count==16||n.kind!=Kind::Container||n.motion||terminal.animationX||terminal.animationY||
-       terminal.opacity!=255||live.opacity!=255||source->geometry.nodes[i].alpha!=255||opacity(p,snapshot,i)!=255||
+    if(count==16||(n.kind!=Kind::Container&&n.kind!=Kind::Button)||n.motion||terminal.animationX||terminal.animationY||
+       terminal.opacity!=255||live.opacity!=255||source->geometry.nodes[i].alpha!=255||opacity(p,rasterFrame.current.values,i)!=255||
        n.animation.effect<AnimationEffect::SlideLeft||n.animation.effect>AnimationEffect::SlideDown)return false;
     poses[count++]={i,live.animationX,live.animationY};
   }
   if(!count)return false;
-  for(uint8_t i=0;i<count;++i)snapshot[poses[i].index].animationX=snapshot[poses[i].index].animationY=0;
+  for(uint8_t i=0;i<count;++i)rasterFrame.current.values[poses[i].index].animationX=rasterFrame.current.values[poses[i].index].animationY=0;
   bool terminalGeometry=false;const bool repaired=patchSurface(terminalGeometry,repairBudget)!=nullptr;
-  for(uint8_t i=0;i<count;++i){auto &value=snapshot[poses[i].index];value.animationX=poses[i].x;value.animationY=poses[i].y;}
+  for(uint8_t i=0;i<count;++i){auto &value=rasterFrame.current.values[poses[i].index];value.animationX=poses[i].x;value.animationY=poses[i].y;}
   // Even a rejected repair can prepare terminal geometry before its damage
   // budget check. A portable fallback must rebuild the restored live poses.
   geometryPrepared=false;
   return repaired;
 }
 Status paintAnimationSurface(const DirtyRect &area) {
-  const auto &atlas=*snapshotAnimationSurface;const size_t width=snapshotPage->width;
+  const auto &atlas=*snapshotAnimationSurface;const size_t width=rasterFrame.current.page->width;
   canvas.setViewport(area.x,area.y,area.width,area.height,false);
   Status status=canvas.blit(paintOffsetX,paintOffsetY,
-    PixelView(atlas.pixels,snapshotPage->width,snapshotPage->height,width,PixelOrder::Wire));
+    PixelView(atlas.pixels,rasterFrame.current.page->width,rasterFrame.current.page->height,width,PixelOrder::Wire));
   if(status!=Status::Ok)return status;
   for(uint8_t i=0;i<snapshotAnimationLayerCount;++i){const auto &sprite=snapshotAnimationLayers[i];
     canvas.fillRect(sprite.source.x+paintOffsetX,sprite.source.y+paintOffsetY,sprite.source.width,sprite.source.height,sprite.background);
@@ -165,9 +165,9 @@ Status paintAnimationSurface(const DirtyRect &area) {
 // write must propagate to the caller, rather than starting a partial fallback.
 Status composeAnimationNative(nice_gfx::Panel &panel,nice_gfx::NativeFramebuffer &output) {
   output=nice_gfx::NativeFramebuffer{};
-  if(!snapshotAnimationSurface||!panel.supportsFrameBlit()||!snapshotPage||
+  if(!snapshotAnimationSurface||!panel.supportsFrameBlit()||!rasterFrame.current.page||
      (snapshotTransition&&(snapshotPhase!=TransitionPhase::Enter||transitionFrame.opacity!=255)))return Status::Unsupported;
-  const int32_t w=snapshotPage->width,h=snapshotPage->height;const Rect screen{0,0,w,h};
+  const int32_t w=rasterFrame.current.page->width,h=rasterFrame.current.page->height;const Rect screen{0,0,w,h};
   nice_gfx::NativeFramebuffer frame{};const Status mapped=panel.mapNativeFramebuffer(frame);
   if(mapped!=Status::Ok)return mapped;
   if(!frame.pixels||frame.width!=size_t(w)||frame.height!=size_t(h)||frame.stride<size_t(w)||

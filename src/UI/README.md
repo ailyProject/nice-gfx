@@ -1,4 +1,7 @@
-# Native compiled UI runtime (NICE_GFX 1.0.0, resource ABI 16)
+# Native compiled UI runtime (NICE_GFX)
+
+The current resource ABI is `ResourceVersion` in [Compiled.h](Compiled.h).
+Generated resources assert this version when compiled against the runtime.
 
 ABI 16 adds immutable chart styling and reference-line descriptors. Line charts
 support solid/gradient areas, step traces, finer grids and point markers; bars
@@ -255,11 +258,25 @@ chart samples and style/geometry overrides. Writers copy chart samples only whil
 a frame still owns the old data; completed snapshots release shared references.
 Compiled text stays in the resource storage until replaced. TileCanvas reads the
 snapshot while RefreshScheduler protects DMA buffer ownership; next-frame changes
-retain their dirty rectangles. Geometry, ancestor clipping and text line spans are
-prepared once per frame. A 32-band bitset selects candidate nodes in original paint
+retain their dirty rectangles. The internal FrameContext owns both raster sides'
+state, poses and geometry and releases source leases after transfer completion.
+Unchanged geometry, ancestor clipping and text line spans are reused across frames
+in both ordinary tile and native framebuffer rendering. Geometry or visible-height
+changes rebuild the cache; a text-only change lays out that node alone.
+A 32-band bitset selects candidate nodes in original paint
 order for each tile; text drawing uses spans without temporary strings. Setters,
 visibility and component animations invalidate affected old/new subtree rectangles;
 routing, page transitions and edge preview still repaint the screen.
+
+Component paint relationships are indexed per page/configuration, independently
+of live selection/expansion values. Drawing reads those values from its frame,
+including outgoing transition pages. `configureComponents()` rejects replacement
+during a raster frame, and every successful replacement invalidates these indexes.
+
+`configureRenderBudget(RenderBudget)` optionally limits raster pixels per tick
+and applies a cooperative microsecond deadline to optional cache maintenance.
+Defaults preserve full-frame acceleration. This is not a hard real-time deadline;
+see the [budget and memory contracts](../../docs/Architecture.md) for tradeoffs.
 
 `beginUpdate/endUpdate` nest and postpone new frames until the outer update ends.
 An already submitted frame can drain during the batch; setters are immediately
@@ -270,7 +287,11 @@ until every referring page and in-flight frame releases them.
 `memoryStats()` estimates retained state/snapshot/cache/payload/tile/scratch capacity
 with shared payloads counted once; it excludes allocator metadata, driver storage
 and immutable flash resources. `runtimeStats/resetRuntimeStats` expose cumulative
-frame, geometry, text layout, candidate, paint and transfer-pixel work. See
+frame, geometry, text layout, candidate, paint and transfer-pixel work. Stats
+version 5 also counts reused geometry/text, component index builds, timed ticks
+and deferred maintenance. Tick timing is enabled by a profiling clock or a
+microsecond budget; its maximum includes required work that exceeds that budget.
+See
 [optimization measurements and examples](../../docs/Architecture.md).
 
 For component APIs, events, input handling and application scheduling, see the

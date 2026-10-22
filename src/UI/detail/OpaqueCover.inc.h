@@ -9,17 +9,17 @@ static bool opaqueCoverContains(Rect bounds,const DirtyRect &area,int32_t offset
 }
 bool opaqueCoverTransition() const {
   const auto &v=snapshotMotionRect;const auto effect=transition.config.effect;
-  return snapshotTransition&&!previewPage&&transitionFrame.opacity==255&&
+  return snapshotTransition&&!rasterFrame.preview.page&&transitionFrame.opacity==255&&
     (effect==TransitionEffect::SlideLeft||effect==TransitionEffect::SlideRight||
      effect==TransitionEffect::SlideUp||effect==TransitionEffect::SlideDown||
      (effect==TransitionEffect::Fade&&!transitionFrame.outX&&!transitionFrame.outY&&!transitionFrame.inX&&!transitionFrame.inY))&&
     (snapshotPhase==TransitionPhase::Enter||snapshotPhase==TransitionPhase::Exit)&&
-    !v.x&&!v.y&&v.width==snapshotPage->width&&v.height==snapshotPage->height;
+    !v.x&&!v.y&&v.width==rasterFrame.current.page->width&&v.height==rasterFrame.current.page->height;
 }
 bool opaqueCoverMedia(const FrameCache &cache,size_t i) const {
-  const auto &n=snapshotPage->nodes[i];const auto &g=cache.nodes[i];const auto &value=snapshot[i];
+  const auto &n=rasterFrame.current.page->nodes[i];const auto &g=cache.nodes[i];const auto &value=rasterFrame.current.values[i];
   if(n.kind!=Kind::Media||n.motion||!g.visible||g.alpha!=255||!value.imageOverride||!value.image.impl_)return false;
-  const auto &image=*value.image.impl_;const auto &style=styleFor(*snapshotPage,snapshot,int(i));
+  const auto &image=*value.image.impl_;const auto &style=styleFor(*rasterFrame.current.page,rasterFrame.current.values,int(i));
   return !image.flash&&image.source.format==ImageFormat::RGB565&&image.media.bytesPerPixel==2&&
     !(image.source.strideBytes&1)&&g.rect.width==image.media.width&&g.rect.height==image.media.height&&
     !style.borderWidth&&!style.radius&&!style.paddingTop&&!style.paddingRight&&!style.paddingBottom&&!style.paddingLeft;
@@ -32,12 +32,12 @@ int opaqueCoverAt(const FrameCache &cache,const DirtyRect &area,int32_t offsetX,
   return -1;
 }
 int opaqueCover(const DirtyRect &area) const {
-  if(renderOrder!=PixelOrder::Native||previewPage||buildingSurface||!paintCache||
+  if(renderOrder!=PixelOrder::Native||rasterFrame.preview.page||buildingSurface||!paintCache||
      (snapshotTransition&&!opaqueCoverTransition()))return -1;
   return opaqueCoverAt(*paintCache,area,paintOffsetX,paintOffsetY);
 }
 PixelView opaqueCoverPixels(const FrameCache &cache,int index,const DirtyRect &area,int32_t offsetX,int32_t offsetY) const {
-  const auto &g=cache.nodes[index];const auto &value=snapshot[index];const auto &image=*value.image.impl_;
+  const auto &g=cache.nodes[index];const auto &value=rasterFrame.current.values[index];const auto &image=*value.image.impl_;
   const size_t sourceX=size_t(int64_t(area.x)-offsetX-g.rect.x),sourceY=size_t(int64_t(area.y)-offsetY-g.rect.y);
   const auto *source=image.media.pixels+size_t(value.mediaFrame)*image.source.strideBytes*image.media.height+
     sourceY*image.source.strideBytes+sourceX*2;
@@ -45,7 +45,7 @@ PixelView opaqueCoverPixels(const FrameCache &cache,int index,const DirtyRect &a
 }
 bool canStageOpaqueCover(const nice_gfx::NativeFramebuffer &target,const FrameCache &cache,int index,
                         const DirtyRect &area,int32_t offsetX,int32_t offsetY)const{
-  const auto &g=cache.nodes[index];const auto &value=snapshot[index];const auto &image=*value.image.impl_;
+  const auto &g=cache.nodes[index];const auto &value=rasterFrame.current.values[index];const auto &image=*value.image.impl_;
   const PixelView full(image.media.pixels+size_t(value.mediaFrame)*image.source.strideBytes*image.media.height,
     image.media.width,image.media.height,image.source.strideBytes/2,image.source.order);
   return ppaFade.canCopyIntoNative(target,area.x,area.y,full,image.source.byteLength,
@@ -58,7 +58,7 @@ Status blitOpaqueCover(nice_gfx::Panel &panel,int index,const DirtyRect &area,bo
   painted=false;
   if(stagingNativeTarget){
     if(!canStageOpaqueCover(*stagingNativeTarget,*paintCache,index,area,paintOffsetX,paintOffsetY))return Status::Ok;
-    const auto &g=paintCache->nodes[index];const auto &value=snapshot[index];const auto &image=*value.image.impl_;
+    const auto &g=paintCache->nodes[index];const auto &value=rasterFrame.current.values[index];const auto &image=*value.image.impl_;
     const PixelView full(image.media.pixels+size_t(value.mediaFrame)*image.source.strideBytes*image.media.height,
       image.media.width,image.media.height,image.source.strideBytes/2,image.source.order);
     const Status status=ppaFade.copyIntoNative(*stagingNativeTarget,area.x,area.y,full,image.source.byteLength,

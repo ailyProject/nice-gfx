@@ -6,7 +6,7 @@
 #include "Image.h"
 #include "Components.h"
 #include "Navigation.h"
-#define NICE_GFX_UI_STATS_VERSION 4
+#define NICE_GFX_UI_STATS_VERSION 5
 #define NICE_GFX_UI_RENDER_CACHE_VERSION 3
 #define NICE_GFX_UI_CIRCULAR_CLIP_VERSION 1
 #define NICE_GFX_UI_ACTIONS_VERSION 1
@@ -16,6 +16,8 @@
 #define NICE_GFX_UI_DYNAMIC_IMAGE_VERSION 1
 #define NICE_GFX_UI_COMPONENTS_VERSION 1
 #define NICE_GFX_UI_MOTION_VERSION 1
+#define NICE_GFX_UI_CHECKED_MEMORY_VERSION 1
+#define NICE_GFX_UI_RENDER_BUDGET_VERSION 1
 
 namespace nice_gfx { namespace htmlui {
 
@@ -56,6 +58,9 @@ struct RuntimeStats {
   // conversion; hardware channel rounding can differ from CPU by one step.
   uint64_t ppaBlendCalls=0,ppaBlendPixels=0,ppaBlendMicros=0;
   uint32_t ppaBlendFailures=0;
+  uint64_t geometryReuses=0,textLayoutReuses=0,componentIndexBuilds=0;
+  uint64_t tickMicros=0,budgetDeferrals=0;
+  uint32_t maxTickMicros=0;
 };
 struct RenderCacheStats {
   size_t capacityPages=0, readyPages=0;
@@ -76,6 +81,16 @@ struct MemoryStats {
   size_t totalBytes() const { return stateBytes+snapshotBytes+geometryBytes+payloadBytes+tileBytes+scratchBytes+cacheBytes; }
 };
 
+struct RenderBudget {
+  // Zero preserves automatic native/PPA/full-frame paths. A positive limit
+  // selects bounded tile composition (including cache copies) for each tick.
+  size_t maxPixelsPerTick=0;
+  // Cooperative deadline: required frame work still makes progress. Optional
+  // cache maintenance is deferred after this time, measured with the profiling
+  // clock or platform micros(). Preparation/driver calls are not preempted.
+  uint32_t maxMicrosPerTick=0;
+};
+
 // A native compiled-page runtime. Owns dynamic text and uses immutable render
 // snapshots so input and setters remain safe while asynchronous tiles transfer.
 // Calls are single-task: invoke from one UI task, not interrupt handlers.
@@ -85,15 +100,28 @@ class View {
   // ordinary heap. The borrowed-buffer overload never allocates tile storage.
   explicit View(NICE_GFX &display, size_t tilePixels = 0);
   View(NICE_GFX &display, uint16_t *first, uint16_t *second, size_t tilePixels);
+  // Checked construction; output is unchanged on failure. The caller owns a
+  // successful result and deletes it normally. With exceptions enabled, all
+  // construction allocations report NoMemory. Without exceptions, only the
+  // outer View/Impl allocations are checked; STL exhaustion may terminate.
+  static Status create(NICE_GFX &display, View *&output, size_t tilePixels = 0) noexcept;
+  static Status create(NICE_GFX &display, uint16_t *first, uint16_t *second,
+                       size_t tilePixels, View *&output) noexcept;
   ~View();
   View(const View &) = delete;
   View &operator=(const View &) = delete;
+  // Prepare the new initial page before replacing the mounted state. With
+  // exceptions enabled, allocation failure returns NoMemory and retains the
+  // old project, live resources and any in-flight frame. Tiles are not copied.
+  // A successful replacement cancels pointer/navigation notifications; user
+  // callback exceptions propagate. Other mutators are not checked OOM APIs.
   Status mount(const ProjectDesc &project);
   bool on(Id id, EventType event, EventHandler handler, void *context = nullptr, bool capture = false);
   // Idempotent registration for generated declarative UI actions. on() remains additive.
   bool onOnce(Id id, EventType event, EventHandler handler, void *context = nullptr, bool capture = false);
   // Borrowed immutable descriptors/strings until replacement or mount. Generated
   // ui.h installs these links so ordinary setters/getters accept public IDs.
+  // Replacement is rejected while a raster frame still borrows the links.
   bool configureComponents(const ComponentDesc *components, size_t count);
   bool setExpanded(Id id, bool expanded); // Select, Popup or Confirm panel.
   bool expanded(Id id) const;
@@ -248,6 +276,13 @@ class View {
   // Optional profiling only. The monotonic microsecond clock is borrowed;
   // nullptr disables timing, keeping the default renderer free of clock calls.
   void setProfilingClock(uint32_t (*clock)());
+  // Reconfigure only outside a raster frame; existing dirty work is retained.
+  bool configureRenderBudget(const RenderBudget &budget);
+  RenderBudget renderBudget() const;
+  // Extra pixels worth repainting to avoid one more window/submit operation.
+  // Defaults to 32. Changes require an idle raster frame and retain dirty work.
+  bool configureMergeSlack(uint32_t pixels);
+  uint32_t mergeSlack() const;
   // Restart on the next tick, or pass an explicit clock shared with tick().
   // stopAnimation restores the authored position and full opacity.
   bool playAnimation(Id id);
@@ -263,7 +298,9 @@ class View {
   void stopPointerRepeat();
   // Retain the hold across brief sampling gaps; stable release still ends it.
   void pausePointerRepeat(bool paused);
-  // tick does at most one tile of work. Busy is expected until a frame finishes.
+  // Ordinary composition does one tile per tick. Automatic accelerated paths
+  // can process full dirty regions; configureRenderBudget bounds raster work.
+  // Busy is expected until a frame finishes. No hard real-time deadline.
   Status tick(uint32_t now = 0);
   Status finish();
   bool busy() const;
@@ -271,6 +308,7 @@ class View {
   void invalidate();
  private:
   struct Impl;
+  explicit View(Impl *impl) : impl_(impl) {}
   Impl *impl_;
 };
 

@@ -6,6 +6,7 @@
 #define NICE_GFX_UI_SHAPE_MOTION_VERSION 1
 #define NICE_GFX_UI_PIVOT_MOTION_VERSION 1
 #define NICE_GFX_UI_VERTICAL_RANGE_VERSION 1
+#define NICE_GFX_UI_MEDIA_COLOR_KEY_VERSION 1
 
 namespace nice_gfx { struct MonoFont; struct MonoIcon; }
 namespace nice_gfx { namespace htmlui {
@@ -80,6 +81,12 @@ struct MotionDesc {
 };
 struct PagerDesc { uint16_t indicatorHeight; uint8_t dotSize, dotGap; };
 struct MediaDesc { const uint8_t *pixels; uint16_t width, height, frames; uint8_t fps, bytesPerPixel; };
+// Preserve descriptor ABI: 0x82 denotes wire RGB565 with a two-byte, MSB-first
+// transparent-color prefix. The prefix is shared by all frames, not per pixel.
+constexpr uint8_t MediaRgb565ColorKey = 0x82;
+inline bool mediaColorKeyed(const MediaDesc &m) { return m.bytesPerPixel==MediaRgb565ColorKey; }
+inline uint8_t mediaPixelBytes(const MediaDesc &m) { return uint8_t(m.bytesPerPixel&0x7f); }
+inline const uint8_t *mediaPixels(const MediaDesc &m) { return m.pixels+(mediaColorKeyed(m)?2:0); }
 enum class ShapeType : uint8_t { Circle, Ellipse, Rect, Line, Polyline, Polygon };
 enum ShapeFlags : uint8_t { ShapeFill = 1, ShapeStroke = 2 };
 struct ShapePoint { uint16_t x, y; };

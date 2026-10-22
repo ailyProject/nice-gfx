@@ -6,7 +6,7 @@ NICE_GFX 是面向彩色屏幕的 Arduino / ESP-IDF 图形库。显示对象在�
 
 - [快速开始](#快速开始)
 - [屏幕与触摸设备支持](docs/DeviceSupport.md)
-- [Waveshare ESP32-S3-Touch-LCD-4B：ST7701、GT911与TCA9554板级配置](examples/HTML_UI/Waveshare4B/README.md)
+- [Waveshare ESP32-S3-Touch-LCD-4B：ST7701、GT911与TCA9554板级配置](examples/07_UI/Waveshare4B/README.md)
 - [开发平台支持表](#开发平台支持表)
 - [字体与 Sprite](#字体与-sprite)
 - [设计器界面与设备交互](#设计器界面与设备交互)
@@ -16,7 +16,7 @@ NICE_GFX 是面向彩色屏幕的 Arduino / ESP-IDF 图形库。显示对象在�
 
 ## 快速开始
 
-Wio Terminal 可直接使用 `WioTerminalDisplay gfx;`，`begin()` 后设置 `gfx.setRotation(3)` 并打开 `LCD_BACKLIGHT`。预设选择板载 SPI3 / SERCOM7；Seeed SAMD 核心的固定多 SPI 路由及同步 ZeroDMA 传输已接入。板载屏幕无触摸，不能使用默认 SPI 接线或 XPT2046。基础彩条示例见 [WioTerminal](examples/Boards/WioTerminal/WioTerminal.ino)；完整的 [Wio Field Lab](examples/HTML_UI/WioFieldLab/README.md) 包含 Seeed 风格的图片生成设计、七页原生动效、传感器、SD、红外与异步 Wi-Fi，并附可重新导入编辑器的项目 JSON。
+示例按功能与学习顺序组织，完整分类见 [示例目录](examples/README.md)。先运行 [Hello_Display](examples/01_Basics/Hello_Display/Hello_Display.ino)，再试 [Basic_Shapes](examples/02_Graphics/Basic_Shapes/Basic_Shapes.ino)、[Sprite_Basics](examples/05_Sprites/Sprite_Basics/Sprite_Basics.ino) 与 [Display_Color_Bars](examples/09_Diagnostics/Display_Color_Bars/Display_Color_Bars.ino)。这些示例从屏幕当前宽高计算布局，接线、旋转和背光在草图内的 Hardware.h 配置；Wio Terminal 也使用同一套入口，模板选择板载 SPI3、旋转 3 与 LCD_BACKLIGHT。完整的 [Wio Field Lab](examples/08_Applications/WioFieldLab/README.md) 提供传感器、SD、红外与异步 Wi-Fi 应用及可导入编辑器的项目。
 
 将 `NICE_GFX` 文件夹放入 Arduino 草图目录的 `libraries/`，安装所用开发板的 Arduino core，再从 IDE 示例菜单打开本库示例。示例接线与额外依赖见 [examples/README.md](examples/README.md)。
 
@@ -48,7 +48,7 @@ ESP-IDF 工程通过原生组件接入本库，使用 C++ `app_main()`；同级�
 
 ## 显示芯片与实例化代码
 
-Waveshare、Seeed 的 Arduino 触摸屏产品、屏幕/触摸芯片与硬件版本对照，以及新增电容触摸、四线电阻触摸和旧款 Shield 驱动，见 [厂家触摸屏与芯片支持](docs/VendorTouchScreens.md)。接线示例见 [Vendor_Capacitive_Touch](examples/Generic/Vendor_Capacitive_Touch/Vendor_Capacitive_Touch.ino)。
+Waveshare、Seeed 的 Arduino 触摸屏产品、屏幕/触摸芯片与硬件版本对照，以及新增电容触摸、四线电阻触摸和旧款 Shield 驱动，见 [厂家触摸屏与芯片支持](docs/VendorTouchScreens.md)。接线示例见 [Vendor_Capacitive_Touch](examples/06_Touch/Vendor_Capacitive_Touch/Vendor_Capacitive_Touch.ino)。
 
 [屏幕与触摸设备支持](docs/DeviceSupport.md) 集中维护全部屏幕芯片、接口、默认分辨率和实例化方法，涵盖 SPI、软件 SPI、8/16 位并口、普通 QSPI、RGB、MIPI 与 ST77903 持续扫描 QSPI。
 
@@ -127,7 +127,7 @@ void loop() {
 输入框和数值步进框使用共用自动键盘：默认全屏，可配置高度，支持浅色 / 深色风格、点击或左右滑动内容移动光标及退格删除。设计器通过 `data-keyboard-theme="light|dark"` 保存字段风格，固件使用 `ui.setKeyboardTheme(nice_gfx::htmlui::KeyboardTheme::Dark)` 切换深色，传入 `KeyboardTheme::Light` 切换浅色；`ui.resetKeyboardTheme()` 恢复字段配置，`ui.keyboardTheme()` 查询有效风格。键盘顶部仅保留收起和密码显隐，输入与提交 API 见 [编译器说明](../nice_gfx_editor/packages/html-ui/README.md#原生输入-api)。
 
 
-当前资源 ABI 为 15，兼容性以 [UI/Compiled.h](src/UI/Compiled.h) 和生成 `ui.h` 的断言为准。升级时重新导出完整工程，同步运行库及生成适配器，保留已有业务主程序。动效支持有限多属性关键帧、错峰、往返、显隐与完成事件，以及图片和图标的局部缩放/旋转、子树揭示；详见 [原生动效接口](src/UI/README.md#compiled-keyframes-and-local-transforms-abi-15-motion-api-1)。组件 API、回调语义与导航规则见 [Arduino 组件交互](docs/ArduinoComponentInteraction.md)，HTML/CSS 语法见 [编译器支持范围](../nice_gfx_editor/packages/html-ui/HTML_CSS_SUPPORT.md)。
+当前资源 ABI 为 17，兼容性以 [UI/Compiled.h](src/UI/Compiled.h) 和生成 `ui.h` 的断言为准。升级时重新导出完整工程，同步运行库及生成适配器，保留已有业务主程序。动效支持有限多属性关键帧、错峰、往返、显隐与完成事件，以及图片和图标的局部缩放/旋转、子树揭示；详见 [原生动效接口](src/UI/README.md#compiled-keyframes-and-local-transforms-abi-17-motion-api-1)。组件 API、回调语义与导航规则见 [Arduino 组件交互](docs/ArduinoComponentInteraction.md)，HTML/CSS 语法见 [编译器支持范围](../nice_gfx_editor/packages/html-ui/HTML_CSS_SUPPORT.md)。
 
 ## 功能与资源限制
 
@@ -156,11 +156,11 @@ void loop() {
 | [UI 运行库](src/UI/README.md) | 资源生命周期、渲染、输入、路由与动画 |
 | [ESP-IDF 示例项目包](../nice_gfx_idf_examples/README.md) | 34 个原生 IDF 工程，含与 Arduino 共用场景的性能基准 |
 | [示例目录](examples/README.md) | 接线、字体、触摸和额外依赖 |
-| [GfxTouchDemo](examples/HTML_UI/GfxTouchDemo/README.md) | 可编辑设计器工程、生成资源、应用状态和事件回调 |
-| [DynamicImageDemo](examples/HTML_UI/DynamicImageDemo/README.md) | 动态图片完整 Arduino 示例 |
-| [MosaicoCameraDemo](examples/HTML_UI/MosaicoCameraDemo/README.md) | ESP-Mosaico V1.2 摄像头实时预览、颜色识别与检测框叠加 |
-| [Display_Info](<examples/Test and diagnostics/Display_Info>) | 查询实际显示对象与总线能力 |
-| [Touch_calibrate](examples/Generic/Touch_calibrate/Touch_calibrate.ino) | XPT2046 接线与校准 |
+| [GfxTouchDemo](examples/07_UI/GfxTouchDemo/README.md) | 可编辑设计器工程、生成资源、应用状态和事件回调 |
+| [DynamicImageDemo](examples/07_UI/DynamicImageDemo/README.md) | 动态图片完整 Arduino 示例 |
+| [MosaicoCameraDemo](examples/08_Applications/MosaicoCameraDemo/README.md) | ESP-Mosaico V1.2 摄像头实时预览、颜色识别与检测框叠加 |
+| [Display_Info](examples/09_Diagnostics/Display_Info) | 查询实际显示对象与总线能力 |
+| [Touch_calibrate](examples/06_Touch/Touch_calibrate/Touch_calibrate.ino) | XPT2046 接线与校准 |
 
 ## 源码布局与检查
 
@@ -188,7 +188,11 @@ Arduino 草图先包含 `<NICE_GFX.h>`，使构建工具发现已安装的库；
 npm run check
 # 需要 PATH 中的 C++17 编译器和 CMake，或设置 CXX / CMAKE：
 npm test
+# 更新版本号、资源 ABI 说明和动效链接后再检查：
+npm run metadata:sync
 ```
+
+主机回归直接使用库内固定资源，不依赖设计器仓库；帧生命周期、原生/分块渲染对比与内存分配失败也纳入同一入口。配置说明见 [主机测试](tests/README.md)。
 
 实际工程需验证颜色、坐标、输入、首帧与持续运行。
 
