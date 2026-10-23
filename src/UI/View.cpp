@@ -211,8 +211,37 @@ struct View::Impl {
     uint32_t motionRevision=0;
   };
   #include "detail/MotionRuntime.inc.h"
-  struct Listener { Id id; EventType type; EventHandler callback; void *context; bool capture; };
-  enum class Drag { None, Range, Scroll, Pager, Back, Home, Group, Gesture, Consumed };
+  struct Listener { Id id; EventType type; EventHandler callback; void *context; bool capture; bool defaultAction=false; bool scoped=false; };
+  enum class Drag { None, Range, Scroll, Pager, Back, Home, Group, Gesture, Custom, Consumed };
+  InteractionVersion interactionVersion=InteractionVersion::Legacy;
+  std::vector<InteractionDesc> interactionPolicies;
+  int pointerClaim=-1;
+  GestureAxis pointerClaimAxis=GestureAxis::None;
+  bool pointerDispatch=false, defaultsBlocked=false, customCompatibility=false;
+  bool ownerStarted=false, ownerFinished=false;
+  int contactModal=-1;
+  const GesturePolicy &policy(int i) const {
+    static const GesturePolicy automatic{};
+    if(i<0)return automatic;
+    const Id id=page().nodes[i].id;
+    const auto at=std::lower_bound(interactionPolicies.begin(),interactionPolicies.end(),id,[](const InteractionDesc &a,Id b){return a.id<b;});
+    return at!=interactionPolicies.end()&&at->id==id?at->policy:automatic;
+  }
+  bool coordinated() const {return interactionVersion==InteractionVersion::Coordinated;}
+  bool descendant(int i,int root) const {for(;i>=0;i=parent(i))if(i==root)return true;return false;}
+  int modalRoot() const {
+    if(!coordinated())return -1;
+    int result=-1;
+    for(const auto &entry:interactionPolicies)if(entry.policy.modal){const int i=find(entry.id);if(i>=0&&i>result&&visible(page(),state(),i,true))result=i;}
+    return result;
+  }
+  bool inInputLayer(int i) const {const int modal=modalRoot();return modal<0||descendant(i,modal);}
+  bool acceptsEvent(const Event &event) const {
+    if(!coordinated())return true;
+    const auto scope=policy(find(event.currentTarget)).eventScope;
+    return scope==EventScope::Subtree||event.target==event.currentTarget||
+      (scope==EventScope::Component&&event.component==event.currentTarget);
+  }
   NICE_GFX &display;
   OwnedUiTile first, second;
   TileCanvas canvas;
@@ -255,6 +284,7 @@ struct View::Impl {
   }
   uint32_t (*profilingClock)()=nullptr;
   RenderBudget renderBudget;
+  bool ppaBlendEnabled=true;
   size_t rasterCapacity() const {return renderBudget.maxPixelsPerTick?std::min(capacity,renderBudget.maxPixelsPerTick):capacity;}
   uint32_t workClock() const {return profilingClock?profilingClock():platform::micros();}
   struct TickTimer {
@@ -305,6 +335,8 @@ struct View::Impl {
   const GestureBindingDesc *gesture=nullptr;
   int navigationDot=-1;bool navigationFooterContact=false;
   struct GroupMotion {
+    RetainedVector<State> outgoing;
+    std::vector<MotionRuntime> outgoingMotions;
     int destination=-1;int32_t offset=0,from=0,to=0;uint32_t started=0,updated=0;
     bool active=false,settling=false,commit=false,prepared=false;
     bool vertical=false,follow=false;int sign=-1;
@@ -433,6 +465,7 @@ struct View::Impl {
     }
     for(uint16_t i=0;i<config.gestureCount;++i){const auto &g=config.gestures[i];
       if(!g.id||std::find(ids.begin(),ids.end(),g.id)!=ids.end()||uint8_t(g.direction)>uint8_t(SwipeDirection::Down)||uint8_t(g.edge)>uint8_t(SwipeEdge::Bottom)||g.action==RouteAction::None||uint8_t(g.action)>uint8_t(RouteAction::Home)||!g.threshold||!g.edgeSize)return false;ids.push_back(g.id);
+      if(g.overrideControls&&g.edge==SwipeEdge::Any)return false;
       if(uint8_t(g.interaction)>uint8_t(GestureInteraction::Instant)||(g.transition&&!validTransition(*g.transition)))return false;
       if(g.interaction==GestureInteraction::Follow&&g.transition&&g.transition->effect!=swipeEffect(g.direction))return false;
       if(g.source&&routeIndex(g.source)<0)return false;
@@ -477,6 +510,11 @@ struct View::Impl {
     if(!down){groupMotion=GroupMotion{};routeEvent(EventType::NavigationCancel,from,to,action);return false;}
     groupMotion.prepared=allowed;
     if(allowed){
+      // Follow gestures compose two immutable page poses, just like ordinary
+      // paired transitions. Live animation/setter changes must not make the
+      // outgoing page miss its retained surface at every pointer sample.
+      groupMotion.outgoing=state();
+      groupMotion.outgoingMotions=pageMotions[history.back()];
       initializePage(uint16_t(destination));
       // Interactive previews show the complete target, even when a previous
       // visit left its entry/exit animation frozen at a transparent pose.
@@ -517,7 +555,7 @@ struct View::Impl {
     const char *from=page().path;const RouteAction action=groupMotion.action;
     groupMotion=GroupMotion{};processing=true;
     // The interactive slide has already revealed the target's complete pose.
-    commitRoute(destination,action,from,false);endProcessing();
+    commitRoute(destination,action,from,false,true);endProcessing();
   }
   int find(Id id) const {
     ++stats.lookupQueries;if(!project||!id)return -1;
@@ -748,7 +786,8 @@ struct View::Impl {
   bool pointerAvailable() const {
     // Labels may activate a control in a different subtree. Both ends, and
     // the drag owner, must remain enabled and visible for the whole sequence.
-    return (target<0||visible(page(),state(),target,true))&&
+    return (!coordinated()||contactModal==modalRoot())&&
+      (target<0||visible(page(),state(),target,true))&&
       (activeControl<0||visible(page(),state(),activeControl,true))&&
       (owner<0||visible(page(),state(),owner,true));
   }
@@ -779,8 +818,9 @@ struct View::Impl {
     if(any)invalidatePageRect(bounds);
   }
   int hit(int32_t px,int32_t py) const {
+    const int modal=modalRoot();
     for(int i=int(page().count)-1;i>=0;--i)
-      if(visible(page(),state(),i,true)&&opacity(page(),state(),i)>0&&contains(rect(i),px,py)&&contains(clip(page(),state(),i),px,py)) {
+      if((modal<0||descendant(i,modal))&&policy(i).pointerEvents&&visible(page(),state(),i,true)&&opacity(page(),state(),i)>0&&contains(rect(i),px,py)&&contains(clip(page(),state(),i),px,py)) {
         if(page().nodes[i].motion){const auto &m=motionPose(page(),state(),i);if(!motion_geometry::contains(poseRect(page(),state(),i),m.scale,m.rotation,px,py,m.reveal,page().nodes[i].motion->flags,page().nodes[i].motion->pivotX,page().nodes[i].motion->pivotY,page().nodes[i].kind==Kind::Shape))continue;}
         return i;
       }
@@ -793,7 +833,19 @@ struct View::Impl {
     return motion_geometry::contains(poseRect(page(),state(),i),m.scale,m.rotation,px,py,m.reveal,page().nodes[i].motion->flags,page().nodes[i].motion->pivotX,page().nodes[i].motion->pivotY,page().nodes[i].kind==Kind::Shape);
   }
   int nearestControl(int i) const { for(;i>=0;i=parent(i)) { if(page().nodes[i].kind==Kind::Label&&page().nodes[i].targetId) { int target=find(page().nodes[i].targetId);return target>=0&&visible(page(),state(),target,true)?target:-1; } if(control(page().nodes[i].kind)) return i; } return -1; }
-  int nearestNavigation(int i) const { for(;i>=0;i=parent(i)) if(page().nodes[i].routeAction!=RouteAction::None&&visible(page(),state(),i,true)) return i; return -1; }
+  int activationBoundary(int i) const {
+    for(;i>=0;i=parent(i)){
+      const auto &n=page().nodes[i];
+      if(control(n.kind)||(n.kind==Kind::Label&&n.targetId))return i;
+      if(const auto *link=componentFor(i))if(link->root==i&&link->desc->kind==ComponentKind::ImageButton)return i;
+    }
+    return -1;
+  }
+  int nearestNavigation(int i) const {
+    const int boundary=coordinated()?activationBoundary(i):-1;
+    for(;i>=0;i=parent(i)){if(page().nodes[i].routeAction!=RouteAction::None&&visible(page(),state(),i,true))return i;if(i==boundary)break;}
+    return -1;
+  }
   const FocusDesc *focusDesc(int i) const {
     if(!input||i<0)return nullptr;
     if(focusIndexConfig!=input) {
@@ -807,7 +859,7 @@ struct View::Impl {
   }
   int scopeFor(int i) const { for(int a=parent(i);a>=0;a=parent(a))if(scrolling(page().nodes[a].kind)) { const auto *f=focusDesc(a);if(page().nodes[a].kind==Kind::Scroll&&f&&!f->enabled)continue;return a; }return -1; }
   bool focusable(int i,bool inScope=true) const {
-    if(i<0||!visible(page(),state(),i,true)||opacity(page(),state(),i)==0)return false;
+    if(i<0||!inInputLayer(i)||!visible(page(),state(),i,true)||opacity(page(),state(),i)==0)return false;
     const auto *f=focusDesc(i);const auto &n=page().nodes[i];
     if(f?!f->enabled:!(control(n.kind)||scrolling(n.kind)||n.routeAction!=RouteAction::None))return false;
     const Rect own=baseRect(page(),state(),i);if(own.width<=0||own.height<=0)return false;
@@ -889,6 +941,11 @@ struct View::Impl {
   }
   bool keyAction(InputAction action,Id targetId,const char *route,uint32_t now) {
     if(softInput.visible)return softKeyAction(action);
+    const int modal=modalRoot();
+    if(modal>=0){
+      if(action==InputAction::Back){requestHide(modal);return true;}
+      if(action==InputAction::Home||action==InputAction::Push||action==InputAction::Replace||action==InputAction::Callback)return false;
+    }
     if(softInput.node>=0&&(action==InputAction::Back||action==InputAction::Home))softCancel();
     if(action==InputAction::None)return true;
     if(action==InputAction::Home)return navigate(nullptr,RouteAction::Home);
@@ -923,11 +980,13 @@ struct View::Impl {
     if(action==InputAction::ScrollPrevious||action==InputAction::ScrollNext)return scroll(i,state()[i].scrollX+(reverse?-24:24),state()[i].scrollY+(reverse?-24:24));
     return false;
   }
-  void invoke(Event &event,Id id,bool capture,EventPhase phase,const std::vector<Listener> &copy) {
+  void invoke(Event &event,Id id,bool capture,EventPhase phase,const std::vector<Listener> &copy,bool defaults=false) {
     event.currentTarget=id; event.phase=phase;
     const Listener key{id,event.type,nullptr,nullptr,capture};
     const auto first=std::lower_bound(copy.begin(),copy.end(),key,listenerBefore);
     for(auto it=first;it!=copy.end()&&it->id==id&&it->type==event.type&&it->capture==capture;++it) {
+      if(coordinated()&&event.type==EventType::Click&&it->defaultAction!=defaults)continue;
+      if((defaults||it->scoped)&&!acceptsEvent(event))continue;
       if(event.immediatePropagationStopped)break;
       ++stats.listenerVisits;it->callback(it->context,event);
     }
@@ -944,6 +1003,7 @@ struct View::Impl {
   }
   bool dispatch(int index,EventType type,int32_t animationEndValue=0) {
     if(index<0||!project) return true;
+    const bool wasDown=down;
     if(eventDepth==eventPaths.size())eventPaths.emplace_back();
     auto &path=eventPaths[eventDepth++];path.clear();
     for(int i=index;i>=0;i=parent(i))path.push_back(i);
@@ -958,12 +1018,25 @@ struct View::Impl {
     event.cancelable=type==EventType::Click||type==EventType::PointerDown||type==EventType::PointerMove||type==EventType::PointerUp;
     event.scrollX=state()[index].scrollX;event.scrollY=state()[index].scrollY;
     const auto copy=listeners;
+    const bool savedPointerDispatch=pointerDispatch;
+    pointerDispatch=type==EventType::PointerDown||type==EventType::PointerMove;
+    struct PointerDispatchGuard {bool &value;bool previous;~PointerDispatchGuard(){value=previous;}} pointerGuard{pointerDispatch,savedPointerDispatch};
     for(size_t i=length;i>1&&!event.propagationStopped;--i) invoke(event,page().nodes[chain[i-1]].id,true,EventPhase::Capture,*copy);
     if(!event.propagationStopped) {
       invoke(event,event.target,true,EventPhase::Target,*copy);
       if(!event.immediatePropagationStopped)invoke(event,event.target,false,EventPhase::Target,*copy);
     }
     for(size_t i=1;event.bubbles&&i<length&&!event.propagationStopped;++i) invoke(event,page().nodes[chain[i]].id,false,EventPhase::Bubble,*copy);
+    if(coordinated()&&type==EventType::Click&&!event.defaultPrevented&&(!wasDown||down)) {
+      // Default actions are queued conceptually: no action runs before all veto
+      // listeners. Independent native controls bound the activation chain.
+      event.immediatePropagationStopped=false;
+      const int boundary=activationBoundary(index);
+      for(size_t i=0;i<length&&!event.defaultPrevented;++i){
+        invoke(event,page().nodes[chain[i]].id,false,i?EventPhase::Bubble:EventPhase::Target,*copy,true);
+        if(chain[i]==boundary)break;
+      }
+    }
     return !event.defaultPrevented;
   }
   bool routeEvent(EventType type,const char *from,const char *to,RouteAction action) {
@@ -979,7 +1052,10 @@ struct View::Impl {
   void cancel(bool rebound=false) {
     const bool restore=rebound&&groupMotion.active&&groupMotion.follow&&groupMotion.prepared&&groupMotion.offset;
     if(!down) {if(restore)settleMotion(false,groupMotion.updated);else abortGroup();return;}
+    const int canceledOwner=owner;const bool notifyOwner=coordinated()&&canceledOwner>=0&&!customCompatibility&&ownerStarted&&!ownerFinished;
+    ownerFinished=true;
     down=false; cancelTarget();
+    if(notifyOwner)dispatch(canceledOwner,EventType::GestureCancel);
     // A canceled pager drag returns to its last committed page.
     if(drag==Drag::Pager&&owner>=0) { state()[owner].scrollX=state()[owner].value*pagerStride(owner); invalidate(owner); }
     if(interruptedPager>=0) { state()[interruptedPager].scrollX=state()[interruptedPager].value*pagerStride(interruptedPager);invalidate(interruptedPager);interruptedPager=-1; }
@@ -999,13 +1075,18 @@ struct View::Impl {
       navigate(path.c_str(),action,explicitTransition?&config:nullptr,instant);
     }
   }
-  void commitRoute(int destination,RouteAction action,const char *from,bool playEnter=true) {
+  void commitRoute(int destination,RouteAction action,const char *from,bool playEnter=true,bool resumeLoops=false) {
     const char *to=project->pages[destination].path;
     if(action==RouteAction::Home) history.assign(1,uint16_t(destination));
     else if(action==RouteAction::Back) history.pop_back();
     else if(action==RouteAction::Replace) history.back()=uint16_t(destination);
     else history.push_back(uint16_t(destination));
     initializeActive();++inputEpoch;restoreFocus();enterAnimations(playEnter);refresh->invalidateAll();
+    // Preserve loop playback, while finite entry effects stay revealed. The
+    // route callback runs last so the application can still pause these loops.
+    if(resumeLoops)for(uint16_t i=0;i<page().count;++i){const auto &a=page().nodes[i].animation;
+      if(a.trigger==AnimationTrigger::Enter&&!a.repeat&&a.duration)startAnimation(i,0,true);
+    }
     routeEvent(EventType::RouteChange,from,to,action);
   }
   TransitionSample pageSample(uint32_t elapsed) const {
@@ -1260,15 +1341,17 @@ struct View::Impl {
     int32_t next=normalized(i,int32_t(std::max<int64_t>(n.minimum,std::min<int64_t>(n.maximum,raw))));
     if(next!=state()[i].value) { state()[i].value=next;changed=true;invalidate(i);dispatch(i,EventType::Input); }
   }
+  #include "detail/InteractionRuntime.inc.h"
   void pointerDown(int32_t px,int32_t py,uint32_t now) {
     if(!project) return;processing=true;cancel();if(editNode>=0){int i=editNode;editNode=-1;setValue(i,editValue);dispatch(i,EventType::Input);}++inputEpoch;px=clamp32(px,-32768,32767);py=clamp32(py,-32768,32767);x=startX=px;y=startY=py;downAt=now;spinRepeatAt=now+500;down=true;
     const bool interruptedInertia=inertia.active&&contains(rect(inertia.node),px,py)&&contains(clip(page(),state(),inertia.node),px,py);inertia.active=false;
     interruptedPager=animation.active?animation.node:-1;animation.active=false;
     lastX=px;lastY=py;lastAt=now;velocityX=velocityY=0;
     canceled=changed=longPressed=false;moved=interruptedPager>=0||interruptedInertia;allowX=allowY=true;drag=Drag::None;owner=-1;
+    pointerClaim=-1;pointerClaimAxis=GestureAxis::None;defaultsBlocked=customCompatibility=ownerStarted=ownerFinished=false;contactModal=modalRoot();
     target=hit(x,y);activeControl=nearestControl(target);
     gesture=nullptr;navigationDot=-1;navigationFooterContact=false;
-    if(const auto *g=navigationGroup(page().path))if(g->indicatorHeight&&contains(navigationFooter(*g),x,y)){
+    if(contactModal<0)if(const auto *g=navigationGroup(page().path))if(g->indicatorHeight&&contains(navigationFooter(*g),x,y)){
       navigationFooterContact=true;navigationDot=navigationDotAt(*g,x,y);target=activeControl=-1;
     }
     if(input) { int candidate=activeControl>=0?activeControl:target;for(;candidate>=0&&!focusable(candidate,false);candidate=parent(candidate)){}if(candidate>=0)setFocus(candidate,false); }
@@ -1287,7 +1370,8 @@ struct View::Impl {
       if(scrolling(page().nodes[a].kind))break;
     }
     invalidate(activeControl);
-    dispatch(target,EventType::PointerDown);
+    const bool accepted=dispatch(target,EventType::PointerDown);
+    if(coordinated())defaultsBlocked=!accepted;
     endProcessing();
   }
   void pointerMove(int32_t px,int32_t py,uint32_t now) {
@@ -1311,8 +1395,15 @@ struct View::Impl {
     // A custom map/canvas handler can consume a move while retaining this
     // pointer's target. Do not turn it into a built-in drag and PointerCancel;
     // later samples/up still belong to that handler, and a drag cannot click.
-    if(!defaultMove||abs(dx)>6||abs(dy)>6)moved=true;
-    if(defaultMove&&drag==Drag::None&&(abs(dx)>6||abs(dy)>6)) {
+    if(!defaultMove||abs(dx)>=(coordinated()?8:7)||abs(dy)>=(coordinated()?8:7))moved=true;
+    if(coordinated()&&!defaultMove&&drag==Drag::None&&!defaultsBlocked&&pointerClaim<0){
+      // Compatibility for existing raw custom handlers. Once consumed, later
+      // samples cannot accidentally turn this sequence into page navigation.
+      drag=Drag::Custom;owner=target;customCompatibility=true;
+    }
+    if(coordinated()&&defaultMove&&!defaultsBlocked&&drag==Drag::None)recognizeCoordinated(dx,dy,now);
+    if(!down){endProcessing();return;}
+    if(!coordinated()&&defaultMove&&drag==Drag::None&&(abs(dx)>6||abs(dy)>6)) {
       const bool horizontal=abs(dx)>=abs(dy);
       const SwipeDirection direction=horizontal?(dx<0?SwipeDirection::Left:SwipeDirection::Right):(dy<0?SwipeDirection::Up:SwipeDirection::Down);
       const bool axisAllowed=horizontal?allowX:allowY;
@@ -1370,6 +1461,9 @@ struct View::Impl {
       // A later reversal cannot turn this sequence into a tap or another drag.
       if(drag==Drag::None) { drag=Drag::Consumed;cancelTarget(); }
     }
+    if(coordinated()&&owner>=0&&!customCompatibility&&defaultMove&&!defaultsBlocked)dispatch(owner,EventType::GestureUpdate);
+    if(!down){endProcessing();return;}
+    if(coordinated()&&(!defaultMove||defaultsBlocked)){endProcessing();return;}
     if(drag==Drag::Range) range(owner);
     else if(drag==Drag::Scroll||drag==Drag::Pager) scroll(owner,startScrollX-dx,startScrollY-dy);
     else if(drag==Drag::Back) { backOffset=clamp32(dx,0,page().width);refresh->invalidateAll(); }
@@ -1392,8 +1486,9 @@ struct View::Impl {
     if(!project||!down) return;processing=true;x=clamp32(px,-32768,32767);y=clamp32(py,-32768,32767);
     const int oldControl=activeControl;
     // Keep the sequence cancelable until release callbacks/defaults finish.
-    const bool perform=!canceled&&dispatch(target,EventType::PointerUp);
+    const bool perform=!canceled&&dispatch(target,EventType::PointerUp)&&(!coordinated()||!defaultsBlocked);
     if(!down) { endProcessing();return; }
+    if(coordinated()&&owner>=0&&!customCompatibility&&ownerStarted){ownerFinished=true;dispatch(owner,EventType::GestureEnd);if(!down){endProcessing();return;}}
     if(drag==Drag::Gesture&&gesture) {
       const bool horizontal=!verticalSwipe(gesture->direction);
       const int32_t distance=gesture->direction==SwipeDirection::Left?startX-x:gesture->direction==SwipeDirection::Right?x-startX:gesture->direction==SwipeDirection::Up?startY-y:y-startY;
@@ -1430,7 +1525,7 @@ struct View::Impl {
       int32_t speed=(state()[owner].flags&Horizontal)?velocityX:velocityY;
       if(uint32_t(now-lastAt)<=150&&abs(speed)>80)inertia={owner,-speed,0,now,true};
     } else if(perform&&activeControl>=0&&page().nodes[activeControl].kind==Kind::Range&&(drag==Drag::Range||!moved)) {
-      const int rangeControl=activeControl;range(rangeControl);
+      const int rangeControl=activeControl;if(!coordinated()||drag!=Drag::Range)range(rangeControl);
       if(down&&state()[rangeControl].value!=startValue) dispatch(rangeControl,EventType::Change);
     } else if(perform&&drag==Drag::None&&!moved&&!longPressed&&target>=0&&nodeContains(target,x,y)) {
       activateNode(target,now,true);
@@ -1585,10 +1680,12 @@ struct View::Impl {
   void prepareCache(const PageDesc &p,const RetainedVector<State> &s,FrameCache &cache,int32_t visibleHeight=-1) {
     cache.visibleHeight=visibleHeight;
     cache.nodes.resize(p.count);cache.words=(size_t(p.count)+31)/32;cache.bandHeight=(int32_t(p.height)+31)/32;
+    cache.mediaFirst=NoParent;cache.mediaEnd=0;
     cache.bands.assign(cache.words*32,0);
     cache.lines.clear();
     for(uint16_t i=0;i<p.count;++i)cache.nodes[i].children=0;
     for(uint16_t i=0;i<p.count;++i){++stats.geometryNodes;auto &g=cache.nodes[i];const auto &n=p.nodes[i];const auto &v=s[i];
+      if(n.kind==Kind::Media){if(cache.mediaFirst==NoParent)cache.mediaFirst=i;cache.mediaEnd=uint16_t(i+1);}
       g.rect=baseRect(p,s,i);g.rect.x+=v.animationX;g.rect.y+=v.animationY;g.clip={0,0,p.width,p.height};g.visible=!(v.flags&Hidden);g.inputVisible=g.visible&&!(v.flags&Disabled);
       if(n.parent!=NoParent){auto &a=cache.nodes[n.parent];++a.children;const Rect b=p.nodes[n.parent].rect;
         g.rect.x+=a.rect.x-b.x-s[n.parent].scrollX;g.rect.y+=a.rect.y-b.y-s[n.parent].scrollY;
@@ -1612,7 +1709,7 @@ struct View::Impl {
   // grow a history of obsolete layouts in the retained surface.
   template<class Previous> void prepareVisualCache(const PageDesc &p,const RetainedVector<State> &s,const Previous &previous,
                           const FrameCache &source,FrameCache &cache) {
-    cache.nodes=source.nodes;cache.bands=source.bands;cache.words=source.words;cache.bandHeight=source.bandHeight;cache.visibleHeight=source.visibleHeight;cache.lines.clear();
+    cache.nodes=source.nodes;cache.bands=source.bands;cache.words=source.words;cache.bandHeight=source.bandHeight;cache.visibleHeight=source.visibleHeight;cache.mediaFirst=source.mediaFirst;cache.mediaEnd=source.mediaEnd;cache.lines.clear();
     stats.geometryReuses+=p.count;
     for(uint16_t i=0;i<p.count;++i){auto &g=cache.nodes[i];const auto &old=source.nodes[i];
       if(previous[i].text.revision!=s[i].text.revision||previous[i].text.compiled!=s[i].text.compiled){
@@ -1878,17 +1975,21 @@ struct View::Impl {
     const Rect v=self.snapshotMotionRect;
     if(self.snapshotTransition&&!self.buildingSurface&&!self.renderingViewport&&v.width>0&&
        (v.x||v.y||v.width!=self.rasterFrame.current.page->width||v.height!=self.rasterFrame.current.page->height)){
-      // Paint stationary navigation from the incoming route, then replace only
-      // the moving viewport. This is also the exact portable fallback to DMA.
+      // The moving viewport overwrites every content pixel. Paint only the
+      // disjoint stationary strips, rather than rasterizing the complete
+      // incoming tile and then painting the whole content a second time.
+      const Rect content=intersect(v,{area.x,area.y,area.width,area.height});
+      Rect fixed[4];const int fixedCount=raster_occlusion::strips({area.x,area.y,area.width,area.height},content,fixed);
       const bool savedTransition=self.snapshotTransition;const PageDesc *savedPreview=self.rasterFrame.preview.page;
       const PageDesc *savedPage=self.rasterFrame.current.page;const Surface *savedSurface=self.snapshotSurface;
       const bool keepSource=self.groupMotion.active&&self.groupMotion.prepared&&savedPreview;
       if(keepSource){self.rasterFrame.current.page=savedPreview;self.rasterFrame.current.values.swap(self.rasterFrame.preview.values);self.rasterFrame.current.motions.swap(self.rasterFrame.preview.motions);std::swap(self.rasterFrame.current.geometry,self.rasterFrame.preview.geometry);self.snapshotSurface=self.previewSurface;}
       self.snapshotTransition=false;self.rasterFrame.preview.page=nullptr;
-      const Status base=render(context,area,pixels,stride);
+      Status base=Status::Ok;
+      for(int i=0;i<fixedCount&&base==Status::Ok;++i){const Rect &r=fixed[i];
+        base=render(context,DirtyRect(r.x,r.y,r.width,r.height),pixels+size_t(r.y-area.y)*stride+size_t(r.x-area.x),stride);}
       if(keepSource){self.rasterFrame.current.values.swap(self.rasterFrame.preview.values);self.rasterFrame.current.motions.swap(self.rasterFrame.preview.motions);std::swap(self.rasterFrame.current.geometry,self.rasterFrame.preview.geometry);self.rasterFrame.current.page=savedPage;self.snapshotSurface=savedSurface;}
       self.snapshotTransition=savedTransition;self.rasterFrame.preview.page=savedPreview;if(base!=Status::Ok)return base;
-      const Rect content=intersect(v,{area.x,area.y,area.width,area.height});
       if(content.width<=0||content.height<=0)return Status::Ok;
       self.renderingViewport=true;
       const Status result=render(context,DirtyRect(content.x,content.y,content.width,content.height),
@@ -1985,7 +2086,7 @@ struct View::Impl {
       const Rect source=self.renderingViewport?v:Rect{0,0,self.rasterFrame.current.page->width,self.rasterFrame.current.page->height};
       const int opaqueCover=self.opaqueCover(area);
       int firstPaint=opaqueCover;
-      if(opaqueCover>=0)if(auto *panel=nice_gfx::detail::DisplayAccess::panel(self.display)){
+      if(opaqueCover>=0&&self.renderOrder==PixelOrder::Native)if(auto *panel=nice_gfx::detail::DisplayAccess::panel(self.display)){
         bool painted=false;result=self.blitOpaqueCover(*panel,opaqueCover,area,painted);
         if(result!=Status::Ok){self.canvas.detach();return result;}
         if(painted)++firstPaint;
@@ -1993,9 +2094,19 @@ struct View::Impl {
       if(opaqueCover<0)self.canvas.fillRect(source.x+self.paintOffsetX,source.y+self.paintOffsetY,source.width,source.height,self.rasterFrame.current.page->background);
       const FrameCache &cache=*self.paintCache;
       const int firstBand=clamp32((area.y-self.paintOffsetY)/cache.bandHeight,0,31),lastBand=clamp32((area.y+area.height-1-self.paintOffsetY)/cache.bandHeight,0,31);
-      for(size_t word=0;word<cache.words;++word){uint32_t candidates=0;
+      const size_t firstCandidate=firstPaint>0?size_t(firstPaint):0;
+      for(size_t word=firstCandidate/32;word<cache.words;++word){uint32_t candidates=0;
       for(int band=firstBand;band<=lastBand;++band)candidates|=cache.bands[size_t(band)*cache.words+word];
-      while(candidates){uint32_t bits=candidates;int bit=0;while(!(bits&1)){bits>>=1;++bit;}candidates&=candidates-1;const int i=int(word*32)+bit;if(i<firstPaint)continue;++self.stats.candidateNodes;
+      if(word==firstCandidate/32)candidates&=uint32_t(0xffffffffu)<<(firstCandidate%32);
+      while(candidates){int bit=0;
+#if defined(__GNUC__) || defined(__clang__)
+      bit=__builtin_ctz(candidates);
+#else
+      uint32_t bits=candidates;
+      if(!(bits&0xffffu)){bits>>=16;bit+=16;}if(!(bits&0xffu)){bits>>=8;bit+=8;}
+      if(!(bits&0xfu)){bits>>=4;bit+=4;}if(!(bits&3u)){bits>>=2;bit+=2;}if(!(bits&1u))++bit;
+#endif
+      candidates&=candidates-1;const int i=int(word*32)+bit;++self.stats.candidateNodes;
       const Geometry &g=cache.nodes[i];Rect clipped=intersect(g.clip,g.rect);
       if(self.renderingViewport)clipped=intersect(clipped,v);
       clipped.x+=self.paintOffsetX;clipped.y+=self.paintOffsetY;
@@ -2038,6 +2149,19 @@ struct View::Impl {
       for(uint16_t i=0;i<g.count;++i)self.canvas.fillRoundRect(left+i*step,dotsY,g.dotSize,g.dotSize,g.dotSize/2,i==self.snapshotGroupIndex?g.fillColor:g.trackColor);
     }
     if(!self.buildingSurface&&!self.snapshotTransition&&!self.rasterFrame.preview.page)self.paintKeyboard({requestedArea.x,requestedArea.y,requestedArea.width,requestedArea.height});
+    // Mirror an ordinary raster refresh into its unpublished retained slot.
+    // A partial refresh is eligible only when its base was the immediately
+    // preceding completed screen frame. Never rerasterize to build this copy.
+    if(self.seedSurface&&!self.buildingSurface){
+      const size_t width=self.rasterFrame.current.page->width;
+      for(int32_t row=0;row<area.height;++row){
+        auto *dst=self.seedSurface->pixels+size_t(area.y+row)*width+area.x;
+        const auto *src=pixels+size_t(row)*stride;
+        if(self.renderOrder==PixelOrder::Wire)memcpy(dst,src,size_t(area.width)*2);
+        else for(int32_t col=0;col<area.width;++col)dst[col]=uint16_t((src[col]<<8)|(src[col]>>8));
+      }
+      self.seedPixels+=uint64_t(area.width)*area.height;
+    }
     self.canvas.detach();return Status::Ok;
   }
   Status start() {
@@ -2045,6 +2169,7 @@ struct View::Impl {
     if(processing)return Status::Busy;
     if(display.width()!=page().width||display.height()!=page().height)return Status::InvalidArgument;
     if(refresh->busy()||!refresh->dirty()||updateDepth)return Status::Ok;
+    seedSurface=nullptr;seedPixels=seedExpectedPixels=0;
     surfaceWarmPending=!surfaces.empty();++surfaceMutationEpoch;
     ensureInputAvailable();
     if(input&&focusNode>=0&&!focusable(focusNode,false)){
@@ -2083,7 +2208,7 @@ struct View::Impl {
       const int32_t incoming=offset-groupMotion.sign*motionDistance();
       snapshotTransition=true;snapshotPhase=TransitionPhase::Paired;snapshotBackground=page().background;
       transitionFrame=groupMotion.vertical?TransitionSample{0,offset,0,incoming,255,true}:TransitionSample{offset,0,incoming,0,255,true};snapshotPressed=-1;
-      if(groupMotion.prepared){rasterFrame.preview.page=&page();rasterFrame.preview.values=state();rasterFrame.preview.motions=pageMotions[history.back()];rasterFrame.current.page=&project->pages[groupMotion.destination];rasterFrame.current.values=pages[groupMotion.destination];rasterFrame.current.motions=pageMotions[groupMotion.destination];}
+      if(groupMotion.prepared){rasterFrame.preview.page=&page();rasterFrame.preview.values=groupMotion.outgoing;rasterFrame.preview.motions=groupMotion.outgoingMotions;rasterFrame.current.page=&project->pages[groupMotion.destination];rasterFrame.current.values=pages[groupMotion.destination];rasterFrame.current.motions=pageMotions[groupMotion.destination];}
     }
     snapshotSurface=previewSurface=nullptr;snapshotAnimationSurface=nullptr;snapshotAnimationLayerCount=0;
     // Hydrate a retained terminal key before exact-match and animation-atlas
@@ -2112,6 +2237,10 @@ struct View::Impl {
     // not force a static page to rerasterize at every slide sample.
     if(!renderBudget.maxPixelsPerTick&&!keyboardCovers&&!snapshotSurface&&!snapshotAnimationSurface&&snapshotPressed<0&&!plainFocus){
       uint64_t repairBudget=0;
+      // A claimed gesture freezes this key for its complete lifetime. A cold
+      // large change may therefore be repaired once, rather than rasterized
+      // again for every drag sample. Ordinary live frames keep the small cap.
+      if(groupMotion.active&&groupMotion.prepared)repairBudget=uint64_t(rasterFrame.current.page->width)*rasterFrame.current.page->height;
       if(snapshotTransition&&snapshotPhase==TransitionPhase::Enter&&!rasterFrame.preview.page&&transitionFrame.opacity==255&&
          !snapshotMotionRect.x&&!snapshotMotionRect.y&&snapshotMotionRect.width==rasterFrame.current.page->width&&snapshotMotionRect.height==rasterFrame.current.page->height){
         const Rect visible=intersect({0,0,rasterFrame.current.page->width,rasterFrame.current.page->height},
@@ -2124,6 +2253,7 @@ struct View::Impl {
       if(repairTerminalAnimationSurface(geometryPrepared,repairBudget))findAnimationSurface();
       if(snapshotTransition&&!snapshotAnimationSurface){
         snapshotSurface=patchSurface(geometryPrepared,repairBudget);transitionRepairAttempted=true;
+        if(!snapshotSurface)snapshotSurface=captureGestureSurface(geometryPrepared);
       }
     }
     // Native/PPA composition can write before Refresh::start. Keep those
@@ -2161,7 +2291,8 @@ struct View::Impl {
       rasterFrame.current.values.swap(rasterFrame.preview.values);rasterFrame.current.motions.swap(rasterFrame.preview.motions);std::swap(rasterFrame.current.geometry,rasterFrame.preview.geometry);
       rasterFrame.current.page=outgoingPage;rasterFrame.preview.page=nullptr;paintCache=&rasterFrame.current.geometry;
       snapshotPressed=snapshotFocus=snapshotGroupIndex=-1;
-      previewSurface=patchSurface(previewGeometryPrepared);
+      previewSurface=patchSurface(previewGeometryPrepared,groupMotion.active&&groupMotion.prepared?uint64_t(outgoingPage->width)*outgoingPage->height:0);
+      if(!previewSurface)previewSurface=captureGestureSurface(previewGeometryPrepared);
       rasterFrame.current.values.swap(rasterFrame.preview.values);rasterFrame.current.motions.swap(rasterFrame.preview.motions);std::swap(rasterFrame.current.geometry,rasterFrame.preview.geometry);
       rasterFrame.current.page=incomingPage;rasterFrame.preview.page=outgoingPage;paintCache=savedPaint;
       snapshotPressed=savedPressed;snapshotFocus=savedFocus;snapshotGroupIndex=savedGroup;
@@ -2183,17 +2314,18 @@ struct View::Impl {
     // Preserve authored fade timing. Cached immutable pages permit one PPA
     // transaction for the whole frame. Refresh borrows scratch until complete;
     // the start() busy gate prevents reuse while a transfer still reads it.
-    const bool pairedFade=rgb565_ppa::Context::available()&&snapshotTransition&&
+    const bool pairedFade=ppaBlendEnabled&&rgb565_ppa::Context::available()&&snapshotTransition&&
       snapshotPhase==TransitionPhase::Paired&&transition.config.effect==TransitionEffect::Fade&&
       snapshotSurface&&previewSurface&&rasterFrame.preview.page&&rasterFrame.preview.page->width==w&&rasterFrame.preview.page->height==h&&
       viewport.x==0&&viewport.y==0&&viewport.width==w&&viewport.height==h&&
       t.outX==0&&t.outY==0&&t.inX==0&&t.inY==0&&
       !snapshotKeyboard.visible&&!snapshotInput&&(snapshotGroupIndex<0||!snapshotGroup.indicatorHeight);
-    const bool singleFade=rgb565_ppa::Context::available()&&snapshotTransition&&!rasterFrame.preview.page&&snapshotSurface&&
+    const bool singleFade=ppaBlendEnabled&&rgb565_ppa::Context::available()&&snapshotTransition&&!rasterFrame.preview.page&&snapshotSurface&&
       (snapshotPhase==TransitionPhase::Enter||snapshotPhase==TransitionPhase::Exit)&&transition.config.effect==TransitionEffect::Fade&&
       viewport.x==0&&viewport.y==0&&viewport.width==w&&viewport.height==h&&
       !t.outX&&!t.outY&&!t.inX&&!t.inY&&!snapshotKeyboard.visible&&!snapshotInput&&
       (snapshotGroupIndex<0||!snapshotGroup.indicatorHeight);
+    if(!direct)prepareViewportFade(pieces,count);
     if(!renderBudget.maxPixelsPerTick&&(pairedFade||singleFade)){
       auto *panel=nice_gfx::detail::DisplayAccess::panel(display);
       const PixelView incoming(snapshotSurface->pixels,w,h,0,PixelOrder::Wire);
@@ -2293,12 +2425,40 @@ struct View::Impl {
       const Status painted=paintNativeRender(nativeFrame);if(painted!=Status::Ok)return painted;
       surface=PixelView(nativeFrame.frame.pixels,w,h,nativeFrame.frame.stride,PixelOrder::Native);direct=true;
     }
+    // A full rectangle seeds the page. Subsequent dirty tiles may update it
+    // only with an exact preceding-screen-frame fence; unchanged pixels then
+    // have a proved base. Any intervening input/transition/native frame breaks
+    // this chain. Both paths publish only after complete LCD frame completion.
+    if(!direct&&!count&&!nativeReady&&!snapshotTransition&&!rasterFrame.preview.page&&
+       !snapshotSurface&&!snapshotAnimationSurface&&!snapshotKeyboard.visible&&!snapshotInput&&snapshotPressed<0&&
+       (snapshotGroupIndex<0||!snapshotGroup.indicatorHeight)&&!circularKeyboard){
+      seedFullPage=frameDamageCount==1&&frameDamage[0].x==0&&frameDamage[0].y==0&&frameDamage[0].width==w&&frameDamage[0].height==h;
+      for(auto &slot:surfaces)if(slot.ready&&slot.page==rasterFrame.current.page&&slot.presentedAtFrame==stats.completedFrames){seedSurface=&slot;break;}
+      if(!seedSurface&&seedFullPage)seedSurface=acquireFrameSurface(nullptr,nullptr,nullptr);
+      if(seedSurface){
+        seedSurface->ready=false;seedSurface->paused=false;seedSurface->compressionAttempted=false;++seedSurface->pixelsRevision;
+        seedSurface->page=rasterFrame.current.page;seedSurface->key=rasterFrame.current.values;seedSurface->geometry=rasterFrame.current.geometry;
+        for(size_t i=0;i<frameDamageCount;++i)seedExpectedPixels+=frameDamage[i].pixels();
+      }
+    }
     const Status started=refresh->start(render,this,PixelOrder::Wire,direct?&surface:nullptr,count?pieces:nullptr,count);
+    if(started!=Status::Ok)seedSurface=nullptr;
     if(started==Status::Ok&&refresh->busy())frameGuard.panel=nullptr;
     return started;
   }
   void releaseSnapshot() { if(!refresh->busy()){rasterFrame.release();snapshotSurface=previewSurface=nullptr;} }
   void completedFrame() {
+    if(seedSurface){
+      if(seedPixels==seedExpectedPixels){
+        seedSurface->ready=true;seedSurface->row=rasterFrame.current.page->height;
+        seedSurface->presentedAtFrame=stats.completedFrames+1;
+        releaseSurfaceText(*seedSurface);if(seedFullPage)++surfaceStats.seededPages;else ++surfaceStats.mirroredFrames;surfaceStats.seededPixels+=seedPixels;
+      }
+      seedSurface=nullptr;seedPixels=seedExpectedPixels=0;
+    }
+    if(snapshotSurface&&!snapshotTransition&&!rasterFrame.preview.page&&!snapshotKeyboard.visible&&!snapshotInput&&snapshotPressed<0&&
+       (snapshotGroupIndex<0||!snapshotGroup.indicatorHeight)&&!circularKeyboard)
+      const_cast<Surface*>(snapshotSurface)->presentedAtFrame=stats.completedFrames+1;
     ++stats.completedFrames;
     completeMotionFrame();
     if(snapshotTransitionEpoch&&snapshotTransitionEpoch==transitionEpoch&&!transitionFrame.active)completedTransitionEpoch=transitionEpoch;
@@ -2461,6 +2621,7 @@ Status View::mount(const ProjectDesc &p) {
   mounted.profilingClock=s.profilingClock;mounted.refresh->setProfilingClock(s.profilingClock);
   mounted.stats=s.stats;mounted.inputEpoch=s.inputEpoch+1;mounted.inputLayoutEpoch=s.inputLayoutEpoch;
   mounted.renderBudget=s.renderBudget;
+  mounted.ppaBlendEnabled=s.ppaBlendEnabled;
   mounted.refresh->configurePixelBudget(s.refresh->pixelBudget());
   mounted.refresh->configureMergeSlack(s.refresh->mergeSlack());
   // Transfer tile ownership only after accepted DMA has drained. The new
@@ -2470,6 +2631,40 @@ Status View::mount(const ProjectDesc &p) {
   return Status::Ok;
 }
 bool View::on(Id id,EventType type,EventHandler cb,void *context,bool capture) { if(!cb)return false;impl_->addListener({id,type,cb,context,capture});return true; }
+bool View::onScoped(Id id,EventType type,EventHandler cb,void *context){if(!cb)return false;impl_->addListener({id,type,cb,context,false,false,true});return true;}
+bool View::onDefault(Id id,EventType type,EventHandler cb,void *context){
+  if(!cb)return false;
+  for(const auto &l:*impl_->listeners)if(l.id==id&&l.type==type&&l.callback==cb&&l.context==context&&l.defaultAction)return true;
+  impl_->addListener({id,type,cb,context,false,true,true});return true;
+}
+bool View::configureInteraction(InteractionVersion version,const InteractionDesc *policies,size_t count){
+  auto &s=*impl_;if(!s.project||s.processing||s.down||count>4096||(count&&!policies)||(version!=InteractionVersion::Legacy&&version!=InteractionVersion::Coordinated))return false;
+  std::vector<InteractionDesc> prepared;if(count)prepared.assign(policies,policies+count);
+  std::sort(prepared.begin(),prepared.end(),[](const InteractionDesc &a,const InteractionDesc &b){return a.id<b.id;});
+  for(size_t i=0;i<count;++i){const auto &d=prepared[i];const auto &p=d.policy;
+    if(!d.id||(i&&prepared[i-1].id==d.id)||uint8_t(p.axis)>3||uint8_t(p.ownership)>2||uint8_t(p.eventScope)>2)return false;
+    bool exists=false;for(uint16_t page=0;page<s.project->count;++page)for(uint16_t n=0;n<s.project->pages[page].count;++n)if(s.project->pages[page].nodes[n].id==d.id)exists=true;
+    if(!exists)return false;
+  }
+  s.interactionPolicies.swap(prepared);s.interactionVersion=version;return true;
+}
+InteractionVersion View::interactionVersion()const{return impl_->interactionVersion;}
+bool View::setGesturePolicy(Id id,const GesturePolicy &policy){
+  auto &s=*impl_;if(s.processing||s.down||s.find(id)<0||uint8_t(policy.axis)>3||uint8_t(policy.ownership)>2||uint8_t(policy.eventScope)>2)return false;
+  const auto at=std::lower_bound(s.interactionPolicies.begin(),s.interactionPolicies.end(),id,[](const InteractionDesc &a,Id b){return a.id<b;});
+  if(at!=s.interactionPolicies.end()&&at->id==id)at->policy=policy;else s.interactionPolicies.insert(at,{id,policy});return true;
+}
+bool View::claimPointer(Id id,GestureAxis axis){
+  auto &s=*impl_;const int i=s.find(id);
+  if(!s.coordinated()||!s.down||!s.pointerDispatch||s.drag!=Impl::Drag::None||i<0||axis==GestureAxis::None||uint8_t(axis)>3||!s.descendant(s.target,i)||!s.inInputLayer(i))return false;
+  if(s.pointerClaim<0||s.descendant(i,s.pointerClaim)){s.pointerClaim=i;s.pointerClaimAxis=axis;}
+  return true;
+}
+Id View::gestureOwner()const{
+  const auto &s=*impl_;if(!s.down)return 0;if(s.owner>=0)return s.page().nodes[s.owner].id;
+  if(s.gesture)return s.gesture->id;if(s.drag==Impl::Drag::Group)if(const auto *g=s.navigationGroup(s.page().path))return g->id;return 0;
+}
+bool View::acceptsEvent(const Event &event)const{return impl_->acceptsEvent(event);}
 bool View::onOnce(Id id,EventType type,EventHandler cb,void *context,bool capture) {
   if(!cb)return false;
   const Impl::Listener key{id,type,cb,context,capture};
@@ -2534,6 +2729,15 @@ bool View::configureNavigation(const NavigationDesc *config){
 }
 bool View::configureRenderCache(uint16_t *storage,size_t pixels,size_t compressedPixels){return impl_->configureSurfaces(storage,pixels,compressedPixels);}
 bool View::prewarmRenderCache(const char *path){return impl_->prewarmSurface(path);}
+bool View::stepRenderCache(uint32_t now,size_t maxPixels){
+  auto &s=*impl_;if(!s.project||!maxPixels||s.softInput.visible)return false;
+  const size_t saved=s.renderBudget.maxPixelsPerTick;
+  s.renderBudget.maxPixelsPerTick=std::min(maxPixels,saved?saved:s.capacity);
+  const auto before=s.surfaceStats.warmedTiles;
+  s.warmSurfaceTile(now,true);
+  s.renderBudget.maxPixelsPerTick=saved;
+  return s.surfaceStats.warmedTiles!=before;
+}
 bool View::configureCircularClip(bool enabled){
   auto &s=*impl_;if(s.processing||s.refresh->busy()||s.groupMotion.active||s.transition.active||s.backAnimation.active||s.animation.active||s.inertia.active||s.animationsRunning())return false;
   const bool result=s.refresh->configureCircularClip(enabled);if(result){s.releaseKeyboardPointer();s.circularKeyboard=enabled;s.refresh->invalidateAll();}return result;
@@ -2634,6 +2838,20 @@ Status View::resetImage(Id id) {
   int index=-1;const Status target=impl_->imageTarget(id,index);if(target!=Status::Ok)return target;
   impl_->replaceImage(index,Image(),false);return Status::Ok;
 }
+bool View::clearPageImages(const char *path) {
+  auto &s=*impl_;const int index=s.routeIndex(path);
+  if(index<0||index==s.history.back())return false;
+  bool changed=false;
+  for(auto &value:s.pages[size_t(index)])if(value.imageOverride&&value.image.impl_&&!value.image.impl_->flash){
+    value.image=Image();value.mediaFrame=0;value.mediaAt=0;value.mediaPending=true;changed=true;
+  }
+  // Do not invalidate the outgoing immutable key: paired fades may still
+  // sample its retained pixels. Once the transition drains, inactive warming
+  // compares this cleared state and releases that old key before its first
+  // replacement tile. LRU eviction also releases the lease normally.
+  if(changed){s.surfaceWarmPending=!s.surfaces.empty();++s.surfaceMutationEpoch;}
+  return true;
+}
 bool View::setVisible(Id id,bool visible){
   auto &s=*impl_;const int i=s.find(id);if(i<0)return false;
   auto *m=s.liveMotion(i);
@@ -2678,6 +2896,8 @@ bool View::configureRenderBudget(const RenderBudget &budget){
   s.renderBudget=budget;return true;
 }
 RenderBudget View::renderBudget()const{return impl_->renderBudget;}
+bool View::configurePpaBlend(bool enabled){auto &s=*impl_;if(s.processing||s.refresh->busy())return false;s.ppaBlendEnabled=enabled;return true;}
+bool View::ppaBlendEnabled()const{return impl_->ppaBlendEnabled;}
 bool View::configureMergeSlack(uint32_t pixels){return !impl_->processing&&impl_->refresh->configureMergeSlack(pixels);}
 uint32_t View::mergeSlack()const{return impl_->refresh->mergeSlack();}
 MemoryStats View::memoryStats()const{const auto &s=*impl_;MemoryStats m;
@@ -2693,7 +2913,8 @@ MemoryStats View::memoryStats()const{const auto &s=*impl_;MemoryStats m;
   m.stateBytes+=(s.animationNodes.capacity()+s.mediaNodes.capacity())*sizeof(uint16_t);
   m.stateBytes+=s.pageMotions.capacity()*sizeof(std::vector<Impl::MotionRuntime>);
   for(const auto &poses:s.pageMotions)m.stateBytes+=poses.capacity()*sizeof(Impl::MotionRuntime);
-  m.snapshotBytes+=(s.rasterFrame.current.motions.capacity()+s.rasterFrame.preview.motions.capacity()+s.transition.outgoingMotions.capacity())*sizeof(Impl::MotionRuntime);
+  m.snapshotBytes+=(s.rasterFrame.current.motions.capacity()+s.rasterFrame.preview.motions.capacity()+s.transition.outgoingMotions.capacity()+s.groupMotion.outgoingMotions.capacity())*sizeof(Impl::MotionRuntime);
+  m.stateBytes+=s.interactionPolicies.capacity()*sizeof(InteractionDesc);
   m.stateBytes+=s.componentLinks.capacity()*sizeof(Impl::ComponentLink)+s.componentNodes.capacity()*sizeof(int32_t);
   std::vector<const void *> seen;
   auto payload=[&](const RetainedVector<Impl::State> &items){for(const auto &v:items){
@@ -2705,7 +2926,7 @@ MemoryStats View::memoryStats()const{const auto &s=*impl_;MemoryStats m;
     if(v.dynamic&&std::find(seen.begin(),seen.end(),v.dynamic.get())==seen.end()){seen.push_back(v.dynamic.get());m.payloadBytes+=sizeof(DynamicNode);}
   }};
   for(const auto &p:s.pages){if(!p.empty())++m.residentPages;m.residentNodes+=p.size();m.stateBytes+=p.capacity()*sizeof(Impl::State);payload(p);}
-  for(const auto *p:{&s.rasterFrame.current.values,&s.rasterFrame.preview.values,&s.transition.outgoing}){m.snapshotBytes+=p->capacity()*sizeof(Impl::State);payload(*p);}
+  for(const auto *p:{&s.rasterFrame.current.values,&s.rasterFrame.preview.values,&s.transition.outgoing,&s.groupMotion.outgoing}){m.snapshotBytes+=p->capacity()*sizeof(Impl::State);payload(*p);}
   for(const auto &key:s.geometryMemoKey)if(key.dynamic&&std::find(seen.begin(),seen.end(),key.dynamic.get())==seen.end()){seen.push_back(key.dynamic.get());m.payloadBytes+=sizeof(DynamicNode);}
   m.stateBytes+=s.geometryMemoKey.capacity()*sizeof(Impl::FrameGeometryKey);
   for(const auto *c:{&s.rasterFrame.current.geometry,&s.rasterFrame.preview.geometry,&s.geometryMemoCache})m.geometryBytes+=c->nodes.capacity()*sizeof(Impl::Geometry)+c->lines.capacity()*sizeof(Impl::TextLine)+c->bands.capacity()*sizeof(uint32_t);
@@ -2807,8 +3028,8 @@ Status View::tick(uint32_t now){
       s.scroll(s.animation.node,position,0,true); }
     s.endProcessing();
   }
-  if(s.down&&!s.canceled&&!s.moved&&s.drag==Impl::Drag::None&&s.activeControl>=0&&s.page().nodes[s.activeControl].kind==Kind::Spinbox&&int32_t(now-s.spinRepeatAt)>=0){s.processing=true;s.longPressed=true;s.spinRepeatAt=now+120;s.spinbox(s.activeControl,s.x,true);s.endProcessing();}
-  if(s.down&&!s.canceled&&!s.longPressed&&!s.moved&&s.drag==Impl::Drag::None&&uint32_t(now-s.downAt)>=600){s.processing=true;s.longPressed=true;s.dispatch(s.target,EventType::LongPress);s.endProcessing();}
+  if(s.down&&!s.canceled&&(!s.coordinated()||!s.defaultsBlocked)&&!s.moved&&s.drag==Impl::Drag::None&&s.activeControl>=0&&s.page().nodes[s.activeControl].kind==Kind::Spinbox&&int32_t(now-s.spinRepeatAt)>=0){s.processing=true;s.longPressed=true;s.spinRepeatAt=now+120;s.spinbox(s.activeControl,s.x,true);s.endProcessing();}
+  if(s.down&&!s.canceled&&(!s.coordinated()||!s.defaultsBlocked)&&!s.longPressed&&!s.moved&&s.drag==Impl::Drag::None&&uint32_t(now-s.downAt)>=600){s.processing=true;s.longPressed=true;s.dispatch(s.target,EventType::LongPress);s.endProcessing();}
   const bool departing=s.transition.active&&(s.transition.phase==Impl::TransitionPhase::Components||s.transition.phase==Impl::TransitionPhase::Exit);
   s.ensureTickNodes();
   if(!departing)for(uint16_t i:s.mediaNodes) {

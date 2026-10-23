@@ -6,11 +6,13 @@
 #include "Image.h"
 #include "Components.h"
 #include "Navigation.h"
+#include "Interaction.h"
+#define NICE_GFX_UI_INTERACTION_VERSION 1
 #define NICE_GFX_UI_STATS_VERSION 5
 #define NICE_GFX_UI_RENDER_CACHE_VERSION 3
 #define NICE_GFX_UI_CIRCULAR_CLIP_VERSION 1
 #define NICE_GFX_UI_ACTIONS_VERSION 1
-#define NICE_GFX_UI_NAVIGATION_VERSION 4
+#define NICE_GFX_UI_NAVIGATION_VERSION 5
 #define NICE_GFX_UI_SHAPES_VERSION 1
 #define NICE_GFX_UI_TEXT_INPUT_VERSION 1
 #define NICE_GFX_UI_DYNAMIC_IMAGE_VERSION 1
@@ -22,7 +24,8 @@
 namespace nice_gfx { namespace htmlui {
 
 enum class EventType : uint8_t { PointerDown, PointerMove, PointerUp, PointerCancel, Click, Input, Change, LongPress,
-  Scroll, PageChange, BeforeNavigate, RouteChange, NavigationCancel, KeyAction, Focus, Blur, Submit, Cancel, AnimationEnd };
+  Scroll, PageChange, BeforeNavigate, RouteChange, NavigationCancel, KeyAction, Focus, Blur, Submit, Cancel, AnimationEnd,
+  GestureStart, GestureUpdate, GestureEnd, GestureCancel };
 enum class EventPhase : uint8_t { Capture, Target, Bubble };
 struct Event {
   EventType type;
@@ -66,6 +69,9 @@ struct RenderCacheStats {
   size_t capacityPages=0, readyPages=0;
   uint64_t hits=0, misses=0, warmedTiles=0;
   uint64_t repairedPages=0, repairPixels=0, lastRepairPixels=0;
+  uint64_t seededPages=0, seededPixels=0;
+  uint64_t mirroredFrames=0;
+  uint64_t capturedPages=0;
   size_t compressedPages=0,compressedBytes=0,compressedCapacityBytes=0;
   uint64_t compressedStores=0,compressedRestores=0,compressedRejected=0,compressedEvictions=0;
   // True while eligible cache work is pending. A slot deferred until visual
@@ -119,6 +125,17 @@ class View {
   bool on(Id id, EventType event, EventHandler handler, void *context = nullptr, bool capture = false);
   // Idempotent registration for generated declarative UI actions. on() remains additive.
   bool onOnce(Id id, EventType event, EventHandler handler, void *context = nullptr, bool capture = false);
+  // Click actions run after veto listeners in Coordinated mode; legacy stays additive.
+  bool onDefault(Id id, EventType event, EventHandler handler, void *context = nullptr);
+  bool onScoped(Id id, EventType event, EventHandler handler, void *context = nullptr);
+  bool configureInteraction(InteractionVersion version, const InteractionDesc *policies = nullptr, size_t count = 0);
+  InteractionVersion interactionVersion() const;
+  bool setGesturePolicy(Id id, const GesturePolicy &policy);
+  // Request ownership synchronously from PointerDown/Move. Deepest eligible
+  // request wins after propagation; mutate only in GestureStart/Update/End.
+  bool claimPointer(Id owner, GestureAxis axis);
+  Id gestureOwner() const;
+  bool acceptsEvent(const Event &event) const;
   // Borrowed immutable descriptors/strings until replacement or mount. Generated
   // ui.h installs these links so ordinary setters/getters accept public IDs.
   // Replacement is rejected while a raster frame still borrows the links.
@@ -128,8 +145,9 @@ class View {
   void setRouteGuard(RouteGuard guard, void *context = nullptr);
   // Call after mount(). Invalid resources leave the existing config intact;
   // nullptr clears it. Config and strings remain valid until replaced/cleared.
-  // Explicit edge gestures win over controls; then ranges/scroll/pagers,
-  // unbounded gestures/group swipes, and legacy Home/Back, respecting touch-action.
+  // Coordinated interaction: local controls and scrollers precede navigation;
+  // only explicit overrideControls edge bindings can preempt them. Legacy
+  // interaction retains the previous edge-first order.
   bool configureNavigation(const NavigationDesc *config);
   // Optional borrowed RGB565 page surfaces. Call after mount(); keep storage
   // alive until cleared/replaced or destruction. nullptr,0 disables caching.
@@ -149,6 +167,11 @@ class View {
   // idle tick; pointer contact pauses it. A one-slot cache temporarily yields
   // the live slot to finish a pending request before restoring the live route.
   bool prewarmRenderCache(const char *path);
+  // Optional idle maintenance, independent of animation sampling. Performs at
+  // most one bounded cache tile; never navigates or advances animation clocks.
+  // Busy refreshes, pointer contact and transitions defer the work. Call only
+  // on the View's UI thread, when the application has spare frame time.
+  bool stepRenderCache(uint32_t now, size_t maxPixels = 8192);
   bool renderCacheReady(const char *path) const;
   RenderCacheStats renderCacheStats() const;
   // Opt-in physical round-panel transfer clipping, with a two-pixel margin.
@@ -204,6 +227,13 @@ class View {
   Status setMediaResource(Id id, const MediaDesc &resource);
   Status clearImage(Id id); // Blank content; preserve layout and interactions.
   Status resetImage(Id id); // Restore the authored fallback (or empty content).
+  // Clear RAM Image overrides on an inactive page without resetting its
+  // controls or touching accepted raster/transition snapshots. Safe from a
+  // RouteChange handler using event.from. Retained pixels keep their source
+  // leases until their normal drain/repair/warm lifecycle completes. Authored
+  // and setMediaResource() sources stay intact. Null/unknown/current -> false;
+  // an existing inactive page with nothing to clear succeeds without work.
+  bool clearPageImages(const char *path);
   // One shared editing session. Text/value always return committed content;
   // draft changes emit Input, confirmation emits Change (if changed) and Submit.
   bool beginTextInput(Id id);
@@ -279,6 +309,11 @@ class View {
   // Reconfigure only outside a raster frame; existing dirty work is retained.
   bool configureRenderBudget(const RenderBudget &budget);
   RenderBudget renderBudget() const;
+  // Optional S31 fade blending. CPU fallback, cache contents, dirty regions
+  // and authored timing stay intact. Reject while a raster frame is borrowed
+  // or a callback mutation is being processed. Default enabled on all targets.
+  bool configurePpaBlend(bool enabled);
+  bool ppaBlendEnabled() const;
   // Extra pixels worth repainting to avoid one more window/submit operation.
   // Defaults to 32. Changes require an idle raster frame and retain dirty work.
   bool configureMergeSlack(uint32_t pixels);

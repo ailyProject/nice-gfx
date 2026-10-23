@@ -48,11 +48,9 @@ ESP-IDF 工程通过原生组件接入本库，使用 C++ `app_main()`；同级�
 
 ## 显示芯片与实例化代码
 
-Waveshare、Seeed 的 Arduino 触摸屏产品、屏幕/触摸芯片与硬件版本对照，以及新增电容触摸、四线电阻触摸和旧款 Shield 驱动，见 [厂家触摸屏与芯片支持](docs/VendorTouchScreens.md)。接线示例见 [Vendor_Capacitive_Touch](examples/06_Touch/Vendor_Capacitive_Touch/Vendor_Capacitive_Touch.ino)。
-
 [屏幕与触摸设备支持](docs/DeviceSupport.md) 集中维护全部屏幕芯片、接口、默认分辨率和实例化方法，涵盖 SPI、软件 SPI、8/16 位并口、普通 QSPI、RGB、MIPI 与 ST77903 持续扫描 QSPI。
 
-触摸实现包括 XPT2046、CST816 / FT6x36 / GT911 / GT1151 等 I²C 控制器及四线电阻屏。主库触摸实例化、校准和具体模组对应关系见 [模组与触摸接入](docs/VendorTouchScreens.md)，设计器生成的触摸适配器见设备支持文档。屏幕分辨率、接口、电源和时序应与实际模组匹配。
+触摸实现包括 XPT2046、CST816 / FT6x36 / GT911 / GT1151 等 I²C 控制器及四线电阻屏。驱动入口、板卡组合和校准见 [触摸接入](docs/DeviceSupport.md#触摸芯片与使用入口)，接线示例见 [Vendor_Capacitive_Touch](examples/06_Touch/Vendor_Capacitive_Touch/Vendor_Capacitive_Touch.ino)。屏幕分辨率、接口、电源和时序应与实际模组匹配。
 
 ## 开发平台支持表
 
@@ -149,7 +147,6 @@ void loop() {
 | 文档或示例 | 内容 |
 | --- | --- |
 | [设备支持](docs/DeviceSupport.md) | 屏幕与触摸芯片、接口、分辨率、实例化和初始化限制 |
-| [模组与触摸接入](docs/VendorTouchScreens.md) | 厂商模组对应、I²C 与电阻触摸驱动、接线和校准 |
 | [字体指南](docs/font.md) | 全部字体图样、覆盖范围、调用方法与中文子集 |
 | [Arduino 组件交互](docs/ArduinoComponentInteraction.md) | 稳定 ID、事件、数值与输入、导航、业务联动和调度 |
 | [动态图片](docs/DynamicImages.md) | 运行时像素更新、所有权、预置资源和内存契约 |

@@ -22,6 +22,7 @@ struct GestureBindingDesc {
   RouteAction action; const char *route; uint16_t threshold, edgeSize;
   GestureInteraction interaction; // Omitted trailing fields zero-initialize to Release/null.
   const TransitionDesc *transition;
+  bool overrideControls; // Explicit reserved edge region; false when omitted.
 };
 struct NavigationDesc {
   const NavigationGroupDesc *groups; uint16_t groupCount;

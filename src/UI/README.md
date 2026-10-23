@@ -96,8 +96,10 @@ but does not bubble. Input, Change, PointerCancel, Scroll, PageChange and LongPr
 are non-cancelable notifications. Click and PointerDown/Move/Up are cancelable.
 `stopImmediatePropagation()` also stops remaining listeners on the current node.
 `preventDefault` on Click suppresses activation
-and declarative routing. PointerDown/Move prevention does not disable scrolling
-or subsequent Click. Checkbox/Switch click listeners observe the tentatively
+and declarative routing. Legacy interaction preserves its original down/move
+semantics. Coordinated interaction suppresses sequence defaults after a prevented
+PointerDown, and prevents the current owned Range update after a prevented Move.
+Checkbox/Switch click listeners observe the tentatively
 toggled value; a canceled Click rolls it back and emits no Input or Change.
 Range Input is continuous and Change occurs on release only if the final value
 differs from the value at pointer down. Programmatic value/text setters are silent
@@ -117,7 +119,14 @@ Click; a value already reported by Input is retained. Canceling in an edge-back
 BeforeNavigate callback or route guard clears the preview and preserves history.
 
 Scroll and Pager cancel the child pointer sequence when their drag wins. Range
-drag is horizontal and independent of touch-action's native scroll restrictions.
+supports horizontal and vertical drag, independent of touch-action's native
+scroll restrictions. `InteractionVersion::Coordinated` adds an 8px slop with
+direction disambiguation, local controls before ordinary edge navigation,
+axis-specific containment and explicit navigation chaining. Ownership stays
+locked through release/cancel. Sparse policies leave NodeDesc ABI 17 intact;
+navigation descriptor capability is version 5. Generated new projects select
+interactionVersion 2; missing project versions and raw mount() remain Legacy.
+See [interaction modes and gestures](../../docs/ArduinoComponentInteraction.md#交互模式与手势).
 Scroll accepts one configured axis with bounded, damped inertia; a new down stops
 inertia at its current offset and consumes a click inside the moving viewport.
 Pager is horizontal, follows the pointer,

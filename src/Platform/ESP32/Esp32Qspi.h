@@ -27,7 +27,11 @@ struct QspiConfig {
   uint32_t frequency = 40000000;
   spi_host_device_t host = SPI2_HOST;
   bool autoHost = false;
-  size_t chunkBytes = 4096; // 4..32768, aligned to 4; copied chunks use <=4 KiB.
+  size_t chunkBytes = 4096; // 4..32768, aligned to 4; target DMA limit also applies.
+  // Two internal DMA buffers. Opt in to larger copies without changing the
+  // default 8 KiB total allocation. Effective bytes are limited by chunkBytes
+  // and the target's single-transaction limit; 4..32768, aligned to 4.
+  size_t stagingBytes = 4096;
   uint8_t mode = 0;
   uint32_t readFrequency = 10000000;
   // Single-lane operation shares the same DMA queue and staging implementation.
@@ -70,6 +74,11 @@ class Esp32Qspi : public Transport {
   void output(int pin, bool high) override;
   void delayMs(uint32_t ms) override;
   const QspiConfig &config() const { return config_; }
+  size_t stagingBytes() const { return stagingBytes_; }
+  uint32_t requestedFrequency() const { return config_.frequency; }
+  // Measured by the S31 IDF driver; zero before begin/on other SDK targets.
+  // This is bus-clock frequency, not panel scanout or optical refresh rate.
+  uint32_t actualFrequency() const;
  private:
   static void workerEntry(void *self);
   void worker();
@@ -92,6 +101,7 @@ class Esp32Qspi : public Transport {
   SemaphoreHandle_t done_ = nullptr;
   uint8_t *staging_[2] = {nullptr, nullptr};
   size_t stagingBytes_ = 0;
+  size_t transferBytes_ = 0;
   spi_transaction_ext_t transactions_[2] = {};
   struct Job {
     PixelView view = PixelView(nullptr, 0);

@@ -155,7 +155,7 @@ Surface *restoreSurfacePage(const PageDesc &p,const PageDesc *excludePageA=nullp
   if(!slot)return nullptr;
   // Preserve the compressed key exactly. The ordinary cache hit, atlas guard
   // and patch paths still decide whether these terminal pixels match live state.
-  ++slot->pixelsRevision;slot->ready=false;slot->page=nullptr;slot->key=record->key;slot->geometry=record->geometry;
+  ++slot->pixelsRevision;slot->presentedAtFrame=UINT64_MAX;slot->ready=false;slot->page=nullptr;slot->key=record->key;slot->geometry=record->geometry;
   if(!rle565::decode(compressedStorage+record->offset,record->words,slot->pixels,pixels))return nullptr;
   slot->page=&p;slot->row=p.height;slot->column=0;slot->paused=false;slot->ready=true;slot->compressionAttempted=true;
   record->used=slot->used=++surfaceClock;++surfaceStats.compressedRestores;return slot;

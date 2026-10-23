@@ -26,6 +26,17 @@ static Status statusOf(esp_err_t error) {
     default: return Status::IoError;
   }
 }
+static bool dmaTxFailed(const spi_transaction_t *transaction) {
+#ifdef SPI_TRANS_DMA_TX_FAIL
+  return transaction && (transaction->flags & SPI_TRANS_DMA_TX_FAIL);
+#else
+  (void)transaction;return false;
+#endif
+}
+static esp_err_t checkedPolling(spi_device_handle_t device,spi_transaction_t *transaction) {
+  const esp_err_t error=spi_device_polling_transmit(device,transaction);
+  return error==ESP_OK&&dmaTxFailed(transaction) ? ESP_FAIL : error;
+}
 Status Esp32Qspi::begin() {
   if (device_) return Status::Ok;
   const int logicalPins[] = {config_.pins.clock, config_.pins.d0, config_.pins.d1,
@@ -51,16 +62,23 @@ Status Esp32Qspi::begin() {
   if (config_.host != SPI2_HOST && config_.host != SPI3_HOST) return Status::InvalidArgument;
 #endif
   if (config_.frequency == 0 || config_.frequency > 80000000 || !config_.readFrequency || config_.readFrequency>80000000 || config_.mode > 3 ||
-      config_.chunkBytes < 4 || config_.chunkBytes > 32768 || config_.chunkBytes % 4)
+      config_.chunkBytes < 4 || config_.chunkBytes > 32768 || config_.chunkBytes % 4 ||
+      config_.stagingBytes < 4 || config_.stagingBytes > 32768 || config_.stagingBytes % 4)
     return Status::InvalidArgument;
+  transferBytes_=config_.chunkBytes;
+#if defined(CONFIG_IDF_TARGET_ESP32S31)
+  // S31 SPI_LL_DMA_MAX_BIT_LEN=0x3ffff. 32768 bytes is one bit too
+  // large; round down to whole 32-bit DMA units, including direct RAM input.
+  if(transferBytes_>32764)transferBytes_=32764;
+#endif
+  stagingBytes_=config_.stagingBytes<transferBytes_?config_.stagingBytes:transferBytes_;
   if (config_.quad && (!config_.protocol.pixelQuantum || config_.protocol.pixelQuantum>4 ||
-      config_.chunkBytes<size_t(config_.protocol.pixelQuantum)*wirePixelBytes(format_))) return Status::InvalidArgument;
+      stagingBytes_<size_t(config_.protocol.pixelQuantum)*wirePixelBytes(format_))) return Status::InvalidArgument;
   stopping_ = false;
   result_ = Status::Ok;
   // Direct DMA needs descriptors, not equally large copies of both buffers.
-  // Keep bounded 4 KiB staging for conversion/PSRAM/commands while allowing
-  // larger zero-copy transactions from internal RAM.
-  stagingBytes_ = config_.chunkBytes < 4096 ? config_.chunkBytes : 4096;
+  // Keep the default bounded 4 KiB staging; dedicated animation applications
+  // may explicitly trade internal RAM for fewer queued copy transactions.
   for (auto &buffer : staging_) {
     buffer = static_cast<uint8_t *>(heap_caps_malloc(stagingBytes_, MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL));
     if (!buffer) { end(); return Status::NoMemory; }
@@ -125,6 +143,15 @@ void Esp32Qspi::end() {
   if (ownsBus_) { spi_bus_free(config_.host); ownsBus_ = false; }
   if (done_) { vSemaphoreDelete(done_); done_ = nullptr; }
   for (auto &buffer : staging_) { if (buffer) heap_caps_free(buffer); buffer = nullptr; }
+  stagingBytes_=0;transferBytes_=0;
+}
+uint32_t Esp32Qspi::actualFrequency() const {
+#if defined(CONFIG_IDF_TARGET_ESP32S31)
+  int khz=0;
+  return device_&&spi_device_get_actual_freq(device_,&khz)==ESP_OK&&khz>0 ? uint32_t(khz)*1000 : 0;
+#else
+  return 0;
+#endif
 }
 Status Esp32Qspi::wait() {
   if (!done_) return device_ ? Status::IoError : Status::Ok;
@@ -156,7 +183,8 @@ Status Esp32Qspi::data(const uint8_t *data, size_t bytes) { return sendCommand(0
 Status Esp32Qspi::setPixelFormat(PixelFormat format) {
   if (format != PixelFormat::RGB565 && format != PixelFormat::RGB666 && format != PixelFormat::RGB888)
     return Status::InvalidArgument;
-  if (config_.quad && config_.chunkBytes<size_t(config_.protocol.pixelQuantum)*wirePixelBytes(format))
+  const size_t capacity=stagingBytes_?stagingBytes_:(config_.stagingBytes<config_.chunkBytes?config_.stagingBytes:config_.chunkBytes);
+  if (config_.quad && capacity<size_t(config_.protocol.pixelQuantum)*wirePixelBytes(format))
     return Status::InvalidArgument;
   if (config_.writeStrobePin >= 0 && format != PixelFormat::RGB565) return Status::Unsupported;
   Status status=wait(); if (status==Status::Ok) format_=format; return status;
@@ -170,7 +198,7 @@ Status Esp32Qspi::prefix(uint16_t command, uint8_t bits, bool keepActive) {
   transaction.length=wide ? 16 : bits; transaction.tx_buffer=wide ? data : data+1;
   if (keepActive) transaction.flags=SPI_TRANS_CS_KEEP_ACTIVE;
   configureFrequency(transaction);
-  Status s=statusOf(spi_device_polling_transmit(device_,&transaction));
+  Status s=statusOf(checkedPolling(device_,&transaction));
   esp32_platform::write(config_.dc,true); return s;
 }
 Status Esp32Qspi::sendCommand(uint16_t command, uint8_t bits, const uint8_t *data, size_t bytes) {
@@ -196,7 +224,7 @@ Status Esp32Qspi::sendCommand(uint16_t command, uint8_t bits, const uint8_t *dat
     t.base.length=count*(padded ? 16 : 8); t.base.tx_buffer=count ? staging_[0] : nullptr;
     if (bytes > count) t.base.flags |= SPI_TRANS_CS_KEEP_ACTIVE;
     configureFrequency(t.base);
-    error=spi_device_polling_transmit(device_,&t.base);
+    error=checkedPolling(device_,&t.base);
     if (error!=ESP_OK) { s=statusOf(error); break; }
     first=false; if (count) data+=count; bytes-=count;
   } while (bytes);
@@ -263,7 +291,7 @@ Status Esp32Qspi::solidStrobe(uint16_t command, uint8_t bits, uint16_t color, si
     transaction.flags=SPI_TRANS_CS_KEEP_ACTIVE;
     transaction.length=16; transaction.tx_buffer=pixel;
     configureFrequency(transaction);
-    status=statusOf(spi_device_polling_transmit(device_,&transaction));
+    status=statusOf(checkedPolling(device_,&transaction));
     if (status==Status::Ok) {
       while (--count) { writeStrobe_.write(false); writeStrobe_.write(true); }
     }
@@ -284,7 +312,7 @@ Status Esp32Qspi::transmitSmall(uint16_t command, uint8_t bits, const uint8_t *d
   transaction.addr = config_.protocol.address(config_.protocol.pixelCommand(command,bits));
   transaction.length = bytes * 8; transaction.tx_buffer = data;
   configureFrequency(transaction);
-  if (s==Status::Ok) s=statusOf(spi_device_polling_transmit(device_, &transaction));
+  if (s==Status::Ok) s=statusOf(checkedPolling(device_, &transaction));
   if (s!=Status::Ok) {
     spi_transaction_ext_t release={}; release.base.flags=SPI_TRANS_VARIABLE_CMD | SPI_TRANS_VARIABLE_ADDR;
     spi_device_polling_transmit(device_,&release.base);
@@ -330,8 +358,9 @@ Status Esp32Qspi::transfer() {
       error = spi_device_get_trans_result(device_, &completed, portMAX_DELAY);
       if (error != ESP_OK) break;
       --pending;
+      if(dmaTxFailed(completed)){error=ESP_FAIL;break;}
     }
-    size_t count = remaining < config_.chunkBytes/bpp ? remaining : config_.chunkBytes/bpp;
+    size_t count = remaining < transferBytes_/bpp ? remaining : transferBytes_/bpp;
     if (job_.solid && count > stagingBytes_/bpp) count = stagingBytes_/bpp;
     const uint8_t *source = nullptr;
     const bool strided=!job_.solid && job_.view.stride!=job_.view.width;
@@ -399,6 +428,7 @@ Status Esp32Qspi::transfer() {
       continue;
     }
     --pending;
+    if(error==ESP_OK&&dmaTxFailed(completed))error=ESP_FAIL;
   }
   if (error != ESP_OK) {
     // Release a CS left active by the last successfully queued non-final chunk.

@@ -143,3 +143,4 @@ sdkconfig.old
 *.tmp
 *.temp
 *.log
+!docs/validation/2026-10-23-interaction/*.log

@@ -15,8 +15,6 @@
 `VALIDATE_DONE checks=... failures=0` 表示自动检查通过。串口会输出最先发生的 12 个错误。
 此程序结束后显示通过/失败画面。
 
-实机结果、优化说明与原始数据见 [Wio Terminal 测试报告](../../../docs/WioTerminalValidation.md)。
-
 UI 控件、脚本指针输入、转场与连续性能测试使用相邻的
 [Graphics_Benchmark](../Graphics_Benchmark/README.md)。实体按键、可见画质和面板扫描率
 需另行人工观察，不属于 GRAM 读回断言。

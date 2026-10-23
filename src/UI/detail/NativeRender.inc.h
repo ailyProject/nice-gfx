@@ -2,12 +2,57 @@
 // untransformed snapshots directly into a mapped native scanout framebuffer.
 // Dirty regions and source leases stay under the normal Refresh lifecycle.
 PixelOrder renderOrder=PixelOrder::Wire;
+// Cached content fades can keep their navigation chrome stationary even when
+// the display has no mapped framebuffer (for example S31 QSPI). PPA blends
+// only the viewport into an independent native scratch surface. The scheduler
+// borrows that surface and immutable Wire565 chrome until the whole frame is
+// drained, exactly as it borrows cached slide slices.
+bool prepareViewportFade(FrameSlice *pieces,size_t &count) {
+  const Rect v=snapshotMotionRect;const auto &t=transitionFrame;
+  const int32_t w=rasterFrame.current.page->width,h=rasterFrame.current.page->height;
+  if(renderBudget.maxPixelsPerTick||count||!snapshotTransition||snapshotPhase!=TransitionPhase::Paired||
+     transition.config.effect!=TransitionEffect::Fade||!rasterFrame.preview.page||!snapshotSurface||!previewSurface||
+     rasterFrame.preview.page->width!=w||rasterFrame.preview.page->height!=h||
+     snapshotKeyboard.visible||snapshotInput||(snapshotGroupIndex>=0&&snapshotGroup.indicatorHeight)||
+     t.outX||t.outY||t.inX||t.inY||v.x<0||v.y<0||v.width<=0||v.height<=0||
+     int64_t(v.x)+v.width>w||int64_t(v.y)+v.height>h||
+     (!v.x&&!v.y&&v.width==w&&v.height==h))return false;
+  auto *panel=nice_gfx::detail::DisplayAccess::panel(display);
+  if(!panel||!panel->supportsFrameBlit())return false;
+  const int32_t ax=panel->windowAlignmentX(),ay=panel->windowAlignmentY();
+  if(!ax||!ay||v.x%ax||v.y%ay||v.width%ax||v.height%ay)return false;
+  const Surface *fixedSurface=groupMotion.active&&groupMotion.prepared?previewSurface:snapshotSurface;
+  Rect fixed[4];const int fixedCount=raster_occlusion::strips({0,0,w,h},v,fixed);
+  FrameSlice candidate[5];size_t candidateCount=0;
+  for(int i=0;i<fixedCount;++i){const Rect r=fixed[i];
+    const PixelView pixels(fixedSurface->pixels+size_t(r.y)*w+r.x,r.width,r.height,w,PixelOrder::Wire);
+    if(r.x%ax||r.y%ay||r.width%ax||r.height%ay||!panel->canFrameBlit(pixels))return false;
+    auto &slice=candidate[candidateCount++];slice.area=DirtyRect(r.x,r.y,r.width,r.height);slice.pixels=pixels;
+  }
+  const size_t offset=size_t(v.y)*w+v.x;
+  PixelView moving((t.opacity?snapshotSurface:previewSurface)->pixels+offset,v.width,v.height,w,PixelOrder::Wire);
+  if(t.opacity&&t.opacity<255){
+    if(!ppaBlendEnabled||!rgb565_ppa::Context::available())return false;
+    // Preflight native/packed output before launching the blocking PPA job.
+    if(!panel->canFrameBlit(PixelView(snapshotSurface->pixels,v.width,v.height,v.width,PixelOrder::Native)))return false;
+    RenderTimer timer(*this);const uint32_t started=profilingClock?profilingClock():0;
+    const uint16_t *blended=ppaFade.blendSourcesToNative(snapshotSurface->pixels+offset,w,
+      previewSurface->pixels+offset,w,v.width,v.height,t.opacity);
+    if(!blended){++stats.ppaBlendFailures;return false;}
+    moving=PixelView(blended,v.width,v.height,v.width,PixelOrder::Native);
+    ++stats.ppaBlendCalls;stats.ppaBlendPixels+=uint64_t(v.width)*v.height;
+    if(profilingClock)stats.ppaBlendMicros+=profilingClock()-started;
+  }
+  if(!panel->canFrameBlit(moving))return false;
+  auto &slice=candidate[candidateCount++];slice.area=DirtyRect(v.x,v.y,v.width,v.height);slice.pixels=moving;
+  for(size_t i=0;i<candidateCount;++i)pieces[i]=candidate[i];count=candidateCount;return true;
+}
 const CompressedSurface *exactCompressedFadeSource(const PageDesc *p,const RetainedVector<State> &values) {
   auto *source=p?compressedSurfaceFor(*p):nullptr;
   return source&&sameSurfaceState(source->key,values)?source:nullptr;
 }
 bool compressedFadeKeysReady() {
-  return !rgb565_ppa::Context::available()&&snapshotTransition&&transition.config.effect==TransitionEffect::Fade&&
+  return (!ppaBlendEnabled||!rgb565_ppa::Context::available())&&snapshotTransition&&transition.config.effect==TransitionEffect::Fade&&
     !snapshotKeyboard.visible&&!snapshotInput&&
     (snapshotGroupIndex<0||!snapshotGroup.indicatorHeight)&&
     !transitionFrame.outX&&!transitionFrame.outY&&!transitionFrame.inX&&!transitionFrame.inY&&
@@ -27,7 +72,7 @@ Status prepareCpuCachedFade(PixelView &surface) {
   const size_t w=rasterFrame.current.page->width,h=rasterFrame.current.page->height;
   if(rasterFrame.preview.page&&(rasterFrame.preview.page->width!=w||rasterFrame.preview.page->height!=h))return Status::Unsupported;
   auto *panel=nice_gfx::detail::DisplayAccess::panel(display);
-  if(!panel||!panel->supportsFrameBlit()||rgb565_ppa::Context::available())return Status::Unsupported;
+  if(!panel||!panel->supportsFrameBlit()||(ppaBlendEnabled&&rgb565_ppa::Context::available()))return Status::Unsupported;
   nice_gfx::NativeFramebuffer frame{};const Status mapped=panel->mapNativeFramebuffer(frame);
   if(mapped!=Status::Ok)return mapped;
   if(frame.width!=w||frame.height!=h||frame.stride<w||frame.stride>SIZE_MAX/2/h||frame.bytes<frame.stride*h*2)return Status::Unsupported;
@@ -208,7 +253,7 @@ Status prepareColdFade(PixelView &output) {
   const Rect viewport=snapshotMotionRect;
   const bool tail=!snapshotTransition&&!transition.active&&coldFadeSurface&&coldFadePage==rasterFrame.current.page&&coldFadeEpoch==transitionEpoch;
   const uint8_t alpha=tail?255:transitionFrame.opacity;
-  if(!rgb565_ppa::Context::available()||buildingSurface||renderingViewport||rasterFrame.preview.page||(!snapshotTransition&&!tail)||
+  if(!ppaBlendEnabled||!rgb565_ppa::Context::available()||buildingSurface||renderingViewport||rasterFrame.preview.page||(!snapshotTransition&&!tail)||
      snapshotSurface||snapshotAnimationSurface||snapshotInput||snapshotKeyboard.visible||snapshotPressed>=0||down||
      snapshotGroupIndex>=0||transition.config.effect!=TransitionEffect::Fade||
      (!tail&&snapshotPhase!=TransitionPhase::Enter&&snapshotPhase!=TransitionPhase::Exit)||

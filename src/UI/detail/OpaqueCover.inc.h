@@ -25,14 +25,17 @@ bool opaqueCoverMedia(const FrameCache &cache,size_t i) const {
     !style.borderWidth&&!style.radius&&!style.paddingTop&&!style.paddingRight&&!style.paddingBottom&&!style.paddingLeft;
 }
 int opaqueCoverAt(const FrameCache &cache,const DirtyRect &area,int32_t offsetX,int32_t offsetY) const {
-  for(size_t end=cache.nodes.size();end;--end){const size_t i=end-1;const auto &g=cache.nodes[i];
+  for(size_t end=cache.mediaEnd;end>cache.mediaFirst;--end){const size_t i=end-1;const auto &g=cache.nodes[i];
     if(opaqueCoverMedia(cache,i)&&opaqueCoverContains(g.rect,area,offsetX,offsetY)&&
        opaqueCoverContains(g.clip,area,offsetX,offsetY))return int(i);
   }
   return -1;
 }
 int opaqueCover(const DirtyRect &area) const {
-  if(renderOrder!=PixelOrder::Native||rasterFrame.preview.page||buildingSurface||!paintCache||
+  // Coverage also removes overwritten backgrounds from ordinary Wire565
+  // tiles. Only Native targets may use the panel-copy path below; Wire tiles
+  // must still paint the image into their own buffer before later overlays.
+  if(rasterFrame.preview.page||buildingSurface||!paintCache||
      (snapshotTransition&&!opaqueCoverTransition()))return -1;
   return opaqueCoverAt(*paintCache,area,paintOffsetX,paintOffsetY);
 }

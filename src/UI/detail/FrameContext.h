@@ -20,6 +20,9 @@ struct FrameGeometryCache {
   std::vector<uint32_t> bands;
   size_t words=0;
   int32_t bandHeight=1,visibleHeight=-1;
+  // Authored media bounds survive image-only geometry reuse. Pages without
+  // media reject opaque-image coverage without scanning their whole node set.
+  uint16_t mediaFirst=NoParent,mediaEnd=0;
 };
 
 // Each side owns every dynamic value and motion pose used by its rasterizer.
