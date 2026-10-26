@@ -9,6 +9,11 @@
 #endif
 #if defined(CONFIG_IDF_TARGET_ESP32S31) && defined(SOC_PPA_SUPPORTED) && SOC_PPA_SUPPORTED
 #define NICE_GFX_S31_PPA_BLEND_AVAILABLE 1
+#ifndef NICE_GFX_S31_PPA_BLEND_BURST
+// Match the driver's default burst. Override with 64 for a measured comparison
+// when the application shares its memory bus with other active peripherals.
+#define NICE_GFX_S31_PPA_BLEND_BURST 128
+#endif
 #include <driver/ppa.h>
 #include <esp_cache.h>
 #include <esp_heap_caps.h>
@@ -110,7 +115,7 @@ class Context {
              size_t sourceX,size_t sourceY,size_t width,size_t height){
     if(!canCopyIntoNative(target,x,y,source,sourceBytes,sourceX,sourceY,width,height))return Status::Unsupported;
 #if NICE_GFX_S31_PPA_BLEND_AVAILABLE
-    if(!copyClient_){ppa_client_config_t config={};config.oper_type=PPA_OPERATION_SRM;config.max_pending_trans_num=1;config.data_burst_length=PPA_DATA_BURST_LENGTH_64;
+    if(!copyClient_){ppa_client_config_t config={};config.oper_type=PPA_OPERATION_SRM;config.max_pending_trans_num=1;config.data_burst_length=NICE_GFX_S31_PPA_BLEND_BURST==128?PPA_DATA_BURST_LENGTH_128:PPA_DATA_BURST_LENGTH_64;
       const auto error=ppa_register_client(&config,&copyClient_);if(error!=ESP_OK){stats_.lastError=error;++stats_.failures;return Status::IoError;}}
     const size_t line=esp_cache_get_line_size_by_addr(target.pixels),bytes=target.stride*target.height*2;
     const size_t begin=(size_t(y)*target.stride*2)&~(line-1),end=((size_t(y)+height)*target.stride*2+line-1)&~(line-1);
@@ -166,7 +171,7 @@ class Context {
     if(!solid){const uintptr_t back=reinterpret_cast<uintptr_t>(background);const size_t backBytes=((height-1)*backgroundStride+width)*2;
       if(back>UINTPTR_MAX-backBytes||(out<back+backBytes&&back<out+outBytes)){++stats_.rejected;return false;}}
     if(!client_){ppa_client_config_t config={};config.oper_type=PPA_OPERATION_BLEND;
-      config.max_pending_trans_num=1;config.data_burst_length=PPA_DATA_BURST_LENGTH_64;
+      config.max_pending_trans_num=1;config.data_burst_length=NICE_GFX_S31_PPA_BLEND_BURST==128?PPA_DATA_BURST_LENGTH_128:PPA_DATA_BURST_LENGTH_64;
       const auto error=ppa_register_client(&config,&client_);
       if(error!=ESP_OK){stats_.lastError=error;++stats_.failures;return false;}}
     ppa_blend_oper_config_t operation={};
@@ -228,7 +233,7 @@ class Context {
     if(bytes%64||bytes>UINT32_MAX){++stats_.rejected;return false;}
     if(!client_){
       ppa_client_config_t config={};config.oper_type=PPA_OPERATION_BLEND;
-      config.max_pending_trans_num=1;config.data_burst_length=PPA_DATA_BURST_LENGTH_64;
+      config.max_pending_trans_num=1;config.data_burst_length=NICE_GFX_S31_PPA_BLEND_BURST==128?PPA_DATA_BURST_LENGTH_128:PPA_DATA_BURST_LENGTH_64;
       const auto error=ppa_register_client(&config,&client_);
       if(error!=ESP_OK){stats_.lastError=error;++stats_.failures;return false;}
     }

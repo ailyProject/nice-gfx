@@ -1,0 +1,185 @@
+[
+  {
+    "header": "Drivers/Display/EpaperExtra/EpaperExtra.h",
+    "worker": false,
+    "alias": "NGFX_EPD_SSD1619_THINKINK_420_BWR",
+    "className": "NgfxEpaperSSD1619",
+    "controller": "SSD1619",
+    "model": "ThinkInk_420_Tricolor_RW",
+    "width": 400,
+    "height": 300,
+    "storageWidth": 400,
+    "encoding": "BlackRed",
+    "palette": [
+      0,
+      65535,
+      63488
+    ],
+    "fullRefreshMs": 13000
+  },
+  {
+    "header": "Drivers/Display/EpaperExtra/EpaperExtra.h",
+    "worker": false,
+    "alias": "NGFX_EPD_EK79686_THINKINK_270_Z70",
+    "className": "NgfxEpaperEK79686",
+    "controller": "EK79686",
+    "model": "ThinkInk_270_Tricolor_Z70",
+    "width": 176,
+    "height": 264,
+    "storageWidth": 176,
+    "encoding": "BlackRed",
+    "palette": [
+      0,
+      65535,
+      63488
+    ],
+    "fullRefreshMs": 13000
+  },
+  {
+    "header": "Drivers/Display/EpaperExtra/EpaperExtra.h",
+    "worker": false,
+    "alias": "NGFX_EPD_SSD1675_THINKINK_213_B72",
+    "className": "NgfxEpaperSSD1675",
+    "controller": "SSD1675",
+    "model": "ThinkInk_213_Mono_B72",
+    "width": 122,
+    "height": 250,
+    "storageWidth": 128,
+    "encoding": "Mono",
+    "palette": [
+      0,
+      65535
+    ],
+    "fullRefreshMs": 1000
+  },
+  {
+    "header": "Drivers/Display/EpaperExtra/EpaperExtra.h",
+    "worker": false,
+    "alias": "NGFX_EPD_SSD2683_ZECTRIX_420",
+    "className": "NgfxEpaperSSD2683",
+    "controller": "SSD2683",
+    "model": "EP42C_400x300",
+    "width": 400,
+    "height": 300,
+    "storageWidth": 400,
+    "encoding": "Mono",
+    "palette": [
+      0,
+      65535
+    ],
+    "fullRefreshMs": 5000
+  },
+  {
+    "header": "Drivers/Display/EpaperExtra/EpaperExtra.h",
+    "worker": false,
+    "alias": "NGFX_EPD_SPECTRA6_GDEP040E01",
+    "className": "NgfxEpaperSpectra400",
+    "controller": "UNKNOWN_SPECTRA6",
+    "model": "GDEP040E01",
+    "width": 400,
+    "height": 600,
+    "storageWidth": 400,
+    "encoding": "SixColor",
+    "palette": [
+      0,
+      65535,
+      65504,
+      63488,
+      31,
+      2016
+    ],
+    "fullRefreshMs": 35000
+  },
+  {
+    "header": "Drivers/Display/EpaperExtra/EpaperExtra.h",
+    "worker": false,
+    "alias": "NGFX_EPD_SPECTRA6_810_1024X576",
+    "className": "NgfxEpaperSpectra1024",
+    "controller": "UNKNOWN_SPECTRA6",
+    "model": "EP81_SPECTRA_1024x576",
+    "width": 1024,
+    "height": 576,
+    "storageWidth": 1024,
+    "encoding": "SixColor",
+    "palette": [
+      0,
+      65535,
+      65504,
+      63488,
+      31,
+      2016
+    ],
+    "fullRefreshMs": 35000,
+    "pinRoles": [
+      {
+        "key": "cs1",
+        "label": "CS2",
+        "required": true
+      }
+    ]
+  },
+  {
+    "header": "Drivers/Display/EpaperExtra/EpaperExtra.h",
+    "worker": false,
+    "alias": "NGFX_EPD_SPECTRA6_1330_1200X1600",
+    "className": "NgfxEpaperSpectra1200",
+    "controller": "UNKNOWN_SPECTRA6",
+    "model": "EP133_SPECTRA_1200x1600",
+    "width": 1200,
+    "height": 1600,
+    "storageWidth": 1200,
+    "encoding": "SixColor",
+    "palette": [
+      0,
+      65535,
+      65504,
+      63488,
+      31,
+      2016
+    ],
+    "fullRefreshMs": 35000,
+    "pinRoles": [
+      {
+        "key": "cs1",
+        "label": "CS2",
+        "required": true
+      }
+    ]
+  },
+  {
+    "header": "Drivers/Display/EpaperExtra/EpaperExtra.h",
+    "worker": false,
+    "alias": "NGFX_EPD_IL0373_GDEW0154Z17",
+    "className": "NgfxEpaperGDEW0154Z17",
+    "controller": "IL0373",
+    "model": "GDEW0154Z17",
+    "width": 152,
+    "height": 152,
+    "storageWidth": 152,
+    "encoding": "BlackRed",
+    "palette": [
+      0,
+      65535,
+      63488
+    ],
+    "fullRefreshMs": 17000
+  },
+  {
+    "header": "Drivers/Display/EpaperExtra/EpaperExtra.h",
+    "worker": false,
+    "alias": "NGFX_EPD_UC8151D_GDEH0213Z19",
+    "className": "NgfxEpaperGDEH0213Z19",
+    "controller": "UC8151D",
+    "model": "GDEH0213Z19",
+    "width": 104,
+    "height": 212,
+    "storageWidth": 104,
+    "encoding": "BlackRed",
+    "palette": [
+      0,
+      65535,
+      63488
+    ],
+    "fullRefreshMs": 17000
+  }
+]

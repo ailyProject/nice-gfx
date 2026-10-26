@@ -4,6 +4,7 @@
 // the compiled UI requires a platform with a full C++ standard library.
 #if !defined(ARDUINO_ARCH_AVR) && !defined(__AVR__)
 #include "../Graphics/TileCanvas.h"
+#include "DisplayPolicy.h"
 #include "Animation.h"
 #include "detail/RangeGeometry.h"
 #include "MotionGeometry.h"
@@ -24,8 +25,16 @@
 #include <limits.h>
 #include <string.h>
 #include <math.h>
+#ifndef NICE_GFX_UI_FLAT_TEXT_ALPHA
+#define NICE_GFX_UI_FLAT_TEXT_ALPHA 1
+#endif
+#if defined(CONFIG_IDF_TARGET_ESP32S31)
+#include <esp_memory_utils.h>
+#include <esp_heap_caps.h>
+#endif
 #include "../Platform/Common/UiMemory.h"
 #include "detail/ImageStorage.h"
+#include "detail/MediaPixel.h"
 #include "detail/FrameContext.h"
 #include "detail/ComponentPaintIndex.h"
 
@@ -39,6 +48,7 @@ class OwnedUiTile {
  public:
   OwnedUiTile() = default;
   explicit OwnedUiTile(size_t pixels) {
+    if(!pixels)return;
     dma_ = static_cast<uint16_t *>(platform::allocateUiTile(pixels));
     if (dma_) pixels_ = pixels;
     else fallback_.resize(pixels);
@@ -61,9 +71,9 @@ class OwnedUiTile {
 };
 
 bool validMedia(const MediaDesc &m) {
-  if(!m.pixels||!m.width||!m.height||m.width>1024||m.height>1024||!m.frames||m.frames>300||
-     !m.fps||m.fps>30||(m.bytesPerPixel!=1&&m.bytesPerPixel!=2&&!mediaColorKeyed(m)))return false;
-  const uint64_t bytes=uint64_t(m.width)*m.height*m.frames*mediaPixelBytes(m)+(mediaColorKeyed(m)?2:0);
+  if(!m.pixels||!m.width||!m.height||m.width>4096||m.height>4096||!m.frames||m.frames>300||
+     !m.fps||m.fps>30||(m.bytesPerPixel!=1&&m.bytesPerPixel!=2&&!mediaColorKeyed(m)&&!mediaPacked(m)))return false;
+  const uint64_t bytes=uint64_t(mediaFrameBytes(m))*m.frames+(mediaColorKeyed(m)?2:0);
   return bytes<=8388608&&reinterpret_cast<uintptr_t>(m.pixels)<=UINTPTR_MAX-size_t(bytes);
 }
 int32_t clamp32(int32_t v, int32_t lo, int32_t hi) { return v < lo ? lo : (v > hi ? hi : v); }
@@ -200,7 +210,8 @@ struct View::Impl {
     void init(const char *s) { compiled=s?s:"";owned.reset();++revision; }
     bool set(const char *s) { s=s?s:"";if(!strcmp(c_str(),s))return false;if(owned&&owned.use_count()==1)owned->assign(s);else owned=std::make_shared<std::string>(s);++revision;return true; }
   };
-  struct State { uint16_t mediaFrame=0; uint32_t mediaAt=0; bool mediaPending=true; TextValue text; int32_t value=0, scrollX=0, scrollY=0; uint16_t flags=0; int32_t animationX=0, animationY=0; uint32_t animationAt=0; uint8_t opacity=255; bool animating=false, animationPending=false;
+  // Immutable traversal metadata fits existing State padding; no node-table copy.
+  struct State { uint16_t mediaFrame=0, parent=NoParent; uint32_t mediaAt=0; bool mediaPending=true,mediaPaused=false; Kind kind=Kind::Container; TextValue text; int32_t value=0, scrollX=0, scrollY=0; uint16_t flags=0, styleIndex=NoParent; int32_t animationX=0, animationY=0; uint32_t animationAt=0; uint8_t opacity=255; bool animating=false, animationPending=false;
     Image image;
     bool imageOverride=false;
     std::shared_ptr<const InputFieldDesc> implicitInput;
@@ -212,7 +223,14 @@ struct View::Impl {
   };
   #include "detail/MotionRuntime.inc.h"
   struct Listener { Id id; EventType type; EventHandler callback; void *context; bool capture; bool defaultAction=false; bool scoped=false; };
-  enum class Drag { None, Range, Scroll, Pager, Back, Home, Group, Gesture, Custom, Consumed };
+  enum class Drag { None, Range, Scroll, Pager, Back, Home, Group, Gesture, Custom, Consumed, Media };
+  struct MediaTween { const PageDesc *page;uint16_t node,from,to;uint32_t at,duration;bool pending; };
+  std::vector<MediaPlaybackDesc> mediaPolicies;
+  std::vector<MediaTween> mediaTweens;
+  int mediaDragTarget=-1;
+  uint16_t mediaDragFrom=0;
+  int32_t mediaDragWidth=1;
+  bool mediaDragLoop=true;
   InteractionVersion interactionVersion=InteractionVersion::Legacy;
   std::vector<InteractionDesc> interactionPolicies;
   int pointerClaim=-1;
@@ -298,6 +316,27 @@ struct View::Impl {
     explicit RenderTimer(Impl &s):owner(s),started(s.profilingClock?s.profilingClock():0){}
     ~RenderTimer(){if(owner.profilingClock){const uint32_t elapsed=owner.profilingClock()-started;owner.stats.renderMicros+=elapsed;owner.stats.maxRenderMicros=std::max(owner.stats.maxRenderMicros,elapsed);}}
   };
+  using ProfileCounter=uint64_t RuntimeStats::*;
+  struct ProfileTimer {
+    uint64_t *counter;uint32_t (*clock)();uint32_t started;
+    ProfileTimer(Impl &s,ProfileCounter field,bool enabled=true):
+      counter(enabled&&s.profilingClock?&(s.stats.*field):nullptr),
+      clock(counter?s.profilingClock:nullptr),started(clock?clock():0){}
+    ~ProfileTimer(){if(clock)*counter+=uint32_t(clock()-started);}
+  };
+  unsigned geometryProfileDepth=0;
+  struct GeometryTimer {
+    Impl &owner;bool entered;ProfileTimer timer;
+    explicit GeometryTimer(Impl &s):owner(s),entered(s.profilingClock!=nullptr),
+      timer(s,&RuntimeStats::geometryMicros,entered&&s.geometryProfileDepth++==0){}
+    ~GeometryTimer(){if(entered)--owner.geometryProfileDepth;}
+  };
+  static ProfileCounter paintProfileCounter(Kind kind) {
+    if(kind==Kind::Media||kind==Kind::Icon)return &RuntimeStats::mediaPaintMicros;
+    if(kind==Kind::Shape)return &RuntimeStats::shapePaintMicros;
+    if(kind==Kind::Text||kind==Kind::Label||kind==Kind::Button||kind==Kind::InputField||kind==Kind::Checkbox)return &RuntimeStats::textPaintMicros;
+    return &RuntimeStats::otherPaintMicros;
+  }
   uint16_t updateDepth=0;
   int32_t snapshotBackOffset=0, paintOffsetX=0, paintOffsetY=0, backOffset=0;
   enum class TransitionPhase : uint8_t { Paired, Components, Exit, Enter };
@@ -398,8 +437,11 @@ struct View::Impl {
   struct Inertia { int node=-1;int32_t velocity=0,remainder=0;uint32_t last=0;bool active=false; } inertia;
   struct BackAnimation { int32_t from=0,to=0;uint32_t started=0;bool active=false,commit=false; } backAnimation;
 
-  Impl(NICE_GFX &d, size_t n):display(d),first(n?n:size_t(d.width())*16),second(first.size()),canvas(d.width(),d.height()),capacity(first.size()) {
-    tileBuffers[0]=first.data();tileBuffers[1]=second.data();
+  // Synchronous transports finish reading each tile before returning; only
+  // asynchronous DMA can overlap two tiles and needs the second allocation.
+  Impl(NICE_GFX &d, size_t n):display(d),first(n?n:DisplayPolicy::from(d.displayCapabilities()).defaultTilePixels(d.width())),second(d.asynchronous()?first.size():0),canvas(d.width(),d.height()),capacity(first.size()) {
+    tileBuffers[0]=first.data();tileBuffers[1]=second.size()?second.data():nullptr;
+    tileCount=second.size()?2:1;
     refresh=new RefreshScheduler<16>(d,first.data(),second.data(),capacity);
   }
   Impl(NICE_GFX &d,uint16_t *a,uint16_t *b,size_t n):display(d),canvas(d.width(),d.height()),capacity(n) {
@@ -408,7 +450,54 @@ struct View::Impl {
     refresh=new RefreshScheduler<16>(d,a,b,n);
   }
   ~Impl() { refresh->cancel(); delete refresh; }
+  DisplayPolicy displayPolicy=DisplayPolicy::from(display.displayCapabilities());
+  uint32_t lastDisplayFrameAt=0;
+  bool displayFrameStarted=false;
   const PageDesc &page() const { return project->pages[history.back()]; }
+  size_t resourceCacheBudget=0,resourceReserve=65536;
+  const ProjectDesc *resourceSource=nullptr;ProjectDesc resourceProject{};
+  struct ResourcePageFree {void operator()(PageDesc *p) const {platform::freeUiMemory(p);}};
+  std::unique_ptr<PageDesc[],ResourcePageFree> resourcePages;size_t resourcePageCount=0;
+  struct ResourceSlot {
+    NodeDesc *nodes=nullptr;size_t count=0;uint16_t page=NoParent;uint32_t age=0;
+    ~ResourceSlot(){platform::freeUiMemory(nodes);}
+  } resourceSlots[2];
+  uint32_t resourceAge=0;
+  size_t resourceCacheBytes() const {
+    size_t bytes=resourcePageCount*sizeof(PageDesc);
+    for(const auto &slot:resourceSlots)bytes+=slot.count*sizeof(NodeDesc);return bytes;
+  }
+  void attachResourceProject(const ProjectDesc &p) {
+    resourceSource=&p;project=&p;
+    if(!resourceCacheBudget||size_t(p.count)*sizeof(PageDesc)>=resourceCacheBudget)return;
+    auto *storage=static_cast<PageDesc *>(platform::allocateUiMetadata(size_t(p.count)*sizeof(PageDesc),resourceReserve));
+    if(!storage)return;
+    for(size_t i=0;i<p.count;++i)new(storage+i) PageDesc(p.pages[i]);
+    resourcePages.reset(storage);resourcePageCount=p.count;resourceProject=p;
+    resourceProject.pages=storage;project=&resourceProject;
+  }
+  void cacheResourcePage(uint16_t index) {
+    if(!resourcePages||index>=resourcePageCount)return;
+    for(auto &slot:resourceSlots)if(slot.page==index){slot.age=++resourceAge;return;}
+    const auto &source=resourceSource->pages[index];const size_t bytes=size_t(source.count)*sizeof(NodeDesc);
+    ResourceSlot *chosen=nullptr;
+    for(auto &slot:resourceSlots){
+      const PageDesc *old=slot.page==NoParent?nullptr:&resourcePages[slot.page];
+      if(old&&(old==&page()||(transition.active&&transition.from==old)||
+        (refresh->busy()&&(rasterFrame.current.page==old||rasterFrame.preview.page==old))))continue;
+      if(bytes>resourceCacheBudget||resourceCacheBytes()-slot.count*sizeof(NodeDesc)>resourceCacheBudget-bytes)continue;
+      if(!chosen||slot.page==NoParent||slot.age<chosen->age)chosen=&slot;
+    }
+    if(!chosen)return;
+    if(chosen->page!=NoParent)resourcePages[chosen->page].nodes=resourceSource->pages[chosen->page].nodes;
+    platform::freeUiMemory(chosen->nodes);chosen->nodes=nullptr;chosen->count=0;chosen->page=NoParent;
+    auto *storage=static_cast<NodeDesc *>(platform::allocateUiMetadata(bytes,resourceReserve));
+    if(!storage)return;
+    for(size_t i=0;i<source.count;++i)new(storage+i) NodeDesc(source.nodes[i]);
+    chosen->nodes=storage;chosen->count=source.count;chosen->page=index;chosen->age=++resourceAge;
+    resourcePages[index].nodes=storage;
+  }
+
   RetainedVector<State> &state() { return pages[history.back()]; }
   const RetainedVector<State> &state() const { return pages[history.back()]; }
   const MediaDesc *media(const NodeDesc &node,const State &value) const {
@@ -421,8 +510,9 @@ struct View::Impl {
   }
   void replaceImage(int index,const Image &image,bool overrideSource) {
     auto &value=state()[index];value.image=image;value.imageOverride=overrideSource;
-    value.mediaFrame=0;value.mediaAt=0;value.mediaPending=true;invalidate(index);
+    resetMediaPlayback(index);invalidate(index);
   }
+#include "detail/MediaPlaybackRuntime.inc.h"
   InstrumentState &instrument(int i) { auto &v=state()[i].instrument;if(v.use_count()!=1)v=std::make_shared<InstrumentState>(*v);return *v; }
   int routeIndex(const char *path) const {
     if(!project||!path)return -1;
@@ -657,17 +747,41 @@ struct View::Impl {
     if(next<0||!focusable(next,false))return;
     const bool nested=processing;processing=true;setFocus(next);if(!nested)endProcessing();
   }
-  const Style &styleFor(const PageDesc &p,const RetainedVector<State> &s,int i) const { return s[i].dynamic&&s[i].dynamic->styleOverride?s[i].dynamic->style:p.nodes[i].style; }
+  // Bounded shared hot styles: reuse common immutable styles, never copy each
+  // page/node table back into RAM. Addresses stay stable until unmount.
+  static constexpr size_t compiledStyleCapacity=64;
+  std::unique_ptr<Style[]> compiledStyles;
+  size_t compiledStyleCount=0;uint16_t compiledStyleLimit=0;bool compiledStyleAttempted=false;
+  static bool sameCompiledStyle(const Style &a,const Style &b) {
+    return a.background==b.background&&a.color==b.color&&a.borderColor==b.borderColor&&a.trackColor==b.trackColor&&a.fillColor==b.fillColor&&a.thumbColor==b.thumbColor&&a.pressedColor==b.pressedColor&&a.disabledColor==b.disabledColor&&a.borderWidth==b.borderWidth&&a.radius==b.radius&&a.fontSize==b.fontSize&&a.textAlign==b.textAlign&&a.paddingTop==b.paddingTop&&a.paddingRight==b.paddingRight&&a.paddingBottom==b.paddingBottom&&a.paddingLeft==b.paddingLeft&&a.trackSize==b.trackSize&&a.thumbWidth==b.thumbWidth&&a.thumbHeight==b.thumbHeight&&a.thumbRadius==b.thumbRadius&&a.font==b.font&&a.gradient==b.gradient;
+  }
+  uint16_t cacheCompiledStyle(const Style &style) {
+    if(resourceCacheBudget||displayPolicy.monochrome||displayPolicy.slowRefresh)return NoParent;
+    if(!compiledStyleAttempted){
+      compiledStyleAttempted=true;size_t nodes=0;
+      for(size_t i=0;i<project->count&&nodes<compiledStyleCapacity;++i)nodes+=project->pages[i].count;
+      compiledStyleLimit=uint16_t(std::min(nodes,compiledStyleCapacity));
+      if(compiledStyleLimit)compiledStyles.reset(new(std::nothrow) Style[compiledStyleLimit]);
+    }
+    if(!compiledStyles)return NoParent;
+    for(size_t i=0;i<compiledStyleCount;++i)if(sameCompiledStyle(compiledStyles[i],style))return uint16_t(i);
+    if(compiledStyleCount==compiledStyleLimit)return NoParent;
+    compiledStyles[compiledStyleCount]=style;return uint16_t(compiledStyleCount++);
+  }
+  const Style &styleFor(const PageDesc &p,const RetainedVector<State> &s,int i) const {
+    if(s[i].dynamic&&s[i].dynamic->styleOverride)return s[i].dynamic->style;
+    return s[i].styleIndex<compiledStyleCount?compiledStyles[s[i].styleIndex]:p.nodes[i].style;
+  }
   Rect baseRect(const PageDesc &p,const RetainedVector<State> &s,int i) const {
     Rect r=p.nodes[i].rect;const auto &d=s[i].dynamic;
     if(d&&d->boundsOverride){r.x+=d->offsetX;r.y+=d->offsetY;r.width=d->width;r.height=d->height;}return r;
   }
   Rect layoutRect(const PageDesc &p,const RetainedVector<State> &s,int i) const {
     Rect r=baseRect(p,s,i);
-    for(uint16_t a=p.nodes[i].parent;a!=NoParent;a=p.nodes[a].parent)if(s[a].dynamic&&s[a].dynamic->boundsOverride){r.x+=s[a].dynamic->offsetX;r.y+=s[a].dynamic->offsetY;}return r;
+    for(uint16_t a=s[i].parent;a!=NoParent;a=s[a].parent)if(s[a].dynamic&&s[a].dynamic->boundsOverride){r.x+=s[a].dynamic->offsetX;r.y+=s[a].dynamic->offsetY;}return r;
   }
   Rect childBox(const PageDesc &p,const RetainedVector<State> &s,int i,Rect r) const {
-    r=contentBox(r,styleFor(p,s,i));if(p.nodes[i].kind==Kind::Pager)r.height=std::max<int32_t>(0,r.height-p.nodes[i].pager.indicatorHeight);return r;
+    r=contentBox(r,styleFor(p,s,i));if(s[i].kind==Kind::Pager)r.height=std::max<int32_t>(0,r.height-p.nodes[i].pager.indicatorHeight);return r;
   }
   void dynamicChanged(int i) {
     ++inputLayoutEpoch;
@@ -675,11 +789,12 @@ struct View::Impl {
     if(buildKeyboard(softInput))invalidateKeyboardKeys();
   }
   void initializeActive() {
+    cacheResourcePage(history.back());
     ensureTickNodes();
     if(!state().empty())return;
     state().resize(page().count);
     initializeMotionPage(history.back());
-    for(uint16_t i=0;i<page().count;++i){const auto &n=page().nodes[i];auto &v=state()[i];v.text.init(n.kind==Kind::InputField&&n.inputField?n.inputField->value:n.text);v.value=n.value;if(n.kind==Kind::InputField&&n.inputField&&n.inputField->type==InputFieldType::Number){v.value=0;parseInputNumber(v.text.c_str(),n.inputField->decimals,v.value);}if(n.kind==Kind::Spinbox&&!n.inputField)v.implicitInput=std::make_shared<const InputFieldDesc>(spinInputConfig(n));v.flags=n.flags;if(n.instrument){v.instrument=std::make_shared<InstrumentState>();v.instrument->init(n);}}
+    for(uint16_t i=0;i<page().count;++i){const auto &n=page().nodes[i];auto &v=state()[i];v.text.init(n.kind==Kind::InputField&&n.inputField?n.inputField->value:n.text);v.value=n.value;if(n.kind==Kind::InputField&&n.inputField&&n.inputField->type==InputFieldType::Number){v.value=0;parseInputNumber(v.text.c_str(),n.inputField->decimals,v.value);}if(n.kind==Kind::Spinbox&&!n.inputField)v.implicitInput=std::make_shared<const InputFieldDesc>(spinInputConfig(n));v.flags=n.flags;v.parent=n.parent;v.kind=n.kind;v.styleIndex=cacheCompiledStyle(n.style);if(n.instrument){v.instrument=std::make_shared<InstrumentState>();v.instrument->init(n);}}
     for(uint16_t i=0;i<page().count;++i){if(page().nodes[i].kind==Kind::Pager)setPage(i,state()[i].value,false);else state()[i].value=normalized(i,state()[i].value);auto &v=state()[i];v.switchPosition=v.switchFrom=v.switchTo=v.value?1000:0;}
     for(size_t component=0;component<componentCount;++component)revealComponentSelection(page(),state(),components[component]);
   }
@@ -690,26 +805,26 @@ struct View::Impl {
 #include "detail/NativeRender.inc.h"
   Rect poseRect(const PageDesc &p,const RetainedVector<State> &s,int i) const {
     Rect r=layoutRect(p,s,i);r.x+=s[i].animationX;r.y+=s[i].animationY;
-    for(uint16_t a=p.nodes[i].parent;a!=NoParent;a=p.nodes[a].parent) { r.x+=s[a].animationX-s[a].scrollX; r.y+=s[a].animationY-s[a].scrollY; }
+    for(uint16_t a=s[i].parent;a!=NoParent;a=s[a].parent) { r.x+=s[a].animationX-s[a].scrollX; r.y+=s[a].animationY-s[a].scrollY; }
     return r;
   }
   Rect rect(const PageDesc &p,const RetainedVector<State> &s,int i) const {
     const Rect r=poseRect(p,s,i);if(!p.nodes[i].motion)return r;
-    const auto &m=motionPose(p,s,i);return motion_geometry::bounds(r,m.scale,m.rotation,p.nodes[i].motion->pivotX,p.nodes[i].motion->pivotY,p.nodes[i].kind==Kind::Shape);
+    const auto &m=motionPose(p,s,i);return motion_geometry::bounds(r,m.scale,m.rotation,p.nodes[i].motion->pivotX,p.nodes[i].motion->pivotY,s[i].kind==Kind::Shape);
   }
   Rect rect(int i) const { return rect(page(),state(),i); }
   int32_t pagerStride(int i) const { return contentBox(baseRect(page(),state(),i),styleFor(page(),state(),i)).width; }
   Rect clip(const PageDesc &p,const RetainedVector<State> &s,int i) const {
     Rect result{0,0,p.width,p.height};
-    for(uint16_t a=p.nodes[i].parent;a!=NoParent;a=p.nodes[a].parent)
-      {if((s[a].flags&Clip)||scrolling(p.nodes[a].kind))result=intersect(result,childBox(p,s,a,poseRect(p,s,a)));
+    for(uint16_t a=s[i].parent;a!=NoParent;a=s[a].parent)
+      {if((s[a].flags&Clip)||scrolling(s[a].kind))result=intersect(result,childBox(p,s,a,poseRect(p,s,a)));
        if(p.nodes[a].motion){const auto &m=motionPose(p,s,a);if(m.reveal<1024)result=intersect(result,motion_geometry::reveal(poseRect(p,s,a),m.reveal,p.nodes[a].motion->flags));}}
     if(p.nodes[i].motion){const auto &m=motionPose(p,s,i);if(m.reveal<1024&&m.scale==1024&&m.rotation%360==0)result=intersect(result,motion_geometry::reveal(poseRect(p,s,i),m.reveal,p.nodes[i].motion->flags));}
     return result;
   }
   uint8_t opacity(const PageDesc &p,const RetainedVector<State> &s,int i) const {
     uint32_t result=255;
-    for(int a=i;a>=0;a=p.nodes[a].parent==NoParent?-1:p.nodes[a].parent)result=result*s[a].opacity/255;
+    for(int a=i;a>=0;a=s[a].parent==NoParent?-1:s[a].parent)result=result*s[a].opacity/255;
     return uint8_t(result);
   }
   bool startAnimation(int i,uint32_t now,bool pending=false) {
@@ -728,8 +843,9 @@ struct View::Impl {
   }
   void enterAnimations(bool playEnter=true) {
     motionCompletionPending=false;
+    mediaTweens.clear();
     for(uint16_t i=0;i<page().count;++i) {
-      State &v=state()[i];v.mediaFrame=0;v.mediaPending=true;v.animationX=v.animationY=0;v.opacity=255;v.animating=v.animationPending=false;
+      State &v=state()[i];resetMediaPlayback(i);v.animationX=v.animationY=0;v.opacity=255;v.animating=v.animationPending=false;
       resetMotion(i);
       v.switchPosition=v.switchFrom=v.switchTo=v.value?1000:0;v.switchPending=false;if(v.instrument){auto &a=instrument(i);a.visual=v.value;a.active=false;}
       if(playEnter&&page().nodes[i].animation.trigger==AnimationTrigger::Enter)startAnimation(i,0,true);
@@ -745,11 +861,14 @@ struct View::Impl {
     ensureTickNodes();
     for(uint16_t i:animationNodes) {
       State &v=state()[i];
-      if(v.instrument&&v.instrument->active&&instrument(i).advance(page().nodes[i],v.value,now))invalidate(i);
+      if(v.instrument&&v.instrument->active){
+        if(displayPolicy.slowRefresh){auto &a=instrument(i);a.visual=v.value;a.active=false;invalidate(i);}
+        else if(instrument(i).advance(page().nodes[i],v.value,now))invalidate(i);
+      }
       if(v.switchPosition!=v.switchTo) {
         if(v.switchPending){v.switchAt=now;v.switchPending=false;}
         const uint32_t elapsed=uint32_t(now-v.switchAt);
-        const int64_t remaining=elapsed>=180?0:180-elapsed;
+        const int64_t remaining=displayPolicy.slowRefresh||elapsed>=180?0:180-elapsed;
         const uint16_t position=uint16_t(v.switchTo+(int64_t(v.switchFrom)-v.switchTo)*remaining*remaining*remaining/(180*180*180));
         if(v.switchPosition!=position){v.switchPosition=position;invalidate(i);}
       }
@@ -757,10 +876,14 @@ struct View::Impl {
       if(v.animationPending){v.animationAt=now;v.animationPending=false;}
       auto *m=liveMotion(i);
       const NodeDesc &n=page().nodes[i];
-      const AnimationDesc &a=m&&m->hiding?*n.exitAnimation:n.animation;
+      AnimationDesc a=m&&m->hiding?*n.exitAnimation:n.animation;
+      // Sampling an infinite animation at its terminal pose does not finish it.
+      const bool finiteCompletion=a.repeat!=0;
       uint32_t elapsed=uint32_t(now-v.animationAt);
+      const bool terminal=displayPolicy.terminalAnimation(a,n.motion);
+      if(terminal){if(!a.repeat)a.repeat=1;elapsed=uint32_t(a.delay)+uint32_t(a.duration)*a.repeat;}
       // Rebase infinite cycles after their one-time delay, surviving clock rollover.
-      if(!a.repeat&&a.duration&&elapsed>=uint32_t(a.delay)+a.duration) {
+      if(!terminal&&!a.repeat&&a.duration&&elapsed>=uint32_t(a.delay)+a.duration) {
         uint32_t cycles=(elapsed-a.delay)/a.duration;
         if(n.motion&&(n.motion->flags&MotionAlternate))cycles&=~uint32_t(1);
         v.animationAt+=cycles*a.duration;elapsed=uint32_t(now-v.animationAt);
@@ -775,11 +898,11 @@ struct View::Impl {
       v.animationX=sample.x;v.animationY=sample.y;v.opacity=sample.opacity;v.animating=sample.active;
       if(poseChanged){m->scale=sample.scale;m->rotation=sample.rotation;m->reveal=sample.reveal;++v.motionRevision;}
       if(changed)invalidateSubtree(i);
-      if(!sample.active&&((m&&m->hiding)||hasAnimationEndListener(i)))finishMotionSample(i);
+      if(!sample.active&&((m&&m->hiding)||(finiteCompletion&&hasAnimationEndListener(i))))finishMotionSample(i);
     }
   }
   bool visible(const PageDesc &p,const RetainedVector<State> &s,int i,bool input=false) const {
-    for(int a=i;a>=0;a=p.nodes[a].parent==NoParent?-1:p.nodes[a].parent)
+    for(int a=i;a>=0;a=s[a].parent==NoParent?-1:s[a].parent)
       if((s[a].flags&Hidden)||(input&&(s[a].flags&Disabled))) return false;
     return true;
   }
@@ -1061,7 +1184,7 @@ struct View::Impl {
     if(interruptedPager>=0) { state()[interruptedPager].scrollX=state()[interruptedPager].value*pagerStride(interruptedPager);invalidate(interruptedPager);interruptedPager=-1; }
     if(drag==Drag::Back) { backOffset=0;backPrepared=false;refresh->invalidateAll();routeEvent(EventType::NavigationCancel,page().path,project->pages[history[history.size()-2]].path,RouteAction::Back); }
     if(restore)settleMotion(false,groupMotion.updated);else abortGroup();gesture=nullptr;navigationDot=-1;navigationFooterContact=false;
-    target=activeControl=owner=-1;drag=Drag::None;
+    target=activeControl=owner=-1;drag=Drag::None;mediaDragTarget=-1;
   }
   void queueNavigation(const char *path,RouteAction action,const TransitionDesc *config=nullptr,bool instant=false) {
     pendingPath=path?path:"";pendingAction=action;pendingNavigation=true;
@@ -1196,6 +1319,7 @@ struct View::Impl {
     return nullptr;
   }
   bool navigate(const char *path,RouteAction action,const TransitionDesc *config=nullptr,bool instant=false) {
+    instant=instant||displayPolicy.slowRefresh;
     if(!project||guarding||backAnimation.active||groupMotion.active) return false;
     if(processing) {
       // InputAction::Back is deferred inside its event scope; retain the physical
@@ -1263,6 +1387,7 @@ struct View::Impl {
     return int32_t(std::min<int64_t>(int64_t(n.maximum),snapped));
   }
   bool setValue(int i,int32_t v,bool animated=true) {
+    animated=animated&&!displayPolicy.slowRefresh;
     if(i<0) return false;
     if(page().nodes[i].kind==Kind::Pager) return setPage(i,v,true);
     if(page().nodes[i].kind==Kind::InputField){
@@ -1270,7 +1395,10 @@ struct View::Impl {
       const std::string formatted=inputNumberText(v,d->decimals);return setInputText(i,formatted.c_str());
     }
     v=normalized(i,v);if(state()[i].value==v){if(!animated)snapSwitch(i);updateReadout(i);return true;}
-    state()[i].value=v;if(page().nodes[i].instrument)instrument(i).animate(page().nodes[i],v);
+    state()[i].value=v;if(page().nodes[i].instrument){
+      auto &a=instrument(i);
+      if(animated)a.animate(page().nodes[i],v);else {a.visual=v;a.active=false;}
+    }
     if(animated)animateSwitch(i);else snapSwitch(i);invalidate(i);updateReadout(i);return true;
   }
   void snapSwitch(int i) {
@@ -1347,7 +1475,7 @@ struct View::Impl {
     const bool interruptedInertia=inertia.active&&contains(rect(inertia.node),px,py)&&contains(clip(page(),state(),inertia.node),px,py);inertia.active=false;
     interruptedPager=animation.active?animation.node:-1;animation.active=false;
     lastX=px;lastY=py;lastAt=now;velocityX=velocityY=0;
-    canceled=changed=longPressed=false;moved=interruptedPager>=0||interruptedInertia;allowX=allowY=true;drag=Drag::None;owner=-1;
+    canceled=changed=longPressed=false;moved=interruptedPager>=0||interruptedInertia;allowX=allowY=true;drag=Drag::None;owner=-1;mediaDragTarget=-1;
     pointerClaim=-1;pointerClaimAxis=GestureAxis::None;defaultsBlocked=customCompatibility=ownerStarted=ownerFinished=false;contactModal=modalRoot();
     target=hit(x,y);activeControl=nearestControl(target);
     gesture=nullptr;navigationDot=-1;navigationFooterContact=false;
@@ -1421,6 +1549,7 @@ struct View::Impl {
         if(backPrepared) { drag=Drag::Back;cancelTarget(); }
         else { routeEvent(EventType::NavigationCancel,from,to,RouteAction::Back);allowX=false; }
       }
+      else if(horizontal&&allowX&&[&](){for(int a=target;a>=0;a=parent(a))if(mediaScrubTarget(a)>=0){acquireMediaScrub(a);return true;}return false;}()) {}
       else if(activeControl>=0&&page().nodes[activeControl].kind==Kind::Range&&horizontal==!(page().nodes[activeControl].flags&VerticalRange)&&!canceled) { drag=Drag::Range;owner=activeControl; }
       else if((horizontal&&allowX)||(!horizontal&&allowY)) {
         bool contained=false;
@@ -1464,7 +1593,8 @@ struct View::Impl {
     if(coordinated()&&owner>=0&&!customCompatibility&&defaultMove&&!defaultsBlocked)dispatch(owner,EventType::GestureUpdate);
     if(!down){endProcessing();return;}
     if(coordinated()&&(!defaultMove||defaultsBlocked)){endProcessing();return;}
-    if(drag==Drag::Range) range(owner);
+    if(drag==Drag::Media)updateMediaScrub(dx);
+    else if(drag==Drag::Range) range(owner);
     else if(drag==Drag::Scroll||drag==Drag::Pager) scroll(owner,startScrollX-dx,startScrollY-dy);
     else if(drag==Drag::Back) { backOffset=clamp32(dx,0,page().width);refresh->invalidateAll(); }
     else if(groupMotion.active&&(drag==Drag::Group||drag==Drag::Gesture)) {
@@ -1513,24 +1643,26 @@ struct View::Impl {
       }
     } else if(drag==Drag::Back) {
       const bool commit=x-startX>=std::max<int32_t>(32,int32_t(page().width)/4)&&abs(y-startY)<page().height/3;
-      backAnimation={backOffset,commit?int32_t(page().width):0,now,true,commit};
+      if(displayPolicy.slowRefresh){backPrepared=false;backOffset=0;if(commit)queueNavigation(nullptr,RouteAction::Back,nullptr,true);else refresh->invalidateAll();}
+      else backAnimation={backOffset,commit?int32_t(page().width):0,now,true,commit};
     } else if(drag==Drag::Pager||(drag==Drag::None&&interruptedPager>=0)) {
       if(owner<0)owner=interruptedPager;
       const int32_t w=pagerStride(owner);
       int32_t index=(state()[owner].scrollX+w/2)/w;
       if(uint32_t(now-lastAt)<=150&&abs(velocityX)>400)index=state()[owner].value+(velocityX<0?1:-1);
       int32_t mx,my;extent(owner,mx,my);index=clamp32(index,0,(mx+w-1)/w);
-      animation={owner,state()[owner].scrollX,index*w,index,now,true};
+      if(displayPolicy.slowRefresh)setPage(owner,index,true);
+      else animation={owner,state()[owner].scrollX,index*w,index,now,true};
     } else if(drag==Drag::Scroll) {
       int32_t speed=(state()[owner].flags&Horizontal)?velocityX:velocityY;
-      if(uint32_t(now-lastAt)<=150&&abs(speed)>80)inertia={owner,-speed,0,now,true};
+      if(!displayPolicy.slowRefresh&&uint32_t(now-lastAt)<=150&&abs(speed)>80)inertia={owner,-speed,0,now,true};
     } else if(perform&&activeControl>=0&&page().nodes[activeControl].kind==Kind::Range&&(drag==Drag::Range||!moved)) {
       const int rangeControl=activeControl;if(!coordinated()||drag!=Drag::Range)range(rangeControl);
       if(down&&state()[rangeControl].value!=startValue) dispatch(rangeControl,EventType::Change);
     } else if(perform&&drag==Drag::None&&!moved&&!longPressed&&target>=0&&nodeContains(target,x,y)) {
       activateNode(target,now,true);
     }
-    down=false;target=activeControl=owner=interruptedPager=-1;drag=Drag::None;gesture=nullptr;navigationDot=-1;navigationFooterContact=false;invalidate(oldControl);endProcessing();
+    down=false;target=activeControl=owner=interruptedPager=-1;drag=Drag::None;mediaDragTarget=-1;gesture=nullptr;navigationDot=-1;navigationFooterContact=false;invalidate(oldControl);endProcessing();
   }
   void spinbox(int i,int32_t px,bool pointer) {
     const auto &n=page().nodes[i];const Rect r=contentBox(rect(i),styleFor(page(),state(),i));const int w=std::min(r.height,r.width/3);
@@ -1582,7 +1714,8 @@ struct View::Impl {
           const int left=r.x+(r.width-(count*step-clicked.pager.dotGap))/2;
           if(y>=r.y+r.height-clicked.pager.indicatorHeight&&x>=left-clicked.pager.dotGap/2&&x<left+count*step-clicked.pager.dotGap/2) {
             const int index=clamp32((x-left+clicked.pager.dotGap/2)/step,0,count-1);
-            animation={clickedIndex,state()[clickedIndex].scrollX,index*pagerStride(clickedIndex),index,now,true};
+            if(displayPolicy.slowRefresh)setPage(clickedIndex,index,true);
+            else animation={clickedIndex,state()[clickedIndex].scrollX,index*pagerStride(clickedIndex),index,now,true};
           }
         }
         int navigation=nearestNavigation(clickedIndex);
@@ -1594,6 +1727,9 @@ struct View::Impl {
   }
   Rect backgroundCover(int index,Rect clipped) const {
     Rect best{0,0,0,0};int64_t bestArea=0;
+    // Tiny backgrounds cost less to paint than scanning later occluders.
+    // Returning no cover only restores normal paint order; never skip pixels.
+    if(clipped.width<=0||clipped.height<=0||uint64_t(clipped.width)*clipped.height<=64)return best;
     if(index<0||paintCache->nodes[index].alpha!=255)return best;
     // Reuse the frame's vertical candidate bands. A later node whose clipped
     // bounds do not intersect this tile cannot cover any of its background.
@@ -1656,10 +1792,10 @@ struct View::Impl {
   }
   void prepareText(FrameCache &cache,Geometry &g,const NodeDesc &n,const State &v,const Style &style) {
     g.lineFirst=uint32_t(cache.lines.size());g.lineCount=0;g.textY=0;
-    if(n.kind!=Kind::Text&&n.kind!=Kind::Label&&n.kind!=Kind::Button&&n.kind!=Kind::Checkbox)return;
+    if(v.kind!=Kind::Text&&v.kind!=Kind::Label&&v.kind!=Kind::Button&&v.kind!=Kind::Checkbox)return;
     const char *s=v.text.c_str();Rect r=textBox(g.rect,n,style);if(r.width<=0||r.height<=0||!*s)return;
     ++stats.textLayouts;const int32_t h=style.font->height*style.fontSize;
-    if(n.kind==Kind::Button||n.kind==Kind::Checkbox) {
+    if(v.kind==Kind::Button||v.kind==Kind::Checkbox) {
       int32_t available=r.width;bool fits=true;const size_t length=strlen(s);
       for(size_t pos=0;pos<length;) {const uint16_t cp=nextCode(s,pos,length);
         if(cp=='\n'||cp=='\r'){fits=false;break;}
@@ -1678,6 +1814,7 @@ struct View::Impl {
     if(i>begin&&y<r.height)line(i);
   }
   void prepareCache(const PageDesc &p,const RetainedVector<State> &s,FrameCache &cache,int32_t visibleHeight=-1) {
+    GeometryTimer geometryTimer(*this);
     cache.visibleHeight=visibleHeight;
     cache.nodes.resize(p.count);cache.words=(size_t(p.count)+31)/32;cache.bandHeight=(int32_t(p.height)+31)/32;
     cache.mediaFirst=NoParent;cache.mediaEnd=0;
@@ -1685,19 +1822,19 @@ struct View::Impl {
     cache.lines.clear();
     for(uint16_t i=0;i<p.count;++i)cache.nodes[i].children=0;
     for(uint16_t i=0;i<p.count;++i){++stats.geometryNodes;auto &g=cache.nodes[i];const auto &n=p.nodes[i];const auto &v=s[i];
-      if(n.kind==Kind::Media){if(cache.mediaFirst==NoParent)cache.mediaFirst=i;cache.mediaEnd=uint16_t(i+1);}
+      if(v.kind==Kind::Media){if(cache.mediaFirst==NoParent)cache.mediaFirst=i;cache.mediaEnd=uint16_t(i+1);}
       g.rect=baseRect(p,s,i);g.rect.x+=v.animationX;g.rect.y+=v.animationY;g.clip={0,0,p.width,p.height};g.visible=!(v.flags&Hidden);g.inputVisible=g.visible&&!(v.flags&Disabled);
-      if(n.parent!=NoParent){auto &a=cache.nodes[n.parent];++a.children;const Rect b=p.nodes[n.parent].rect;
-        g.rect.x+=a.rect.x-b.x-s[n.parent].scrollX;g.rect.y+=a.rect.y-b.y-s[n.parent].scrollY;
-        g.clip=a.clip;if((s[n.parent].flags&Clip)||scrolling(p.nodes[n.parent].kind))g.clip=intersect(g.clip,childBox(p,s,n.parent,a.rect));
+      if(v.parent!=NoParent){auto &a=cache.nodes[v.parent];++a.children;const Rect b=p.nodes[v.parent].rect;
+        g.rect.x+=a.rect.x-b.x-s[v.parent].scrollX;g.rect.y+=a.rect.y-b.y-s[v.parent].scrollY;
+        g.clip=a.clip;if((s[v.parent].flags&Clip)||scrolling(s[v.parent].kind))g.clip=intersect(g.clip,childBox(p,s,v.parent,a.rect));
         g.visible=g.visible&&a.visible;g.inputVisible=g.inputVisible&&a.inputVisible;
       }
       if(n.motion){const auto &m=motionPose(p,s,i);
         if(m.reveal<1024&&m.scale==1024&&m.rotation%360==0)g.clip=intersect(g.clip,motion_geometry::reveal(g.rect,m.reveal,n.motion->flags));
-        g.rect=motion_geometry::bounds(g.rect,m.scale,m.rotation,n.motion->pivotX,n.motion->pivotY,n.kind==Kind::Shape);
+        g.rect=motion_geometry::bounds(g.rect,m.scale,m.rotation,n.motion->pivotX,n.motion->pivotY,v.kind==Kind::Shape);
       }
       // Preserve the original descendant-to-root integer alpha rounding.
-      g.alpha=v.opacity==255&&(n.parent==NoParent||cache.nodes[n.parent].alpha==255)?255:opacity(p,s,i);g.lineCount=0;
+      g.alpha=v.opacity==255&&(v.parent==NoParent||cache.nodes[v.parent].alpha==255)?255:opacity(p,s,i);g.lineCount=0;
       Rect c=intersect(g.rect,g.clip);if(visibleHeight>=0)c=intersect(c,{0,0,p.width,visibleHeight});if(!g.visible||!g.alpha||c.width<=0||c.height<=0)continue;
       prepareText(cache,g,n,v,styleFor(p,s,i));
       const int first=clamp32(c.y/cache.bandHeight,0,31),last=clamp32((c.y+c.height-1)/cache.bandHeight,0,31);
@@ -1709,6 +1846,7 @@ struct View::Impl {
   // grow a history of obsolete layouts in the retained surface.
   template<class Previous> void prepareVisualCache(const PageDesc &p,const RetainedVector<State> &s,const Previous &previous,
                           const FrameCache &source,FrameCache &cache) {
+    GeometryTimer geometryTimer(*this);
     cache.nodes=source.nodes;cache.bands=source.bands;cache.words=source.words;cache.bandHeight=source.bandHeight;cache.visibleHeight=source.visibleHeight;cache.mediaFirst=source.mediaFirst;cache.mediaEnd=source.mediaEnd;cache.lines.clear();
     stats.geometryReuses+=p.count;
     for(uint16_t i=0;i<p.count;++i){auto &g=cache.nodes[i];const auto &old=source.nodes[i];
@@ -1802,13 +1940,219 @@ struct View::Impl {
       }
     }
   }
+  void paintPackedMedia(const MediaDesc &m,const Image::Impl *image,const uint8_t *frame,size_t stride,
+                        Rect r,Rect clipped,Rect borderBox,const Style &style) {
+    const Rect area=intersect(r,clipped);if(area.width<=0||area.height<=0)return;
+    const bool ram=image&&!image->flash;
+    const MediaRoundClip roundClip(borderBox,style);
+    mediaRow.resize(size_t(area.width));
+    auto *bytes=reinterpret_cast<uint8_t *>(mediaRow.data());
+    const int32_t xStep=m.width/r.width,xRemainder=m.width%r.width;
+    const int64_t yNumerator=int64_t(area.y-r.y)*m.height;
+    int32_t sourceY=int32_t(yNumerator/r.height),remainderY=int32_t(yNumerator%r.height);
+    const int32_t yStep=m.height/r.height,yRemainder=m.height%r.height;
+    int32_t previousY=-1;
+    for(int32_t y=area.y;y<area.y+area.height;++y){
+      int32_t first=area.x,end=area.x+area.width;
+      if(style.radius&&roundClip.rounded())roundClip.span(y,first,end);
+      if(!mediaMasked(m)){
+        // Integer upscaling often repeats the same source scanline. Expand its
+        // bits once, then copy the row (including rounded/clipped subspans).
+        if(sourceY!=previousY){
+          const int64_t numerator=int64_t(area.x-r.x)*m.width;
+          int32_t sourceX=int32_t(numerator/r.width),remainderX=int32_t(numerator%r.width);
+          for(int32_t col=0;col<area.width;++col){
+            const uint8_t b=detail::mediaByte(frame+size_t(sourceY)*stride+size_t(sourceX)/8,ram);
+            const uint8_t value=(b&(0x80U>>(sourceX&7)))?0xff:0;
+            bytes[size_t(col)*2]=value;bytes[size_t(col)*2+1]=value;
+            sourceX+=xStep;remainderX+=xRemainder;if(remainderX>=r.width){remainderX-=r.width;++sourceX;}
+          }
+          previousY=sourceY;
+        }
+        if(first<end)canvas.blit(first,y,PixelView(bytes+size_t(first-area.x)*2,size_t(end-first),1,0,PixelOrder::Wire));
+        sourceY+=yStep;remainderY+=yRemainder;if(remainderY>=r.height){remainderY-=r.height;++sourceY;}
+        continue;
+      }
+      const int64_t xNumerator=int64_t(first-r.x)*m.width;
+      int32_t sourceX=int32_t(xNumerator/r.width),remainderX=int32_t(xNumerator%r.width),run=-1;
+      for(int32_t x=first;x<=end;++x){
+        uint16_t color=0;
+        const bool opaque=x<end&&detail::sampleMediaPixel(m,frame,stride,size_t(sourceX),size_t(sourceY),ram,PixelOrder::Wire,color);
+        if(opaque){if(run<0)run=x;const size_t at=size_t(x-area.x)*2;bytes[at]=uint8_t(color>>8);bytes[at+1]=uint8_t(color);}
+        else if(run>=0){canvas.blit(run,y,PixelView(bytes+size_t(run-area.x)*2,size_t(x-run),1,0,PixelOrder::Wire));run=-1;}
+        sourceX+=xStep;remainderX+=xRemainder;if(remainderX>=r.width){remainderX-=r.width;++sourceX;}
+      }
+      sourceY+=yStep;remainderY+=yRemainder;if(remainderY>=r.height){remainderY-=r.height;++sourceY;}
+    }
+  }
+  // Raw format is chosen once per image, outside its exact nearest-neighbor
+  // DDA. Return a Wire565 storage word so each gathered texel has one store.
+  template<unsigned Format>
+#if defined(__GNUC__)
+  __attribute__((always_inline))
+#endif
+  static inline uint16_t rawMediaStored(const uint8_t *p) {
+    if constexpr(Format==0) {
+      uint16_t stored;auto *bytes=reinterpret_cast<uint8_t *>(&stored);
+      bytes[0]=pgm_read_byte(p);bytes[1]=pgm_read_byte(p+1);return stored;
+    } else if constexpr(Format==1) {
+      uint16_t stored;memcpy(&stored,p,2);return stored;
+    } else if constexpr(Format==2) {
+      uint16_t color;memcpy(&color,p,2);return rgb565_blend::toWire(color);
+    } else {
+      const uint8_t value=Format==3?pgm_read_byte(p):*p;
+      const uint16_t color=uint16_t((((value>>5)*31+3)/7)<<11|(((value>>2)&7)*9)<<5|((value&3)*31+1)/3);
+      return rgb565_blend::toWire(color);
+    }
+  }
+  template<unsigned Format>
+#if defined(__GNUC__) && !defined(__clang__)
+  __attribute__((noinline,optimize("O3")))
+#elif defined(__GNUC__)
+  __attribute__((noinline))
+#endif
+  void paintRawRescaledMedia(const uint8_t *frame,size_t stride,uint16_t sourceWidth,uint16_t sourceHeight,Rect r,Rect area) {
+    mediaRow.resize(size_t(area.width));uint16_t *output=mediaRow.data();
+    const int64_t xn=int64_t(area.x-r.x)*sourceWidth,yn=int64_t(area.y-r.y)*sourceHeight;
+    const int32_t firstX=int32_t(xn/r.width),firstRemainder=int32_t(xn%r.width);
+    const int32_t xStep=sourceWidth/r.width,xRemainder=sourceWidth%r.width;
+    const int32_t yStep=sourceHeight/r.height,yRemainder=sourceHeight%r.height;
+    int32_t sourceY=int32_t(yn/r.height),remainderY=int32_t(yn%r.height),previousY=-1;
+    for(int32_t y=area.y;y<area.y+area.height;++y) {
+      if(sourceY!=previousY) {
+        const uint8_t *row=frame+size_t(sourceY)*stride;
+        int32_t sourceX=firstX,remainderX=firstRemainder;
+        for(int32_t col=0;col<area.width;++col) {
+          output[col]=rawMediaStored<Format>(row+size_t(sourceX)*(Format<3?2:1));
+          sourceX+=xStep;remainderX+=xRemainder;if(remainderX>=r.width){remainderX-=r.width;++sourceX;}
+        }
+        previousY=sourceY;
+      }
+      canvas.blit(area.x,y,PixelView(output,size_t(area.width),1,0,PixelOrder::Wire));
+      sourceY+=yStep;remainderY+=yRemainder;if(remainderY>=r.height){remainderY-=r.height;++sourceY;}
+    }
+  }
+
+  struct RawMediaAlphaTile {
+    const uint8_t *frame;uint16_t *pixels;size_t sourceStride,targetStride;
+    int32_t width,height,destinationWidth,destinationHeight,firstX,firstRemainder;
+    int32_t sourceY,remainderY,xStep,xRemainder,yStep,yRemainder;
+    uint8_t alpha;
+  };
+  template<unsigned Format>
+#if defined(__GNUC__)
+  __attribute__((always_inline))
+#endif
+  static inline uint16_t rawMediaNativeColor(const uint8_t *source) {
+    if constexpr(Format==2){uint16_t color;memcpy(&color,source,2);return color;}
+    else return rgb565_blend::fromWire(rawMediaStored<Format>(source));
+  }
+  // Gather exact floor-DDA texels and blend against the real destination in
+  // one pass. Node opacity already includes ancestors; apply it exactly once.
+  template<unsigned Format,bool NativeTarget,bool UseSolidLut>
+#if defined(__GNUC__) && !defined(__clang__)
+  __attribute__((noinline,optimize("O3")))
+#elif defined(__GNUC__)
+  __attribute__((noinline))
+#endif
+  static void blendRawMediaAlphaKernel(const RawMediaAlphaTile &tile,const rgb565_blend::SolidBackgroundLut *lut,uint16_t background) {
+    const int32_t width=tile.width,height=tile.height,destinationWidth=tile.destinationWidth;
+    const int32_t xStep=tile.xStep,xRemainder=tile.xRemainder;const uint8_t alpha=tile.alpha;
+    int32_t sourceY=tile.sourceY,remainderY=tile.remainderY;
+    for(int32_t y=0;y<height;++y){
+      const uint8_t *row=tile.frame+size_t(sourceY)*tile.sourceStride;
+      uint16_t *target=tile.pixels+size_t(y)*tile.targetStride;
+      int32_t x=0,sourceX=tile.firstX,remainderX=tile.firstRemainder;
+      const auto next=[&](){const uint16_t color=rawMediaNativeColor<Format>(row+size_t(sourceX)*2);
+        sourceX+=xStep;remainderX+=xRemainder;if(remainderX>=destinationWidth){remainderX-=destinationWidth;++sourceX;}return color;};
+      const auto scalar=[&](){const uint16_t front=next(),back=NativeTarget?*target:rgb565_blend::fromWire(*target);
+        if(front!=back){uint16_t color;
+          if constexpr(UseSolidLut)color=back==background?lut->lookupNative(front):rgb565_blend::color(front,back,alpha);
+          else color=rgb565_blend::color(front,back,alpha);
+          *target=NativeTarget?color:rgb565_blend::toWire(color);}++target;++x;};
+#if defined(__GNUC__) && defined(__BYTE_ORDER__) && defined(__ORDER_LITTLE_ENDIAN__) && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+      if((reinterpret_cast<uintptr_t>(target)&3)&&x<width)scalar();
+      typedef uint32_t RawAlphaWord __attribute__((__may_alias__));
+      for(;x+1<width;x+=2,target+=2){
+        const uint32_t first=next(),second=next(),front=first|(second<<16);
+        auto *pair=reinterpret_cast<RawAlphaWord *>(target);
+        const uint32_t back=NativeTarget?*pair:rgb565_blend::swapPairBytes(*pair);
+        if(front!=back){uint32_t color;
+          if constexpr(UseSolidLut){
+            const uint32_t solid=uint32_t(background)|(uint32_t(background)<<16);
+            color=back==solid?uint32_t(lut->lookupNative(uint16_t(front)))|(uint32_t(lut->lookupNative(uint16_t(front>>16)))<<16):rgb565_blend::colorPair(front,back,alpha);
+          }else color=rgb565_blend::colorPair(front,back,alpha);
+          *pair=NativeTarget?color:rgb565_blend::swapPairBytes(color);}
+      }
+#endif
+      for(;x<width;)scalar();
+      sourceY+=tile.yStep;remainderY+=tile.yRemainder;
+      if(remainderY>=tile.destinationHeight){remainderY-=tile.destinationHeight;++sourceY;}
+    }
+  }
+  // A cheap 4x4 vote chooses only a performance strategy. Every actual
+  // destination pixel/pair still checks its real background before using LUT.
+  template<unsigned Format,bool NativeTarget>
+#if defined(__GNUC__) && !defined(__clang__)
+  __attribute__((noinline,optimize("O3")))
+#elif defined(__GNUC__)
+  __attribute__((noinline))
+#endif
+  static void blendRawMediaAlpha(const RawMediaAlphaTile &tile) {
+    const uint16_t background=NativeTarget?tile.pixels[0]:rgb565_blend::fromWire(tile.pixels[0]);
+    unsigned matches=0;
+    for(unsigned y=0;y<4;++y){const size_t row=size_t((int64_t(tile.height-1)*y)/3)*tile.targetStride;
+      for(unsigned x=0;x<4;++x){const size_t col=size_t((int64_t(tile.width-1)*x)/3);const uint16_t stored=tile.pixels[row+col];
+        if((NativeTarget?stored:rgb565_blend::fromWire(stored))==background)++matches;}}
+    if(matches>=12){const rgb565_blend::SolidBackgroundLut lut(background,tile.alpha);
+      blendRawMediaAlphaKernel<Format,NativeTarget,true>(tile,&lut,background);
+    }else blendRawMediaAlphaKernel<Format,NativeTarget,false>(tile,nullptr,0);
+  }
+  bool paintRawMediaAlpha(int index,Rect clipped,const DirtyRect &area,uint16_t *pixels,size_t stride,uint8_t alpha) {
+    const NodeDesc &node=rasterFrame.current.page->nodes[index];
+    if(node.kind!=Kind::Media||!alpha||alpha==255||displayPolicy.monochrome)return false;
+    const State &value=rasterFrame.current.values[index];const Style &style=styleFor(*rasterFrame.current.page,rasterFrame.current.values,index);
+    if(style.radius||style.borderWidth||style.gradient||style.paddingTop||style.paddingRight||style.paddingBottom||style.paddingLeft)return false;
+    const MediaDesc *source=media(node,value);
+    if(!source||source->bytesPerPixel!=2)return false; // keyed/packed/masked/other formats keep the ordinary painter.
+    Rect rect=paintCache->nodes[index].rect;rect.x+=paintOffsetX;rect.y+=paintOffsetY;
+    const int64_t dx=int64_t(clipped.x)-rect.x,dy=int64_t(clipped.y)-rect.y;
+    if(rect.width<=0||rect.height<=0||clipped.width<=0||clipped.height<=0||dx<0||dy<0||dx+clipped.width>rect.width||dy+clipped.height>rect.height)return false;
+    const Image::Impl *image=value.imageOverride?value.image.impl_:nullptr;
+    const size_t sourceStride=image?image->source.strideBytes:mediaStrideBytes(*source),rowBytes=size_t(source->width)*2;
+    if(!source->height||sourceStride<rowBytes||size_t(source->height-1)>(SIZE_MAX-rowBytes)/sourceStride)return false;
+    const size_t sourceBytes=size_t(source->height-1)*sourceStride+rowBytes;
+    const size_t frameBytes=mediaFrameBytes(*source,sourceStride);
+    if(value.mediaFrame&&frameBytes>SIZE_MAX/value.mediaFrame)return false;
+    const size_t frameOffset=size_t(value.mediaFrame)*frameBytes;
+    const uintptr_t sourceBase=reinterpret_cast<uintptr_t>(mediaPixels(*source));
+    if(frameOffset>UINTPTR_MAX-sourceBase)return false;const uintptr_t address=sourceBase+frameOffset;
+    if(sourceBytes>UINTPTR_MAX-address||area.width<=0||area.height<=0||stride<size_t(area.width)||
+       size_t(area.height-1)>(SIZE_MAX-size_t(area.width))/stride)return false;
+    const size_t targetWords=size_t(area.height-1)*stride+size_t(area.width);
+    if(targetWords>SIZE_MAX/2)return false;const size_t targetBytes=targetWords*2;
+    const uintptr_t destination=reinterpret_cast<uintptr_t>(pixels);
+    if(targetBytes>UINTPTR_MAX-destination||(address<destination+targetBytes&&destination<address+sourceBytes))return false;
+    if(clipped.x<area.x||clipped.y<area.y||int64_t(clipped.x)+clipped.width>int64_t(area.x)+area.width||int64_t(clipped.y)+clipped.height>int64_t(area.y)+area.height)return false;
+    const int64_t xn=dx*source->width,yn=dy*source->height;
+    const RawMediaAlphaTile tile{reinterpret_cast<const uint8_t *>(address),pixels+size_t(clipped.y-area.y)*stride+size_t(clipped.x-area.x),sourceStride,stride,
+      clipped.width,clipped.height,rect.width,rect.height,int32_t(xn/rect.width),int32_t(xn%rect.width),
+      int32_t(yn/rect.height),int32_t(yn%rect.height),source->width/rect.width,source->width%rect.width,source->height/rect.height,source->height%rect.height,alpha};
+    const bool native=renderOrder==PixelOrder::Native;
+    if(image&&!image->flash){
+      if(image->source.order==PixelOrder::Native){if(native)blendRawMediaAlpha<2,true>(tile);else blendRawMediaAlpha<2,false>(tile);}
+      else {if(native)blendRawMediaAlpha<1,true>(tile);else blendRawMediaAlpha<1,false>(tile);}
+    }else {if(native)blendRawMediaAlpha<0,true>(tile);else blendRawMediaAlpha<0,false>(tile);}
+    return true;
+  }
+
   void paintNode(int i,Rect clipped) {
     const NodeDesc &n=rasterFrame.current.page->nodes[i];const State &v=rasterFrame.current.values[i];const Style &s=styleFor(*rasterFrame.current.page,rasterFrame.current.values,i);
-    canvas.setAntialiasing(!(v.flags&NoAntialias));
+    canvas.setAntialiasing(!displayPolicy.monochrome&&!(v.flags&NoAntialias));
     Rect r=paintCache->nodes[i].rect;r.x+=paintOffsetX;r.y+=paintOffsetY;
     // Opaque dynamic RGB565 completely replaces its own box background. Keep
     // clipped row copies, but omit the fill/occlusion scan it would overwrite.
-    if(n.kind==Kind::Media&&paintCache->nodes[i].alpha==255&&v.imageOverride&&v.image.impl_&&
+    if(v.kind==Kind::Media&&paintCache->nodes[i].alpha==255&&v.imageOverride&&v.image.impl_&&
        !v.image.impl_->flash&&!s.borderWidth&&!s.radius&&!s.paddingTop&&!s.paddingRight&&
        !s.paddingBottom&&!s.paddingLeft){
       const auto &image=*v.image.impl_;const auto &m=image.media;
@@ -1818,46 +2162,60 @@ struct View::Impl {
       }
     }
     bool disabled=(v.flags&Disabled)!=0;
-    for(uint16_t ancestor=n.parent;ancestor!=NoParent&&!disabled;ancestor=rasterFrame.current.page->nodes[ancestor].parent)disabled=(rasterFrame.current.values[ancestor].flags&Disabled)!=0;
+    for(uint16_t ancestor=v.parent;ancestor!=NoParent&&!disabled;ancestor=rasterFrame.current.values[ancestor].parent)disabled=(rasterFrame.current.values[ancestor].flags&Disabled)!=0;
     const bool pressed=i==snapshotPressed;
-    const ComponentPaint component=n.kind==Kind::Button?componentPaint(*rasterFrame.current.page,rasterFrame.current.values,n.id):ComponentPaint{};
+    const ComponentPaint component=v.kind==Kind::Button?componentPaint(*rasterFrame.current.page,rasterFrame.current.values,n.id):ComponentPaint{};
     const bool selected=component.selected&&!disabled;
     uint16_t bg=selected?s.thumbColor:disabled?s.disabledColor:(pressed?s.pressedColor:s.background);
+    // RGB styles have one foreground for all states. A 1-bit selected/pressed
+    // background must choose its opposite foreground to retain readable menus.
+    Style monoStyle;
+    const Style *contentStyle=&s;
+    if(displayPolicy.monochrome){monoStyle=s;
+      if(selected||disabled||pressed)monoStyle.color=DisplayPolicy::foregroundOn(bg);
+      contentStyle=&monoStyle;
+    }
     const bool transparent=!selected&&(disabled?(v.flags&DisabledTransparent)!=0:
       pressed?(v.flags&ActiveTransparent)!=0:(v.flags&Transparent)!=0);
     const bool gradient=!(n.flags&RangeFillGradient)&&!selected&&(disabled?(v.flags&GradientDisabled)!=0:pressed?(v.flags&GradientActive)!=0:true);
     if(!transparent)rounded(r,bg,s.borderColor,s,gradient,i,clipped);
     else for(int b=0;b<s.borderWidth&&2*b<std::min<int32_t>(r.width,r.height);++b)
       canvas.drawRoundRect(r.x+b,r.y+b,r.width-2*b,r.height-2*b,std::max<int32_t>(0,std::min<int32_t>(s.radius,std::min<int32_t>(r.width,r.height)/2)-b),s.borderColor);
-    if(n.kind==Kind::Text||n.kind==Kind::Label||n.kind==Kind::Button) {
+    if(displayPolicy.monochrome&&disabled&&r.width>0&&r.height>0&&
+       (v.kind==Kind::Button||v.kind==Kind::InputField||v.kind==Kind::Checkbox||v.kind==Kind::Switch||v.kind==Kind::Range)){
+      const uint16_t marker=DisplayPolicy::foregroundOn(bg);
+      for(int32_t x=0;x<r.width;x+=4)canvas.drawFastHLine(r.x+x,r.y+r.height-1,std::min<int32_t>(2,r.width-x),marker);
+    }
+    if(v.kind==Kind::Text||v.kind==Kind::Label||v.kind==Kind::Button) {
       if(selected&&r.width>0&&r.height>0){const int32_t inset=std::min<int32_t>(12,r.width/4);
         canvas.fillRoundRect(r.x+inset,r.y+std::max<int32_t>(0,r.height-4),r.width-2*inset,std::min<int32_t>(2,r.height),1,s.fillColor);}
-      text(i,n,v,s,clipped);
+      text(i,n,v,*contentStyle,clipped);
       if(component.select&&r.width>0&&r.height>0){const float cx=r.x+r.width-18,cy=r.y+r.height/2;
         const float direction=component.expanded?-1.0f:1.0f;
-        canvas.drawWideLine(cx-4,cy-2*direction,cx,cy+2*direction,2,s.color);
-        canvas.drawWideLine(cx,cy+2*direction,cx+4,cy-2*direction,2,s.color);}
+        canvas.drawWideLine(cx-4,cy-2*direction,cx,cy+2*direction,2,contentStyle->color);
+        canvas.drawWideLine(cx,cy+2*direction,cx+4,cy-2*direction,2,contentStyle->color);}
       if(component.list&&r.width>0&&r.height>0){const float cx=r.x+r.width-18,cy=r.y+r.height/2;
-        canvas.drawWideLine(cx-2,cy-4,cx+2,cy,2,s.color);
-        canvas.drawWideLine(cx+2,cy,cx-2,cy+4,2,s.color);}
+        canvas.drawWideLine(cx-2,cy-4,cx+2,cy,2,contentStyle->color);
+        canvas.drawWideLine(cx+2,cy,cx-2,cy+4,2,contentStyle->color);}
       return;
     }
     const Rect borderBox=r;
     r=contentBox(r,s);
-    if(n.kind==Kind::InputField){paintInputField(n,v,s,r);return;}
-    if(n.kind==Kind::Shape&&n.shape&&r.width>0&&r.height>0){renderShape(canvas,*n.shape,r,clipped,s.radius);return;}
-    if(n.instrument&&r.width>0&&r.height>0){NodeDesc styled=n;styled.style=s;styled.flags=v.flags;renderInstrument(canvas,styled,*v.instrument,v.value,r);return;}
-    const MediaDesc *source=n.kind==Kind::Media?media(n,v):nullptr;
+    if(v.kind==Kind::InputField){paintInputField(n,v,*contentStyle,r);return;}
+    if(v.kind==Kind::Shape&&n.shape&&r.width>0&&r.height>0){renderShape(canvas,*n.shape,r,clipped,s.radius);return;}
+    if(n.instrument&&r.width>0&&r.height>0){NodeDesc styled=n;styled.style=*contentStyle;styled.flags=v.flags|(displayPolicy.monochrome?NoAntialias:0);renderInstrument(canvas,styled,*v.instrument,v.value,r);return;}
+    const MediaDesc *source=v.kind==Kind::Media?media(n,v):nullptr;
     if(source&&r.width>0&&r.height>0) {
       const MediaDesc &m=*source;
       const Image::Impl *image=v.imageOverride?v.image.impl_:nullptr;
-      const size_t stride=image?image->source.strideBytes:size_t(m.width)*mediaPixelBytes(m);
+      const size_t stride=image?image->source.strideBytes:mediaStrideBytes(m);
       // Public viewport getters describe the coordinate datum, which stays
       // full-screen for setViewport(..., false). Use the renderer's real tile
       // intersection so a 16-row refresh never samples the entire image.
       const Rect area=intersect(r,clipped);
       if(area.width<=0||area.height<=0)return;
-      const uint8_t *frame=mediaPixels(m)+size_t(v.mediaFrame)*stride*m.height;
+      const uint8_t *frame=mediaPixels(m)+size_t(v.mediaFrame)*mediaFrameBytes(m,stride);
+      if(mediaPacked(m)){paintPackedMedia(m,image,frame,stride,r,clipped,borderBox,s);return;}
       if(mediaColorKeyed(m)){
         const MediaRoundClip clip(borderBox,s);paintKeyedMedia(m,frame,stride,r,clipped,s.radius&&clip.rounded()?&clip:nullptr);return;
       }
@@ -1874,7 +2232,7 @@ struct View::Impl {
           mediaRow.resize(size_t(area.width));
           for(int32_t y=area.y;y<area.y+area.height;++y){
             const uint8_t *row=frame+size_t(y-r.y)*stride+size_t(area.x-r.x)*2;
-#if defined(ARDUINO_ARCH_ESP8266) || defined(ESP32)
+#if !NICE_GFX_NATIVE_IDF && (defined(ARDUINO_ARCH_ESP8266) || defined(ESP32))
             if(!image||image->flash)memcpy_P(mediaRow.data(),row,size_t(area.width)*2);
             else memcpy(mediaRow.data(),row,size_t(area.width)*2);
 #else
@@ -1885,6 +2243,22 @@ struct View::Impl {
           return;
         }
       }
+      // Packed, keyed and rounded sources have already taken their own paths.
+      // Keep opacity in the existing outer node scope; gather these raw pixels
+      // without per-pixel format, storage-location or byte-order branches.
+      if(m.bytesPerPixel==2){
+        if(image&&!image->flash){
+          if(image->source.order==PixelOrder::Native)paintRawRescaledMedia<2>(frame,stride,m.width,m.height,r,area);
+          else paintRawRescaledMedia<1>(frame,stride,m.width,m.height,r,area);
+        }else paintRawRescaledMedia<0>(frame,stride,m.width,m.height,r,area);
+        return;
+      }
+      if(m.bytesPerPixel==1){
+        if(image&&!image->flash)paintRawRescaledMedia<4>(frame,stride,m.width,m.height,r,area);
+        else paintRawRescaledMedia<3>(frame,stride,m.width,m.height,r,area);
+        return;
+      }
+      // Preserve the general fallback for future raw resource formats.
       mediaRow.resize(size_t(area.width));uint8_t *bytes=reinterpret_cast<uint8_t *>(mediaRow.data());
       // Exact floor(position * source / destination) nearest-neighbor sampling.
       // Divide once at the clipped origin, then carry remainders. ESP32's
@@ -1912,38 +2286,99 @@ struct View::Impl {
         canvas.blit(area.x,y,PixelView(mediaRow.data(),size_t(area.width),1,0,PixelOrder::Wire));
         sourceY+=yStep;remainderY+=yRemainder;if(remainderY>=r.height){remainderY-=r.height;++sourceY;}
       }
-    } else if(n.kind==Kind::Icon&&n.icon) {
+    } else if(v.kind==Kind::Icon&&n.icon) {
       canvas.drawIcon(r.x,r.y,*n.icon,s.color);
-    } else if(n.kind==Kind::Pager&&n.pager.indicatorHeight) {
+    } else if(v.kind==Kind::Pager&&n.pager.indicatorHeight) {
       const int count=paintCache->nodes[i].children;
       const int size=n.pager.dotSize,step=size+n.pager.dotGap;
       const int left=r.x+(r.width-(count*step-n.pager.dotGap))/2,top=r.y+r.height-(n.pager.indicatorHeight+size)/2;
-      for(int j=0;j<count;++j)canvas.fillRoundRect(left+j*step,top,size,size,size/2,j==v.value?s.fillColor:s.trackColor);
-    } else if(n.kind==Kind::Range||n.kind==Kind::Progress) {
-      const auto g=detail::rangeGeometry(r,s,(n.flags&VerticalRange)!=0,n.kind==Kind::Range,v.value,n.minimum,n.maximum);
+      for(int j=0;j<count;++j){
+        if(displayPolicy.monochrome&&j!=v.value)canvas.drawRoundRect(left+j*step,top,size,size,size/2,DisplayPolicy::foregroundOn(s.background));
+        else canvas.fillRoundRect(left+j*step,top,size,size,size/2,displayPolicy.monochrome?DisplayPolicy::foregroundOn(s.background):(j==v.value?s.fillColor:s.trackColor));
+      }
+    } else if(v.kind==Kind::Range||v.kind==Kind::Progress) {
+      const auto g=detail::rangeGeometry(r,s,(n.flags&VerticalRange)!=0,v.kind==Kind::Range,v.value,n.minimum,n.maximum);
       const int32_t track=g.vertical?g.track.width:g.track.height;
       canvas.fillRoundRect(g.track.x,g.track.y,g.track.width,g.track.height,track/2,s.trackColor);
+      if(displayPolicy.monochrome)canvas.drawRoundRect(g.track.x,g.track.y,g.track.width,g.track.height,track/2,DisplayPolicy::foregroundOn(s.trackColor));
       if(g.position>0){
         if((n.flags&RangeFillGradient)&&s.gradient){const auto &fill=*s.gradient;const Rect origin=rect(i);
           const int32_t projection=int32_t(int64_t(fill.origin)+int64_t(g.fill.x-origin.x)*fill.stepX+int64_t(g.fill.y-origin.y)*fill.stepY);
           canvas.fillLinearGradientRoundRect(g.fill.x,g.fill.y,g.fill.width,g.fill.height,uint8_t(track/2),fill.colors,projection,fill.stepX,fill.stepY,false);
         }else canvas.fillRoundRect(g.fill.x,g.fill.y,g.fill.width,g.fill.height,track/2,s.fillColor);
       }
-      if(n.kind==Kind::Range){const int32_t tw=g.thumb.width,th=g.thumb.height,x=g.thumb.x,y=g.thumb.y,radius=std::min<int32_t>(s.thumbRadius,std::min<int32_t>(tw,th)/2);
+      if(v.kind==Kind::Range){const int32_t tw=g.thumb.width,th=g.thumb.height,x=g.thumb.x,y=g.thumb.y,radius=std::min<int32_t>(s.thumbRadius,std::min<int32_t>(tw,th)/2);
         canvas.fillRoundRect(x,y,tw,th,radius,s.trackColor);
-        if(tw>2&&th>2)canvas.fillRoundRect(x+1,y+1,tw-2,th-2,std::max<int32_t>(0,radius-1),s.thumbColor);}
-    } else if(n.kind==Kind::Checkbox) {
+        if(tw>2&&th>2)canvas.fillRoundRect(x+1,y+1,tw-2,th-2,std::max<int32_t>(0,radius-1),s.thumbColor);
+        if(displayPolicy.monochrome)canvas.drawRoundRect(x,y,tw,th,radius,DisplayPolicy::foregroundOn(s.thumbColor));}
+    } else if(v.kind==Kind::Checkbox) {
       const int32_t w=std::min<int32_t>(r.width,s.thumbWidth),h=std::min<int32_t>(r.height,s.thumbHeight);Rect box{r.x,r.y+(r.height-h)/2,w,h};rounded(box,v.value?s.fillColor:s.trackColor,s.borderColor,s);
       if(v.value&&w>5&&h>5) {const int32_t x0=box.x+w*25/100,y0=box.y+h/2,x1=box.x+w*44/100,y1=box.y+h*70/100,x2=box.x+w*78/100,y2=box.y+h*28/100;
         canvas.drawWideLine(x0,y0,x1,y1,2,s.thumbColor);canvas.drawWideLine(x1,y1,x2,y2,2,s.thumbColor);}
-      text(i,n,v,s,clipped);
-    } else if(n.kind==Kind::Switch) {
+      text(i,n,v,*contentStyle,clipped);
+    } else if(v.kind==Kind::Switch) {
       const int32_t th=std::min<int32_t>(r.height,s.thumbHeight),tw=std::min<int32_t>(std::min<int32_t>(r.width,s.thumbWidth),std::max<int32_t>(1,r.width-2));
       const int32_t inset=std::min<int32_t>(1,(r.width-tw)/2),travel=std::max<int32_t>(0,r.width-tw-2*inset);
       const int32_t track=std::min<int32_t>(r.height,s.trackSize);
       canvas.fillRoundRect(r.x,r.y+(r.height-track)/2,r.width,track,std::min<int32_t>(s.radius,track/2),switchColor(s.trackColor,s.fillColor,v.switchPosition));
       canvas.fillRoundRect(r.x+inset+int32_t(int64_t(travel)*v.switchPosition/1000),r.y+(r.height-th)/2,tw,th,std::min<int32_t>(s.thumbRadius,std::min<int32_t>(tw,th)/2),s.thumbColor);
     }
+  }
+  // A uniform real backdrop needs no saved rectangle. Paint the complete text
+  // first, including overlapping glyphs/lines, then apply node opacity once.
+#if defined(__GNUC__)
+  __attribute__((noinline))
+#if !defined(__clang__)
+  __attribute__((optimize("O3")))
+#endif
+#endif
+  bool paintFlatTextAlpha(int index,Rect clipped,const DirtyRect &area,uint16_t *pixels,size_t stride,uint8_t alpha) {
+    const auto &p=*rasterFrame.current.page;const auto &n=p.nodes[index];const auto &v=rasterFrame.current.values[index];
+    if((n.kind!=Kind::Text&&n.kind!=Kind::Label)||displayPolicy.monochrome)return false;
+    const auto &s=styleFor(p,rasterFrame.current.values,index);
+    if(!s.font||s.borderWidth||s.radius||s.gradient)return false;
+    bool disabled=(v.flags&Disabled)!=0;
+    for(uint16_t at=n.parent;at!=NoParent&&!disabled;at=p.nodes[at].parent)disabled=(rasterFrame.current.values[at].flags&Disabled)!=0;
+    const bool transparent=disabled?(v.flags&DisabledTransparent)!=0:
+      index==snapshotPressed?(v.flags&ActiveTransparent)!=0:(v.flags&Transparent)!=0;
+    if(!transparent)return false;
+    const uintptr_t output=reinterpret_cast<uintptr_t>(pixels);const size_t outputBytes=(size_t(area.height-1)*stride+area.width)*2;
+    const auto aliases=[&](const void *source,size_t bytes){
+      if(nativeMemoryOverlap(output,outputBytes,source,bytes))return true;
+      for(size_t t=0;t<tileCount;++t)if(tileBuffers[t]&&nativeMemoryOverlap(reinterpret_cast<uintptr_t>(tileBuffers[t]),capacity*2,source,bytes))return true;
+      return false;
+    };
+    // Native's original opacity path borrows an idle tile. Preserve that exact
+    // behavior when any font/text source can alias either output or scratch.
+    const MonoFont *font=s.font;
+    for(unsigned level=0;font&&level<2;++level){
+      if(aliases(font,sizeof(*font))||!font->height||!font->count)return false;
+      const size_t row=nice_gfx::detail::monoStride(*font);
+      if(!row||size_t(font->count)>SIZE_MAX/font->height/row)return false;
+      if(aliases(font->bitmap,row*font->height*font->count)||
+         (font->codepoints&&aliases(font->codepoints,size_t(font->count)*sizeof(uint16_t))))return false;
+      font=font->fallback;
+    }
+    if(font)return false;
+    const char *text=v.text.c_str();if(aliases(text,strlen(text)+1))return false;
+    uint16_t *first=pixels+size_t(clipped.y-area.y)*stride+size_t(clipped.x-area.x);
+    const uint16_t background=first[0];
+    for(int32_t y=0;y<clipped.height;++y){const uint16_t *row=first+size_t(y)*stride;
+      for(int32_t x=0;x<clipped.width;++x)if(row[x]!=background)return false;
+    }
+    const bool wire=buildingSurface||renderOrder==PixelOrder::Wire;
+    const uint16_t nativeBackground=wire?rgb565_blend::fromWire(background):background;
+    const rgb565_blend::SolidBackgroundLut palette(nativeBackground,alpha);
+    canvas.setViewport(clipped.x,clipped.y,clipped.width,clipped.height,false);paintNode(index,clipped);
+    for(int32_t y=0;y<clipped.height;++y){uint16_t *row=first+size_t(y)*stride;
+      for(int32_t x=0;x<clipped.width;++x){
+        const uint16_t sample=row[x];if(sample==background)continue;
+        const uint16_t nativeSample=wire?rgb565_blend::fromWire(sample):sample;
+        const uint16_t blended=palette.lookupNative(nativeSample);
+        row[x]=wire?rgb565_blend::toWire(blended):blended;
+      }
+    }
+    return true;
   }
   // Native frames already own an idle tile buffer. Borrow it per node instead
   // of allocating a full clipped/page-sized opacity underlay. The Native
@@ -2112,8 +2547,14 @@ struct View::Impl {
       clipped.x+=self.paintOffsetX;clipped.y+=self.paintOffsetY;
       clipped=intersect(clipped,{area.x,area.y,area.width,area.height});if(clipped.width<=0||clipped.height<=0)continue;
       const uint8_t alpha=g.alpha;if(!alpha)continue;++self.stats.paintedNodes;
+      ProfileTimer nodeTimer(self,paintProfileCounter(self.rasterFrame.current.page->nodes[i].kind));
       if(self.rasterFrame.current.page->nodes[i].motion){const auto &m=self.motionPose(*self.rasterFrame.current.page,self.rasterFrame.current.values,i);
         if(m.scale!=1024||m.rotation%360!=0){self.paintTransformedNode(i,clipped,area,pixels,stride,alpha);continue;}}
+      if(alpha<255&&self.rasterFrame.current.page->nodes[i].kind==Kind::Media&&
+         self.paintRawMediaAlpha(i,clipped,area,pixels,stride,alpha))continue;
+#if NICE_GFX_UI_FLAT_TEXT_ALPHA
+      if(alpha<255&&self.paintFlatTextAlpha(i,clipped,area,pixels,stride,alpha))continue;
+#endif
       if(alpha<255&&self.renderOrder==PixelOrder::Native){
         result=self.paintNativeAlphaNode(i,clipped,area,pixels,stride,alpha);
         if(result!=Status::Ok){self.canvas.detach();return result;}continue;
@@ -2132,7 +2573,23 @@ struct View::Impl {
       if(self.snapshotInput&&!self.snapshotTransition&&!self.rasterFrame.preview.page&&self.snapshotFocus>=0&&cache.nodes[self.snapshotFocus].inputVisible) {
         const Geometry &g=cache.nodes[self.snapshotFocus];const Rect r=g.rect,c=intersect(r,g.clip);
         self.canvas.setViewport(c.x,c.y,c.width,c.height,false);
-        for(int n=0;n<self.snapshotFocusWidth&&2*n<std::min(r.width,r.height);++n)self.canvas.drawRect(r.x+n,r.y+n,r.width-2*n,r.height-2*n,self.snapshotFocusColor);
+        if(self.displayPolicy.monochrome){
+          const Rect visible=intersect(c,{area.x,area.y,area.width,area.height});
+          auto contrast=[&](int32_t x,int32_t y){
+            if(x<visible.x||y<visible.y||x>=visible.x+visible.width||y>=visible.y+visible.height)return;
+            uint16_t &pixel=pixels[size_t(y-area.y)*stride+size_t(x-area.x)];
+            const uint16_t value=self.renderOrder==PixelOrder::Wire?rgb565_blend::fromWire(pixel):pixel;
+            const uint16_t outline=DisplayPolicy::foregroundOn(value);
+            pixel=self.renderOrder==PixelOrder::Wire?rgb565_blend::toWire(outline):outline;
+          };
+          for(int n=0;n<self.snapshotFocusWidth&&2*n<std::min(r.width,r.height);++n){
+            const int32_t left=r.x+n,right=r.x+r.width-1-n,top=r.y+n,bottom=r.y+r.height-1-n;
+            const int32_t x0=std::max(left,visible.x),x1=std::min(right,visible.x+visible.width-1);
+            for(int32_t x=x0;x<=x1;++x){contrast(x,top);if(bottom!=top)contrast(x,bottom);}
+            const int32_t y0=std::max(top+1,visible.y),y1=std::min(bottom-1,visible.y+visible.height-1);
+            for(int32_t y=y0;y<=y1;++y){contrast(left,y);if(right!=left)contrast(right,y);}
+          }
+        }else for(int n=0;n<self.snapshotFocusWidth&&2*n<std::min(r.width,r.height);++n)self.canvas.drawRect(r.x+n,r.y+n,r.width-2*n,r.height-2*n,self.snapshotFocusColor);
       }
       }
       if(fade)rgb565_blend::wireRows(pixels,stride,self.transitionUnderlay.data(),size_t(area.width),
@@ -2146,7 +2603,11 @@ struct View::Impl {
       const int dotsY=top+(g.indicatorHeight-g.dotSize)/2;
       self.canvas.setViewport(area.x,area.y,area.width,area.height,false);
       if(!g.backgroundTransparent)self.canvas.fillRect(footer.x,top,width,g.indicatorHeight,g.background);
-      for(uint16_t i=0;i<g.count;++i)self.canvas.fillRoundRect(left+i*step,dotsY,g.dotSize,g.dotSize,g.dotSize/2,i==self.snapshotGroupIndex?g.fillColor:g.trackColor);
+      for(uint16_t i=0;i<g.count;++i){
+        const uint16_t color=self.displayPolicy.monochrome?DisplayPolicy::foregroundOn(g.background):i==self.snapshotGroupIndex?g.fillColor:g.trackColor;
+        if(self.displayPolicy.monochrome&&i!=self.snapshotGroupIndex)self.canvas.drawRoundRect(left+i*step,dotsY,g.dotSize,g.dotSize,g.dotSize/2,color);
+        else self.canvas.fillRoundRect(left+i*step,dotsY,g.dotSize,g.dotSize,g.dotSize/2,color);
+      }
     }
     if(!self.buildingSurface&&!self.snapshotTransition&&!self.rasterFrame.preview.page)self.paintKeyboard({requestedArea.x,requestedArea.y,requestedArea.width,requestedArea.height});
     // Mirror an ordinary raster refresh into its unpublished retained slot.
@@ -2185,6 +2646,7 @@ struct View::Impl {
     snapshotFocus=focusNode;
     snapshotKeyInput=keyInput;
     snapshotInput=input!=nullptr&&snapshotKeyInput&&!transition.active;snapshotFocusColor=input?input->color:0;snapshotFocusWidth=input?input->width:0;
+    cacheResourcePage(history.back());
     rasterFrame.current.page=&page();rasterFrame.current.values=state();rasterFrame.current.motions=pageMotions[history.back()];snapshotPressed=down&&!canceled&&activeControl>=0&&nodeContains(activeControl,x,y)?activeControl:-1;
     if(buildKeyboard(softInput))invalidateKeyboardKeys();snapshotKeyboard=softInput;snapshotKeyboard.pressed=keyboardPressed;
     prepareKeyboardText();
@@ -2237,10 +2699,13 @@ struct View::Impl {
     // not force a static page to rerasterize at every slide sample.
     if(!renderBudget.maxPixelsPerTick&&!keyboardCovers&&!snapshotSurface&&!snapshotAnimationSurface&&snapshotPressed<0&&!plainFocus){
       uint64_t repairBudget=0;
-      // A claimed gesture freezes this key for its complete lifetime. A cold
-      // large change may therefore be repaired once, rather than rasterized
-      // again for every drag sample. Ordinary live frames keep the small cap.
-      if(groupMotion.active&&groupMotion.prepared)repairBudget=uint64_t(rasterFrame.current.page->width)*rasterFrame.current.page->height;
+      // A claimed gesture freezes its key. A paired fade also retains both
+      // complete source surfaces, so even a large incoming animation can repair
+      // just its changed region instead of recapturing every static node.
+      // Ordinary live frames keep the small cap; no animation clock is frozen.
+      if((groupMotion.active&&groupMotion.prepared)||
+         (snapshotTransition&&snapshotPhase==TransitionPhase::Paired&&transition.config.effect==TransitionEffect::Fade))
+        repairBudget=uint64_t(rasterFrame.current.page->width)*rasterFrame.current.page->height;
       if(snapshotTransition&&snapshotPhase==TransitionPhase::Enter&&!rasterFrame.preview.page&&transitionFrame.opacity==255&&
          !snapshotMotionRect.x&&!snapshotMotionRect.y&&snapshotMotionRect.width==rasterFrame.current.page->width&&snapshotMotionRect.height==rasterFrame.current.page->height){
         const Rect visible=intersect({0,0,rasterFrame.current.page->width,rasterFrame.current.page->height},
@@ -2267,7 +2732,7 @@ struct View::Impl {
     const Status frameStarted=framePanel->beginFrame(frameDamage,frameDamageCount);
     if(frameStarted!=Status::Ok)return frameStarted;
     struct SnapshotFrameGuard {
-      nice_gfx::Panel *panel;
+      nice_gfx::Backend *panel;
       ~SnapshotFrameGuard(){if(panel)panel->abortFrame();}
     } frameGuard{framePanel};
     NativeRenderFrame nativeFrame;const Status nativeStatus=renderBudget.maxPixelsPerTick?Status::Unsupported:prepareNativeRender(nativeFrame);
@@ -2291,7 +2756,8 @@ struct View::Impl {
       rasterFrame.current.values.swap(rasterFrame.preview.values);rasterFrame.current.motions.swap(rasterFrame.preview.motions);std::swap(rasterFrame.current.geometry,rasterFrame.preview.geometry);
       rasterFrame.current.page=outgoingPage;rasterFrame.preview.page=nullptr;paintCache=&rasterFrame.current.geometry;
       snapshotPressed=snapshotFocus=snapshotGroupIndex=-1;
-      previewSurface=patchSurface(previewGeometryPrepared,groupMotion.active&&groupMotion.prepared?uint64_t(outgoingPage->width)*outgoingPage->height:0);
+      const bool retainedMotion=(groupMotion.active&&groupMotion.prepared)||transition.config.effect==TransitionEffect::Fade;
+      previewSurface=patchSurface(previewGeometryPrepared,retainedMotion?uint64_t(outgoingPage->width)*outgoingPage->height:0);
       if(!previewSurface)previewSurface=captureGestureSurface(previewGeometryPrepared);
       rasterFrame.current.values.swap(rasterFrame.preview.values);rasterFrame.current.motions.swap(rasterFrame.preview.motions);std::swap(rasterFrame.current.geometry,rasterFrame.preview.geometry);
       rasterFrame.current.page=incomingPage;rasterFrame.preview.page=outgoingPage;paintCache=savedPaint;
@@ -2479,6 +2945,10 @@ struct View::Impl {
 View::View(NICE_GFX &d,size_t n):impl_(new Impl(d,n)) {}
 View::View(NICE_GFX &d,uint16_t *a,uint16_t *b,size_t n):impl_(new Impl(d,a,b,n)) {}
 View::~View(){delete impl_;}
+bool View::configureResourceCache(size_t bytes,size_t reserve){
+  auto &s=*impl_;if(s.project||s.refresh->busy())return false;
+  s.resourceCacheBudget=bytes;s.resourceReserve=reserve;return true;
+}
 Status View::create(NICE_GFX &d,View *&output,size_t n) noexcept {
   if(n>std::vector<uint16_t>().max_size())return Status::InvalidArgument;
 #if defined(__cpp_exceptions) || defined(_CPPUNWIND)
@@ -2576,6 +3046,14 @@ Status View::mount(const ProjectDesc &p) {
   prepared.reset(new(std::nothrow) Impl(s.display,s.tileBuffers[0],s.tileBuffers[1],s.capacity));
   if(!prepared)return Status::NoMemory;
   auto &next=*prepared;
+  // Global Views can precede DMA initialization. Restore owned ping-pong tiles
+  // once the transport becomes asynchronous; caller-owned single tiles stay single.
+  if(s.first.size()&&!s.second.size()&&s.display.asynchronous()){
+    OwnedUiTile second(s.capacity);next.second.swap(second);
+    next.tileBuffers[1]=next.second.data();next.tileCount=2;
+    std::unique_ptr<RefreshScheduler<16>> scheduler(new RefreshScheduler<16>(s.display,next.tileBuffers[0],next.tileBuffers[1],s.capacity));
+    delete next.refresh;next.refresh=scheduler.release();
+  }
   if(s.down&&s.target>=0&&!s.canceled) {
     size_t depth=0;for(int i=s.target;i>=0;i=s.parent(i))++depth;
     cancellationPaths.resize(1);cancellationPaths.front().reserve(depth);
@@ -2590,10 +3068,11 @@ Status View::mount(const ProjectDesc &p) {
       next.components=nullptr;next.componentCount=0;next.componentsPage=nullptr;next.lookupPage=nullptr;
     }
   }
-  next.project=&p;next.pages.resize(p.count);next.pageMotions.resize(p.count);
+  next.resourceCacheBudget=s.resourceCacheBudget;next.resourceReserve=s.resourceReserve;
+  next.attachResourceProject(p);next.pages.resize(p.count);next.pageMotions.resize(p.count);
   next.history.assign(1,p.initial);next.pageFocus.assign(p.count,0);
   next.initializeActive();next.enterAnimations();next.refresh->invalidateAll();
-  if(next.page().enterTransition&&next.page().enterTransition->effect!=TransitionEffect::None) {
+  if(!next.displayPolicy.slowRefresh&&next.page().enterTransition&&next.page().enterTransition->effect!=TransitionEffect::None) {
     next.transition.background=next.page().background;
     next.pagePhase(Impl::TransitionPhase::Enter,*next.page().enterTransition);
   }
@@ -2626,7 +3105,7 @@ Status View::mount(const ProjectDesc &p) {
   mounted.refresh->configureMergeSlack(s.refresh->mergeSlack());
   // Transfer tile ownership only after accepted DMA has drained. The new
   // scheduler already points at these same buffers; no framebuffer is copied.
-  mounted.first.swap(s.first);mounted.second.swap(s.second);
+  mounted.first.swap(s.first);if(!mounted.second.size())mounted.second.swap(s.second);
   impl_=prepared.release();delete &s;
   return Status::Ok;
 }
@@ -2746,7 +3225,12 @@ bool View::renderCacheReady(const char *path)const{return impl_->project&&impl_-
 RenderCacheStats View::renderCacheStats()const{
   const auto &s=*impl_;RenderCacheStats result=s.surfaceStats;result.readyPages=0;result.warming=false;
   for(const auto &entry:s.surfaces)if(entry.page){const int index=int(entry.page-s.project->pages);
-    if(s.surfaceReady(index))++result.readyPages;else if(!entry.paused)result.warming=true;
+    if(s.surfaceReady(index)){
+      // Idle replacement can retain one complete key beside a partial builder.
+      // Count the route once rather than counting both of its raw pixel slots.
+      bool counted=false;for(const auto &previous:s.surfaces){if(&previous==&entry)break;if(previous.page==entry.page){counted=true;break;}}
+      if(!counted)++result.readyPages;
+    }else if(!entry.paused)result.warming=true;
   }
   if(result.readyPages<result.capacityPages&&s.surfaceWarmPending&&s.surfaceWanted.empty())result.warming=true;
   // A new request may replace a complete automatically selected cache before
@@ -2825,10 +3309,64 @@ bool View::hasImage(Id id,const Image &image) const {
 Status View::setMediaResource(Id id,const MediaDesc &resource) {
   int index=-1;const Status target=impl_->imageTarget(id,index);if(target!=Status::Ok)return target;
   if(!validMedia(resource))return Status::InvalidArgument;
-  const size_t bytes=size_t(resource.width)*resource.height*resource.frames*mediaPixelBytes(resource);
-  const ImageView view(mediaPixels(resource),resource.width,resource.height,bytes,mediaPixelBytes(resource)==2?ImageFormat::RGB565:ImageFormat::RGB332,PixelOrder::Wire,size_t(resource.width)*mediaPixelBytes(resource));
+  const size_t bytes=mediaFrameBytes(resource)*resource.frames;
+  const ImageFormat format=mediaMasked(resource)?ImageFormat::Mono1Masked:mediaPacked(resource)?ImageFormat::Mono1:mediaPixelBytes(resource)==2?ImageFormat::RGB565:ImageFormat::RGB332;
+  const ImageView view(mediaPixels(resource),resource.width,resource.height,bytes,format,PixelOrder::Wire,mediaStrideBytes(resource));
   auto *storage=new(std::nothrow) Image::Impl(view,nullptr,nullptr,0,true);if(!storage)return Status::NoMemory;
   storage->media=resource;Image image(storage);impl_->replaceImage(index,image,true);return Status::Ok;
+}
+bool View::configureMediaPlayback(const MediaPlaybackDesc *policies,size_t count) {
+  auto &s=*impl_;if(!s.project||s.processing||s.down||count>4096||(count&&!policies))return false;
+  std::vector<MediaPlaybackDesc> prepared;if(count)prepared.assign(policies,policies+count);
+  std::sort(prepared.begin(),prepared.end(),[](const MediaPlaybackDesc &a,const MediaPlaybackDesc &b){return a.id<b.id;});
+  for(size_t at=0;at<prepared.size();++at){const auto &entry=prepared[at];
+    if(!entry.id||(at&&prepared[at-1].id==entry.id))return false;
+    bool found=false;
+    for(uint16_t p=0;p<s.project->count;++p){const auto &page=s.project->pages[p];
+      for(uint16_t i=0;i<page.count;++i)if(page.nodes[i].id==entry.id){
+        found=true;if(!entry.scrubTarget)continue;
+        bool target=false;for(uint16_t k=0;k<page.count;++k)if(page.nodes[k].id==entry.scrubTarget&&page.nodes[k].kind==Kind::Media){target=true;break;}
+        if(!target)return false;
+      }
+    }
+    if(!found)return false;
+  }
+  s.mediaPolicies.swap(prepared);s.mediaTweens.clear();
+  for(uint16_t p=0;p<s.project->count;++p)if(!s.pages[p].empty())for(uint16_t i=0;i<s.project->pages[p].count;++i){
+    const auto &node=s.project->pages[p].nodes[i];if(node.kind!=Kind::Media)continue;
+    auto &v=s.pages[p][i];const bool changed=v.mediaFrame!=0;
+    v.mediaFrame=0;v.mediaAt=0;v.mediaPending=true;v.mediaPaused=!s.mediaPlayback(node.id).autoplay;
+    if(changed&&p==s.history.back())s.invalidate(i);
+  }
+  return true;
+}
+bool View::setMediaFrame(Id id,int32_t frame) {
+  auto &s=*impl_;int i=-1;return s.imageTarget(id,i)==Status::Ok&&s.seekMedia(i,frame);
+}
+bool View::playMediaTo(Id id,int32_t frame,uint32_t duration) {
+  auto &s=*impl_;int i=-1;if(duration<1||duration>60000||s.imageTarget(id,i)!=Status::Ok)return false;
+  const auto *m=s.media(s.page().nodes[i],s.state()[i]);if(!m||frame<0||frame>=m->frames)return false;
+  if(s.displayPolicy.slowRefresh||frame==s.state()[i].mediaFrame)return s.seekMedia(i,frame);
+  const Impl::MediaTween tween{&s.page(),uint16_t(i),s.state()[i].mediaFrame,uint16_t(frame),0,duration,true};
+  const auto at=std::find_if(s.mediaTweens.begin(),s.mediaTweens.end(),[&](const Impl::MediaTween &t){return t.page==&s.page()&&t.node==i;});
+  if(at==s.mediaTweens.end())s.mediaTweens.push_back(tween);else *at=tween;
+  s.state()[i].mediaPaused=true;s.state()[i].mediaPending=true;return true;
+}
+bool View::playMedia(Id id) {
+  auto &s=*impl_;int i=-1;if(s.imageTarget(id,i)!=Status::Ok||!s.media(s.page().nodes[i],s.state()[i]))return false;
+  if(s.displayPolicy.slowRefresh)return s.seekMedia(i,0);
+  s.removeMediaTween(i);auto &v=s.state()[i];v.mediaPaused=false;v.mediaPending=true;return true;
+}
+bool View::pauseMedia(Id id) {
+  auto &s=*impl_;int i=-1;if(s.imageTarget(id,i)!=Status::Ok||!s.media(s.page().nodes[i],s.state()[i]))return false;
+  s.removeMediaTween(i);auto &v=s.state()[i];v.mediaPaused=true;v.mediaPending=true;return true;
+}
+int32_t View::mediaFrame(Id id)const {
+  const Impl &s=*impl_;int i=-1;return s.imageTarget(id,i)==Status::Ok&&s.media(s.page().nodes[i],s.state()[i])?s.state()[i].mediaFrame:-1;
+}
+bool View::mediaPlaying(Id id)const {
+  const Impl &s=*impl_;int i=-1;if(s.displayPolicy.slowRefresh||s.imageTarget(id,i)!=Status::Ok)return false;
+  const auto *m=s.media(s.page().nodes[i],s.state()[i]);return m&&m->frames>1&&(!s.state()[i].mediaPaused||s.hasMediaTween(i));
 }
 Status View::clearImage(Id id) {
   int index=-1;const Status target=impl_->imageTarget(id,index);if(target!=Status::Ok)return target;
@@ -2907,7 +3445,7 @@ MemoryStats View::memoryStats()const{const auto &s=*impl_;MemoryStats m;
     const uintptr_t object=reinterpret_cast<uintptr_t>(&value),data=reinterpret_cast<uintptr_t>(value.c_str());
     return data>=object&&data-object<sizeof(value)?0:value.capacity()+1;
   };
-  m.stateBytes=sizeof(Impl)+sizeof(*s.refresh)+s.pages.capacity()*sizeof(RetainedVector<Impl::State>)+s.history.capacity()*sizeof(uint16_t)+sizeof(std::vector<Impl::Listener>)+s.listeners->capacity()*sizeof(Impl::Listener)+s.pageFocus.capacity()*sizeof(Id)+stringStorage(s.pendingPath)+s.lookup.capacity()*sizeof(uint16_t)+s.eventPaths.capacity()*sizeof(std::vector<int>);
+  m.stateBytes=s.resourceCacheBytes()+(s.compiledStyles?s.compiledStyleLimit*sizeof(Style):0)+sizeof(Impl)+sizeof(*s.refresh)+s.pages.capacity()*sizeof(RetainedVector<Impl::State>)+s.history.capacity()*sizeof(uint16_t)+sizeof(std::vector<Impl::Listener>)+s.listeners->capacity()*sizeof(Impl::Listener)+s.pageFocus.capacity()*sizeof(Id)+stringStorage(s.pendingPath)+s.lookup.capacity()*sizeof(uint16_t)+s.eventPaths.capacity()*sizeof(std::vector<int>);
   for(const auto &path:s.eventPaths)m.stateBytes+=path.capacity()*sizeof(int);
   m.stateBytes+=s.focusIndex.capacity()*sizeof(size_t)+s.focusItems.capacity()*sizeof(int);
   m.stateBytes+=(s.animationNodes.capacity()+s.mediaNodes.capacity())*sizeof(uint16_t);
@@ -2915,6 +3453,7 @@ MemoryStats View::memoryStats()const{const auto &s=*impl_;MemoryStats m;
   for(const auto &poses:s.pageMotions)m.stateBytes+=poses.capacity()*sizeof(Impl::MotionRuntime);
   m.snapshotBytes+=(s.rasterFrame.current.motions.capacity()+s.rasterFrame.preview.motions.capacity()+s.transition.outgoingMotions.capacity()+s.groupMotion.outgoingMotions.capacity())*sizeof(Impl::MotionRuntime);
   m.stateBytes+=s.interactionPolicies.capacity()*sizeof(InteractionDesc);
+  m.stateBytes+=s.mediaPolicies.capacity()*sizeof(MediaPlaybackDesc)+s.mediaTweens.capacity()*sizeof(Impl::MediaTween);
   m.stateBytes+=s.componentLinks.capacity()*sizeof(Impl::ComponentLink)+s.componentNodes.capacity()*sizeof(int32_t);
   std::vector<const void *> seen;
   auto payload=[&](const RetainedVector<Impl::State> &items){for(const auto &v:items){
@@ -2942,7 +3481,11 @@ MemoryStats View::memoryStats()const{const auto &s=*impl_;MemoryStats m;
     const auto &c=entry.geometry;m.geometryBytes+=c.nodes.capacity()*sizeof(Impl::Geometry)+c.lines.capacity()*sizeof(Impl::TextLine)+c.bands.capacity()*sizeof(uint32_t);
   }
   m.cacheBytes=s.surfacePixels*sizeof(uint16_t);
-  m.tileBytes=s.capacity*s.tileCount*sizeof(uint16_t);m.scratchBytes=(s.underlay.capacity()+s.transitionUnderlay.capacity()+s.mediaRow.capacity())*sizeof(uint16_t)+s.ppaFade.stats().scratchBytes;return m;
+  m.tileBytes=s.capacity*s.tileCount*sizeof(uint16_t);m.scratchBytes=(s.underlay.capacity()+s.transitionUnderlay.capacity()+s.mediaRow.capacity())*sizeof(uint16_t)+s.ppaFade.stats().scratchBytes;
+#if defined(CONFIG_IDF_TARGET_ESP32S31) && NICE_GFX_S31_MOTION_TEXTURE_BUDGET > 0
+  m.scratchBytes+=s.motionTextureCache.bytes();
+#endif
+  return m;
 }
 
 bool View::playAnimation(Id id){auto &s=*impl_;if(s.transition.active&&(s.transition.phase==Impl::TransitionPhase::Components||s.transition.phase==Impl::TransitionPhase::Exit))return false;return s.startAnimation(s.find(id),0,true);}
@@ -2975,12 +3518,17 @@ void View::stopPointerRepeat(){impl_->keyboardBackspaceRepeat=impl_->keyboardBac
 void View::pausePointerRepeat(bool paused){impl_->keyboardBackspacePaused=paused;}
 Status View::tick(uint32_t now){
   Impl &s=*impl_;if(!s.project)return Status::NotInitialized;if(s.processing)return Status::Busy;
+  // Slow-refresh policy can change at runtime (for example, partial updates
+  // disabled for cleanup). Keep its cadence current without adding capability
+  // queries to the unchanged immediate/color hot path.
+  if(s.displayPolicy.slowRefresh)s.displayPolicy=DisplayPolicy::from(s.display.displayCapabilities());
+  const Status displayStatus=s.display.pollDisplay(now);
   Impl::TickTimer timer(s);const uint64_t rasterBefore=s.stats.renderedTiles;
   if(s.pendingNavigation&&!s.transition.active)s.endProcessing();
   if(s.groupMotion.active&&s.groupMotion.settling){
     const uint32_t elapsed=uint32_t(now-s.groupMotion.started);
     s.groupMotion.updated=now;
-    if(elapsed>=s.groupMotion.duration)s.finishGroup();
+    if(s.displayPolicy.slowRefresh||elapsed>=s.groupMotion.duration)s.finishGroup();
     else {
       if(s.groupMotion.follow){const uint32_t progress=(elapsed<<10)/s.groupMotion.duration;const int32_t q=int32_t(animation_detail::easeQ10(progress,s.groupMotion.config.easing));s.groupMotion.offset=s.groupMotion.from+int32_t((int64_t(s.groupMotion.to)-s.groupMotion.from)*q/1024);}
       else {const int64_t remaining=180-elapsed;s.groupMotion.offset=int32_t(s.groupMotion.to+(int64_t(s.groupMotion.from)-s.groupMotion.to)*remaining*remaining*remaining/(180*180*180));}
@@ -3032,9 +3580,11 @@ Status View::tick(uint32_t now){
   if(s.down&&!s.canceled&&(!s.coordinated()||!s.defaultsBlocked)&&!s.longPressed&&!s.moved&&s.drag==Impl::Drag::None&&uint32_t(now-s.downAt)>=600){s.processing=true;s.longPressed=true;s.dispatch(s.target,EventType::LongPress);s.endProcessing();}
   const bool departing=s.transition.active&&(s.transition.phase==Impl::TransitionPhase::Components||s.transition.phase==Impl::TransitionPhase::Exit);
   s.ensureTickNodes();
-  if(!departing)for(uint16_t i:s.mediaNodes) {
+  if(!departing)s.advanceMediaTweens(now);
+  if(!departing&&!s.displayPolicy.slowRefresh)for(uint16_t i:s.mediaNodes) {
     const MediaDesc *m=s.media(s.page().nodes[i],s.state()[i]);if(!m||m->frames<2||!s.visible(s.page(),s.state(),i))continue;
-    auto &v=s.state()[i];if(v.mediaPending){v.mediaAt=now;v.mediaPending=false;}
+    auto &v=s.state()[i];if(v.mediaPaused)continue;
+    if(v.mediaPending){v.mediaAt=now-uint32_t((uint32_t(v.mediaFrame)*1000+m->fps-1)/m->fps);v.mediaPending=false;}
     const uint32_t elapsed=uint32_t(now-v.mediaAt);const uint32_t step=uint32_t(uint64_t(elapsed)*m->fps/1000);
     const uint16_t frame=uint16_t(step%m->frames);
     if(frame!=v.mediaFrame){v.mediaFrame=frame;s.invalidate(i);}
@@ -3042,7 +3592,19 @@ Status View::tick(uint32_t now){
   if(!departing){s.advanceAnimations(now);}
   s.ensureInputAvailable();
   s.repeatKeyboardBackspace(now);
-  Status status=s.start();const bool frameActive=s.refresh->busy();
+  // A failed display must not stop menu timers, callbacks or logical state.
+  // Preserve pending damage for recovery and report the physical error without
+  // attempting another raster submission against the faulted backend.
+  if(displayStatus!=Status::Ok&&displayStatus!=Status::Busy)return displayStatus;
+  // Slow displays receive the latest logical state after their active waveform
+  // completes. Input, callbacks and clocks above remain responsive throughout.
+  const bool rasterActive=s.refresh->busy();
+  const bool cadenceReady=!s.displayFrameStarted||!s.displayPolicy.frameIntervalMs||
+    uint32_t(now-s.lastDisplayFrameAt)>=s.displayPolicy.frameIntervalMs;
+  const bool mayStart=rasterActive||(!s.display.displayRefreshing()&&cadenceReady);
+  const bool starting=mayStart&&!rasterActive&&s.refresh->dirty()&&!s.updateDepth;
+  Status status=mayStart?s.start():Status::Ok;const bool frameActive=s.refresh->busy();
+  if(starting&&status==Status::Ok){s.lastDisplayFrameAt=now;s.displayFrameStarted=true;}
   const uint64_t submitBefore=s.refresh->stats().submitMicros;
   const auto beforeDirect=s.refresh->stats();
   if(status==Status::Ok)status=s.refresh->step();
@@ -3051,7 +3613,7 @@ Status View::tick(uint32_t now){
   s.stats.directPixels+=s.refresh->stats().directPixels-beforeDirect.directPixels;
   if(frameActive&&!s.refresh->busy()&&status==Status::Ok)s.completedFrame();
   if(status==Status::Ok){s.settleMotions();s.settleTransition();}s.releaseSnapshot();
-  if(status==Status::Ok&&!s.softInput.visible){
+  if(status==Status::Ok&&mayStart&&!s.softInput.visible){
     if(timer.expired()||(s.renderBudget.maxPixelsPerTick&&s.stats.renderedTiles!=rasterBefore))++s.stats.budgetDeferrals;
     else s.warmSurfaceTile(now);
   }
@@ -3066,8 +3628,8 @@ Status View::finish(){
   if(frameActive&&!s.refresh->busy()&&status==Status::Ok)s.completedFrame();
   if(status==Status::Ok){s.settleMotions();s.settleTransition();}s.releaseSnapshot();return status;
 }
-bool View::busy()const{return impl_->refresh->busy()||impl_->animationsRunning()||impl_->motionsPending()||impl_->animation.active||impl_->inertia.active||impl_->backAnimation.active||impl_->transition.active||impl_->groupMotion.active;}
-bool View::refreshing()const{return impl_->refresh->busy();}
+bool View::busy()const{return impl_->refresh->busy()||impl_->animationsRunning()||impl_->motionsPending()||!impl_->mediaTweens.empty()||impl_->animation.active||impl_->inertia.active||impl_->backAnimation.active||impl_->transition.active||impl_->groupMotion.active;}
+bool View::refreshing()const{return impl_->display.displayRefreshing()||impl_->refresh->busy();}
 bool View::dirty()const{return impl_->refresh->dirty();}
 void View::invalidate(){impl_->refresh->invalidateAll();}
 

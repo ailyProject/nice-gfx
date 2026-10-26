@@ -7,15 +7,17 @@
 namespace nice_gfx { namespace htmlui {
 namespace {
 bool validImageView(const ImageView &source, size_t &stride, size_t &packed) {
-  if(!source.pixels||!source.width||!source.height||source.width>1024||source.height>1024||
-     uint8_t(source.format)>uint8_t(ImageFormat::RGB332)||uint8_t(source.order)>uint8_t(PixelOrder::Wire)||
+  if(!source.pixels||!source.width||!source.height||source.width>4096||source.height>4096||
+     uint8_t(source.format)>uint8_t(ImageFormat::Mono1Masked)||uint8_t(source.order)>uint8_t(PixelOrder::Wire)||
      source.byteLength>8388608)return false;
-  const size_t row=source.width*(source.format==ImageFormat::RGB565?2:1);
+  const bool mono=source.format==ImageFormat::Mono1||source.format==ImageFormat::Mono1Masked;
+  const size_t planes=source.format==ImageFormat::Mono1Masked?2:1;
+  const size_t row=mono?(source.width+7)/8:source.width*(source.format==ImageFormat::RGB565?2:1);
   stride=source.strideBytes?source.strideBytes:row;
-  if(stride<row||source.height-1>(SIZE_MAX-row)/stride)return false;
-  const size_t required=(source.height-1)*stride+row;
+  if(stride<row||source.height*planes-1>(SIZE_MAX-row)/stride)return false;
+  const size_t required=(source.height*planes-1)*stride+row;
   if(source.byteLength<required||reinterpret_cast<uintptr_t>(source.pixels)>UINTPTR_MAX-required)return false;
-  packed=row*source.height;return true;
+  packed=row*source.height*planes;return true;
 }
 void releaseCopiedImage(void *,const void *pixels) { delete[] static_cast<const uint8_t *>(pixels); }
 }
@@ -40,9 +42,10 @@ size_t Image::storageBytes() const { return impl_?impl_->ownedBytes:0; }
 Status Image::copy(const ImageView &source,Image &out) {
   size_t stride,bytes;if(!validImageView(source,stride,bytes))return Status::InvalidArgument;
   uint8_t *pixels=new(std::nothrow) uint8_t[bytes];if(!pixels)return Status::NoMemory;
-  const size_t row=bytes/source.height;
+  const size_t planes=source.format==ImageFormat::Mono1Masked?2:1;
+  const size_t row=bytes/source.height/planes;
   const auto *input=static_cast<const uint8_t *>(source.pixels);
-  for(size_t y=0;y<source.height;++y) {
+  for(size_t y=0;y<source.height*planes;++y) {
     if(source.format==ImageFormat::RGB565&&source.order==PixelOrder::Native) {
       for(size_t x=0;x<source.width;++x){uint16_t color;memcpy(&color,input+y*stride+2*x,2);pixels[y*row+2*x]=uint8_t(color>>8);pixels[y*row+2*x+1]=uint8_t(color);}
     } else memcpy(pixels+y*row,input+y*stride,row);

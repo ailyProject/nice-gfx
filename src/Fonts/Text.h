@@ -140,6 +140,39 @@ void textCoverageRuns(const TextGlyph &glyph, uint16_t width, uint16_t height,
 }
 
 namespace detail {
+// Native coverage masks are packed high-nibble first. Decode each visible
+// source byte once, retaining row gaps for ROI clips and cross-row full runs.
+template <typename Read, typename Emit>
+void textNativeGrayRuns(const TextGlyph &glyph,Read read,Emit emit,
+                        const TextRasterClip *clip) {
+  const uint16_t x0=clip?(clip->left<glyph.width?clip->left:glyph.width):0;
+  const uint16_t y0=clip?(clip->top<glyph.height?clip->top:glyph.height):0;
+  const uint16_t x1=clip&&clip->right<glyph.width?clip->right:glyph.width;
+  const uint16_t y1=clip&&clip->bottom<glyph.height?clip->bottom:glyph.height;
+  if(x0>=x1||y0>=y1)return;
+  uint32_t start=uint32_t(y0)*glyph.width+x0;uint8_t previous=0;bool first=true;
+  const auto append=[&](uint32_t position,uint8_t coverage){
+    if(first){previous=coverage;first=false;}
+    else if(previous!=coverage){emit(start,position-start,previous);start=position;previous=coverage;}
+  };
+  for(uint16_t y=y0;y<y1;++y){
+    const uint32_t row=uint32_t(y)*glyph.width;
+    if(clip){start=row+x0;first=true;}
+    uint16_t x=x0;
+    while(x<x1){
+      const uint16_t byte=x/2;
+      const uint8_t packed=byte<glyph.stride?read(glyph.data+uint32_t(y)*glyph.stride+byte):0;
+      if(x&1){append(row+x,uint8_t(packed&15));++x;}
+      else {
+        append(row+x,uint8_t(packed>>4));++x;
+        if(x<x1){append(row+x,uint8_t(packed&15));++x;}
+      }
+    }
+    if(clip)emit(start,row+x1-start,previous);
+  }
+  if(!clip)emit(start,uint32_t(glyph.width)*glyph.height-start,previous);
+}
+
 // Native binary EPX uses a bounded three-row stencil. Rows are fetched once
 // and rotated; the visible horizontal interval includes a one-pixel halo.
 // Caller validates Rows, width <= 128 and a complete byte-aligned row stride.
@@ -272,6 +305,9 @@ void textRasterRuns(const TextGlyph &glyph, uint16_t width, uint16_t height,
   const uint16_t x1 = clip && clip->right < width ? clip->right : width;
   const uint16_t y1 = clip && clip->bottom < height ? clip->bottom : height;
   if (x0 >= x1 || y0 >= y1) return;
+  if(antialias&&gray&&width==glyph.width&&height==glyph.height){
+    detail::textNativeGrayRuns(glyph,read,emit,clip);return;
+  }
   if (!nearestWidth) nearestWidth = width;
   if (!nearestHeight) nearestHeight = height;
   // Native integer enlargement needs no intermediate fallback coordinates.
@@ -290,7 +326,11 @@ void textRasterRuns(const TextGlyph &glyph, uint16_t width, uint16_t height,
   }
   uint32_t cachedOffset = UINT32_MAX;
   uint8_t cachedByte = 0;
-  const auto source = [&](int32_t sx, int32_t sy) -> uint8_t {
+  const auto source = [&](int32_t sx, int32_t sy)
+#if defined(__GNUC__) || defined(__clang__)
+      __attribute__((always_inline))
+#endif
+      -> uint8_t {
     if (sx < 0 || sy < 0 || sx >= glyph.width || sy >= glyph.height ||
         uint32_t(sx) >= uint32_t(glyph.stride) * (gray ? 2 : 8)) return 0;
     const uint32_t offset = uint32_t(sy) * glyph.stride + (gray ? uint32_t(sx) / 2 : uint32_t(sx) / 8);
@@ -301,6 +341,43 @@ void textRasterRuns(const TextGlyph &glyph, uint16_t width, uint16_t height,
     return gray ? uint8_t((cachedByte >> ((sx & 1) ? 0 : 4)) & 15) :
                   uint8_t((cachedByte & (0x80U >> (sx & 7))) ? 15 : 0);
   };
+  // Bounded grayscale reconstruction keeps exactly the rational center taps
+  // and rounding below. Quotient/remainder stepping avoids per-pixel coordinate
+  // division and lookup arrays, including for a cropped raster's first sample.
+  // Four coverage taps fit in 15*dx*dy <= 3932160, so the final interpolation
+  // needs only a native 32-bit division even on 32-bit embedded targets.
+  if(antialias&&gray&&(width!=glyph.width||height!=glyph.height)&&
+     width<=256&&height<=256&&glyph.width<=256&&glyph.height<=256){
+    const int32_t dx=int32_t(width)*2,dy=int32_t(height)*2;
+    const uint32_t den=uint32_t(dx)*dy;
+    const auto floor32=[](int32_t n,int32_t d){return n>=0?n/d:-((-n+d-1)/d);};
+    const int32_t nx=(int32_t(x0)*2+1)*glyph.width-width;
+    const int32_t ny=(int32_t(y0)*2+1)*glyph.height-height;
+    const int32_t firstSx=floor32(nx,dx);
+    const uint32_t firstFx=uint32_t(nx-firstSx*dx);
+    int32_t sy=floor32(ny,dy);uint32_t fy=uint32_t(ny-sy*dy);
+    const int32_t stepX=int32_t(glyph.width)*2,stepY=int32_t(glyph.height)*2;
+    const int32_t quotientX=stepX/dx,quotientY=stepY/dy;
+    const uint32_t remainderX=uint32_t(stepX%dx),remainderY=uint32_t(stepY%dy);
+    uint32_t start=uint32_t(y0)*width+x0;uint8_t previous=0;bool first=true;
+    for(uint16_t y=y0;y<y1;++y){
+      int32_t sx=firstSx;uint32_t fx=firstFx;
+      if(clip){start=uint32_t(y)*width+x0;first=true;}
+      for(uint16_t x=x0;x<x1;++x){
+        const uint32_t a=uint32_t(source(sx,sy))*(dx-fx)+uint32_t(source(sx+1,sy))*fx;
+        const uint32_t b=uint32_t(source(sx,sy+1))*(dx-fx)+uint32_t(source(sx+1,sy+1))*fx;
+        const uint8_t coverage=uint8_t((a*(dy-fy)+b*fy+den/2)/den);
+        const uint32_t position=uint32_t(y)*width+x;
+        if(first){previous=coverage;first=false;}
+        else if(previous!=coverage){emit(start,position-start,previous);start=position;previous=coverage;}
+        sx+=quotientX;fx+=remainderX;if(fx>=uint32_t(dx)){fx-=dx;++sx;}
+      }
+      if(clip)emit(start,uint32_t(y)*width+x1-start,previous);
+      sy+=quotientY;fy+=remainderY;if(fy>=uint32_t(dy)){fy-=dy;++sy;}
+    }
+    if(!clip)emit(start,count-start,previous);
+    return;
+  }
   const auto nearest = [&](int32_t x, int32_t y) -> uint8_t {
     if (x < 0 || y < 0 || x >= width || y >= height) return 0;
     if (integerNearest) return source(integerScaleX == 1 ? x : x / integerScaleX,

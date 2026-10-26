@@ -2,6 +2,14 @@
 
 本页列出屏幕芯片、接口、默认分辨率及构造参数。固定开发板优先使用 [开发板预设](BoardPresets.md)。分辨率按旋转 0 标注，实际接口、接线、电源与时序以模组为准。
 
+| 屏幕类别 | 选型与用法 |
+| --- | --- |
+| 彩色屏与触摸 | 本页 |
+| SSD1306 / SH1106、指定模组的电子纸局刷 | [单色屏与电子纸](MonochromeAndEpaper.md) |
+| 原 u8g2 屏幕配置 | [U8g2 兼容](U8g2Compatibility.md) |
+| GxEPD2 系列、多色及灰阶电子纸 | [电子纸兼容](EpaperCompatibility.md) |
+| Seeed 墨水屏与整机 | [Seeed 墨水屏](SeeedEpaper.md) |
+
 ## 屏幕芯片、接口与分辨率
 
 包含 `<NICE_GFX.h>` 后，按下表的配置前缀、宽高和接口组成类型名。引脚常量由应用按实际接线声明，构造参数见后文。
@@ -14,7 +22,7 @@ ILI9341_240x320_SPI gfx(cs, dc, rst, sck, mosi, miso);
 
 <!-- BEGIN GENERATED DEVICE DISPLAYS -->
 
-共 88 个屏幕芯片、137 组尺寸与初始化配置、423 个带分辨率的公开显示类型。相同配置的接口合并为一行；类型名与构造方式见下方说明。
+彩色显示目录共 88 个屏幕芯片、137 组尺寸与初始化配置、423 个带分辨率的公开显示类型。相同配置的接口合并为一行；类型名与构造方式见下方说明。
 
 | 屏幕芯片 | 配置前缀 | 接口 | 默认宽×高 | 说明 |
 | --- | --- | --- | --- | --- |
@@ -225,7 +233,7 @@ const uint16_t calibration[5] = {300, 3600, 300, 3600, 3};
 | MIPI | `nice_gfx::MipiConfig` | ESP32-P4 DSI / DPI |
 | ST77903 扫描 QSPI | `nice_gfx::ScanQspiConfig` | 具有 `SOC_SPI_SCT_SUPPORTED` 外设的 ESP32-S3；独占 SPI host，自有帧缓冲 |
 
-`options` 为 `nice_gfx::PanelOptions`；`rst=-1` 表示不使用复位 GPIO。AVR、SAMD、Renesas 等通用硬件 SPI 使用板卡实际 SCK/MOSI/MISO 引脚。类型存在仍需模组引出对应接口，电源、色序、偏移与初始化须匹配实物。平台能力见 [主库说明](../README.md#开发平台支持表)。
+`options` 为 `nice_gfx::PanelOptions`；`rst=-1` 表示不使用复位 GPIO。AVR、SAMD、Renesas 等通用硬件 SPI 使用板卡实际 SCK/MOSI/MISO 引脚。类型存在仍需模组引出对应接口，电源、色序、偏移与初始化须匹配实物。平台能力见 [中文说明](../README_ZH.md#开发平台支持表)。
 
 `_Transposed` 表示扫描方向变体，`_PaddedSPI` 表示串并转换协议，`_SequenceN`、`_2`、`_ALT`、`_BD` 表示初始化变体。
 
@@ -286,4 +294,4 @@ nice_gfx::ST77903_400x400_QSPI gfx(makeScanConfig());
 - RGB / MIPI / 扫描 QSPI 完成输入拷贝后可复用调用方缓冲；`wait()` 不代表物理 VSYNC 或无撕裂。
 - 读屏须同时具备控制器支持及 MISO / RD 接线；CH13613 当前未开放高级 `readPixel()` / `readRect()`。触摸需独立器件、接线与校准。
 
-类型与参数见 [显示预设](../src/Display/Presets)，芯片初始化见 [显示驱动](../src/Drivers/Display)。文档与目录维护见 [架构说明](Architecture.md#维护命令)。
+类型与参数见 [显示预设](../src/Display/Presets)，芯片初始化见 [显示驱动](../src/Drivers/Display)。文档与目录维护见 [架构说明](Architecture.md#配置维护)。

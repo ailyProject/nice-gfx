@@ -41,6 +41,17 @@ enum class BoardPresetId : uint8_t {
   OjOjoy,
   Rp2040,
   SeeedGroveBeginnerKit,
+  SeeedEe02Spectra133,
+  SeeedEe03103,
+  SeeedEe0475,
+  SeeedEe0575,
+  SeeedReterminalE1001,
+  SeeedReterminalE1002,
+  SeeedReterminalE1003,
+  SeeedReterminalE1004,
+  SeeedReterminalSticky,
+  SeeedTrmnl75Diy,
+  SeeedXiao75Panel,
   WaveshareTouchLcd4B,
   WioTerminal,
   XiaoRound,
@@ -491,6 +502,138 @@ template<>struct BoardPresetTraits<BoardPresetId::SeeedGroveBeginnerKit> {
     return value;
   }
 };
+template<>struct BoardPresetTraits<BoardPresetId::SeeedEe02Spectra133> {
+  static constexpr BoardSupport support=BoardSupport::Ready;
+  static const BoardPresetInfo &info() {
+    static const BoardPresetInfo value={"seeed-ee02-spectra133","Seeed EE02 + 13.3″ Spectra 6","SeeedEe02Spectra133Display","esp32:esp32:esp32s3:PSRAM=opi,FlashSize=32M","NGFX_SEEED_1330_SPECTRA6",
+      support,false,1200,1600,0,4000000,
+      {44,10,38,7,9,-1,-1,-1,-1,-1,4,{8,16,15,18,4,5,6,7,19,20,21,22,23,24,25,26}},
+      "{\"cs\":\"44\",\"dc\":\"10\",\"reset\":\"38\",\"sck\":\"7\",\"mosi\":\"9\",\"miso\":\"-1\",\"backlight\":\"-1\",\"dataPins\":[\"8\",\"16\",\"15\",\"18\",\"4\",\"5\",\"6\",\"7\",\"19\",\"20\",\"21\",\"22\",\"23\",\"24\",\"25\",\"26\"],\"touchIrq\":\"-1\",\"touchSda\":\"4\",\"touchScl\":\"5\",\"touchReset\":\"-1\",\"busy\":\"4\",\"extraCs0\":\"41\"}",
+      {"none",4,5,-1,-1,46},
+      ""};
+    return value;
+  }
+};
+template<>struct BoardPresetTraits<BoardPresetId::SeeedEe03103> {
+  static constexpr BoardSupport support=BoardSupport::Ready;
+  static const BoardPresetInfo &info() {
+    static const BoardPresetInfo value={"seeed-ee03-103","Seeed EE03 + 10.3″ 灰阶屏","SeeedEe03103Display","esp32:esp32:esp32s3:PSRAM=opi,FlashSize=32M","NGFX_SEEED_1030_GRAY16",
+      support,false,1872,1404,0,4000000,
+      {44,-1,38,7,9,8,-1,-1,-1,-1,4,{8,16,15,18,4,5,6,7,19,20,21,22,23,24,25,26}},
+      "{\"cs\":\"44\",\"dc\":\"-1\",\"reset\":\"38\",\"sck\":\"7\",\"mosi\":\"9\",\"miso\":\"8\",\"backlight\":\"-1\",\"dataPins\":[\"8\",\"16\",\"15\",\"18\",\"4\",\"5\",\"6\",\"7\",\"19\",\"20\",\"21\",\"22\",\"23\",\"24\",\"25\",\"26\"],\"touchIrq\":\"-1\",\"touchSda\":\"4\",\"touchScl\":\"5\",\"touchReset\":\"-1\",\"busy\":\"4\",\"extraCs0\":\"-1\"}",
+      {"none",4,5,-1,-1,46},
+      ""};
+    return value;
+  }
+};
+template<>struct BoardPresetTraits<BoardPresetId::SeeedEe0475> {
+  static constexpr BoardSupport support=BoardSupport::Ready;
+  static const BoardPresetInfo &info() {
+    static const BoardPresetInfo value={"seeed-ee04-75","Seeed EE04 + 7.5″ 黑白屏","SeeedEe0475Display","esp32:esp32:esp32s3:PSRAM=opi,FlashSize=32M","NGFX_SEEED_750_BW",
+      support,false,800,480,0,4000000,
+      {44,10,38,7,9,-1,-1,-1,-1,-1,4,{8,16,15,18,4,5,6,7,19,20,21,22,23,24,25,26}},
+      "{\"cs\":\"44\",\"dc\":\"10\",\"reset\":\"38\",\"sck\":\"7\",\"mosi\":\"9\",\"miso\":\"-1\",\"backlight\":\"-1\",\"dataPins\":[\"8\",\"16\",\"15\",\"18\",\"4\",\"5\",\"6\",\"7\",\"19\",\"20\",\"21\",\"22\",\"23\",\"24\",\"25\",\"26\"],\"touchIrq\":\"-1\",\"touchSda\":\"4\",\"touchScl\":\"5\",\"touchReset\":\"-1\",\"busy\":\"4\",\"extraCs0\":\"-1\"}",
+      {"none",4,5,-1,-1,46},
+      ""};
+    return value;
+  }
+};
+template<>struct BoardPresetTraits<BoardPresetId::SeeedEe0575> {
+  static constexpr BoardSupport support=BoardSupport::Ready;
+  static const BoardPresetInfo &info() {
+    static const BoardPresetInfo value={"seeed-ee05-75","Seeed EE05 + 7.5″ 黑白屏","SeeedEe0575Display","esp32:esp32:esp32s3:PSRAM=opi,FlashSize=32M","NGFX_SEEED_750_BW",
+      support,false,800,480,0,4000000,
+      {44,10,38,7,9,-1,-1,-1,-1,-1,4,{8,16,15,18,4,5,6,7,19,20,21,22,23,24,25,26}},
+      "{\"cs\":\"44\",\"dc\":\"10\",\"reset\":\"38\",\"sck\":\"7\",\"mosi\":\"9\",\"miso\":\"-1\",\"backlight\":\"-1\",\"dataPins\":[\"8\",\"16\",\"15\",\"18\",\"4\",\"5\",\"6\",\"7\",\"19\",\"20\",\"21\",\"22\",\"23\",\"24\",\"25\",\"26\"],\"touchIrq\":\"-1\",\"touchSda\":\"4\",\"touchScl\":\"5\",\"touchReset\":\"-1\",\"busy\":\"4\",\"extraCs0\":\"-1\"}",
+      {"none",4,5,-1,-1,46},
+      ""};
+    return value;
+  }
+};
+template<>struct BoardPresetTraits<BoardPresetId::SeeedReterminalE1001> {
+  static constexpr BoardSupport support=BoardSupport::Ready;
+  static const BoardPresetInfo &info() {
+    static const BoardPresetInfo value={"seeed-reterminal-e1001","Seeed reTerminal E1001","SeeedReterminalE1001Display","esp32:esp32:esp32s3:PSRAM=opi,FlashSize=32M","NGFX_SEEED_RETERMINAL_E1001",
+      support,false,800,480,0,4000000,
+      {10,11,12,7,9,8,-1,-1,-1,-1,13,{8,16,15,18,4,5,6,7,19,20,21,22,23,24,25,26}},
+      "{\"cs\":\"10\",\"dc\":\"11\",\"reset\":\"12\",\"sck\":\"7\",\"mosi\":\"9\",\"miso\":\"8\",\"backlight\":\"-1\",\"dataPins\":[\"8\",\"16\",\"15\",\"18\",\"4\",\"5\",\"6\",\"7\",\"19\",\"20\",\"21\",\"22\",\"23\",\"24\",\"25\",\"26\"],\"touchIrq\":\"-1\",\"touchSda\":\"4\",\"touchScl\":\"5\",\"touchReset\":\"-1\",\"busy\":\"13\",\"extraCs0\":\"-1\"}",
+      {"none",4,5,-1,-1,46},
+      ""};
+    return value;
+  }
+};
+template<>struct BoardPresetTraits<BoardPresetId::SeeedReterminalE1002> {
+  static constexpr BoardSupport support=BoardSupport::Ready;
+  static const BoardPresetInfo &info() {
+    static const BoardPresetInfo value={"seeed-reterminal-e1002","Seeed reTerminal E1002","SeeedReterminalE1002Display","esp32:esp32:esp32s3:PSRAM=opi,FlashSize=32M","NGFX_SEEED_RETERMINAL_E1002",
+      support,false,800,480,0,4000000,
+      {10,11,12,7,9,8,-1,-1,-1,-1,13,{8,16,15,18,4,5,6,7,19,20,21,22,23,24,25,26}},
+      "{\"cs\":\"10\",\"dc\":\"11\",\"reset\":\"12\",\"sck\":\"7\",\"mosi\":\"9\",\"miso\":\"8\",\"backlight\":\"-1\",\"dataPins\":[\"8\",\"16\",\"15\",\"18\",\"4\",\"5\",\"6\",\"7\",\"19\",\"20\",\"21\",\"22\",\"23\",\"24\",\"25\",\"26\"],\"touchIrq\":\"-1\",\"touchSda\":\"4\",\"touchScl\":\"5\",\"touchReset\":\"-1\",\"busy\":\"13\",\"extraCs0\":\"-1\"}",
+      {"none",4,5,-1,-1,46},
+      ""};
+    return value;
+  }
+};
+template<>struct BoardPresetTraits<BoardPresetId::SeeedReterminalE1003> {
+  static constexpr BoardSupport support=BoardSupport::Ready;
+  static const BoardPresetInfo &info() {
+    static const BoardPresetInfo value={"seeed-reterminal-e1003","Seeed reTerminal E1003","SeeedReterminalE1003Display","esp32:esp32:esp32s3:PSRAM=opi,FlashSize=32M","NGFX_SEEED_RETERMINAL_E1003",
+      support,false,1404,1872,1,4000000,
+      {10,-1,12,7,9,8,-1,-1,-1,-1,13,{8,16,15,18,4,5,6,7,19,20,21,22,23,24,25,26}},
+      "{\"cs\":\"10\",\"dc\":\"-1\",\"reset\":\"12\",\"sck\":\"7\",\"mosi\":\"9\",\"miso\":\"8\",\"backlight\":\"-1\",\"dataPins\":[\"8\",\"16\",\"15\",\"18\",\"4\",\"5\",\"6\",\"7\",\"19\",\"20\",\"21\",\"22\",\"23\",\"24\",\"25\",\"26\"],\"touchIrq\":\"-1\",\"touchSda\":\"4\",\"touchScl\":\"5\",\"touchReset\":\"-1\",\"busy\":\"13\",\"extraCs0\":\"-1\"}",
+      {"none",4,5,-1,-1,46},
+      "硬件具有电容触摸；当前 NICE_GFX 导出使用实体按键，未接入该机型触摸协议。"};
+    return value;
+  }
+};
+template<>struct BoardPresetTraits<BoardPresetId::SeeedReterminalE1004> {
+  static constexpr BoardSupport support=BoardSupport::Ready;
+  static const BoardPresetInfo &info() {
+    static const BoardPresetInfo value={"seeed-reterminal-e1004","Seeed reTerminal E1004","SeeedReterminalE1004Display","esp32:esp32:esp32s3:PSRAM=opi,FlashSize=32M","NGFX_SEEED_RETERMINAL_E1004",
+      support,false,1200,1600,0,4000000,
+      {10,11,38,7,9,8,-1,-1,-1,-1,13,{8,16,15,18,4,5,6,7,19,20,21,22,23,24,25,26}},
+      "{\"cs\":\"10\",\"dc\":\"11\",\"reset\":\"38\",\"sck\":\"7\",\"mosi\":\"9\",\"miso\":\"8\",\"backlight\":\"-1\",\"dataPins\":[\"8\",\"16\",\"15\",\"18\",\"4\",\"5\",\"6\",\"7\",\"19\",\"20\",\"21\",\"22\",\"23\",\"24\",\"25\",\"26\"],\"touchIrq\":\"-1\",\"touchSda\":\"4\",\"touchScl\":\"5\",\"touchReset\":\"-1\",\"busy\":\"13\",\"extraCs0\":\"2\"}",
+      {"none",4,5,-1,-1,46},
+      ""};
+    return value;
+  }
+};
+template<>struct BoardPresetTraits<BoardPresetId::SeeedReterminalSticky> {
+  static constexpr BoardSupport support=BoardSupport::Ready;
+  static const BoardPresetInfo &info() {
+    static const BoardPresetInfo value={"seeed-reterminal-sticky","Seeed reTerminal Sticky","SeeedReterminalStickyDisplay","esp32:esp32:esp32s3:PSRAM=opi,FlashSize=32M","NGFX_SEEED_RETERMINAL_STICKY",
+      support,false,800,480,2,4000000,
+      {15,16,17,13,14,12,-1,-1,-1,-1,18,{8,16,15,18,4,5,6,7,19,20,21,22,23,24,25,26}},
+      "{\"cs\":\"15\",\"dc\":\"16\",\"reset\":\"17\",\"sck\":\"13\",\"mosi\":\"14\",\"miso\":\"12\",\"backlight\":\"-1\",\"dataPins\":[\"8\",\"16\",\"15\",\"18\",\"4\",\"5\",\"6\",\"7\",\"19\",\"20\",\"21\",\"22\",\"23\",\"24\",\"25\",\"26\"],\"touchIrq\":\"-1\",\"touchSda\":\"4\",\"touchScl\":\"5\",\"touchReset\":\"-1\",\"busy\":\"18\",\"extraCs0\":\"-1\"}",
+      {"none",4,5,-1,-1,46},
+      "硬件具有电容触摸；当前 NICE_GFX 导出使用实体按键，未接入该机型触摸协议。"};
+    return value;
+  }
+};
+template<>struct BoardPresetTraits<BoardPresetId::SeeedTrmnl75Diy> {
+  static constexpr BoardSupport support=BoardSupport::Ready;
+  static const BoardPresetInfo &info() {
+    static const BoardPresetInfo value={"seeed-trmnl-75-diy","Seeed TRMNL 7.5″ (OG) DIY Kit","SeeedTrmnl75DiyDisplay","esp32:esp32:XIAO_ESP32S3:PSRAM=opi,FlashSize=16M","NGFX_SEEED_750_BW",
+      support,false,800,480,0,4000000,
+      {44,10,38,7,9,-1,-1,-1,-1,-1,4,{8,16,15,18,4,5,6,7,19,20,21,22,23,24,25,26}},
+      "{\"cs\":\"44\",\"dc\":\"10\",\"reset\":\"38\",\"sck\":\"7\",\"mosi\":\"9\",\"miso\":\"-1\",\"backlight\":\"-1\",\"dataPins\":[\"8\",\"16\",\"15\",\"18\",\"4\",\"5\",\"6\",\"7\",\"19\",\"20\",\"21\",\"22\",\"23\",\"24\",\"25\",\"26\"],\"touchIrq\":\"-1\",\"touchSda\":\"4\",\"touchScl\":\"5\",\"touchReset\":\"-1\",\"busy\":\"4\",\"extraCs0\":\"-1\"}",
+      {"none",4,5,-1,-1,46},
+      ""};
+    return value;
+  }
+};
+template<>struct BoardPresetTraits<BoardPresetId::SeeedXiao75Panel> {
+  static constexpr BoardSupport support=BoardSupport::Ready;
+  static const BoardPresetInfo &info() {
+    static const BoardPresetInfo value={"seeed-xiao-75-panel","Seeed XIAO 7.5″ ePaper Panel","SeeedXiao75PanelDisplay","esp32:esp32:XIAO_ESP32C3","NGFX_SEEED_750_BW",
+      support,false,800,480,0,4000000,
+      {3,5,2,8,10,9,-1,-1,-1,-1,4,{8,16,15,18,4,5,6,7,19,20,21,22,23,24,25,26}},
+      "{\"cs\":\"3\",\"dc\":\"5\",\"reset\":\"2\",\"sck\":\"8\",\"mosi\":\"10\",\"miso\":\"9\",\"backlight\":\"-1\",\"dataPins\":[\"8\",\"16\",\"15\",\"18\",\"4\",\"5\",\"6\",\"7\",\"19\",\"20\",\"21\",\"22\",\"23\",\"24\",\"25\",\"26\"],\"touchIrq\":\"-1\",\"touchSda\":\"4\",\"touchScl\":\"5\",\"touchReset\":\"-1\",\"busy\":\"4\",\"extraCs0\":\"-1\"}",
+      {"none",4,5,-1,-1,46},
+      ""};
+    return value;
+  }
+};
 template<>struct BoardPresetTraits<BoardPresetId::WaveshareTouchLcd4B> {
   static constexpr BoardSupport support=BoardSupport::Ready;
   static const BoardPresetInfo &info() {
@@ -539,7 +682,7 @@ template<>struct BoardPresetTraits<BoardPresetId::XueersiEsp32> {
     return value;
   }
 };
-constexpr size_t BoardPresetCount=41;
+constexpr size_t BoardPresetCount=52;
 inline const BoardPresetInfo *boardPresetAt(size_t index) {
   switch(index) {
     case 0:return &BoardPresetTraits<BoardPresetId::AiVox>::info();
@@ -579,10 +722,21 @@ inline const BoardPresetInfo *boardPresetAt(size_t index) {
     case 34:return &BoardPresetTraits<BoardPresetId::OjOjoy>::info();
     case 35:return &BoardPresetTraits<BoardPresetId::Rp2040>::info();
     case 36:return &BoardPresetTraits<BoardPresetId::SeeedGroveBeginnerKit>::info();
-    case 37:return &BoardPresetTraits<BoardPresetId::WaveshareTouchLcd4B>::info();
-    case 38:return &BoardPresetTraits<BoardPresetId::WioTerminal>::info();
-    case 39:return &BoardPresetTraits<BoardPresetId::XiaoRound>::info();
-    case 40:return &BoardPresetTraits<BoardPresetId::XueersiEsp32>::info();
+    case 37:return &BoardPresetTraits<BoardPresetId::SeeedEe02Spectra133>::info();
+    case 38:return &BoardPresetTraits<BoardPresetId::SeeedEe03103>::info();
+    case 39:return &BoardPresetTraits<BoardPresetId::SeeedEe0475>::info();
+    case 40:return &BoardPresetTraits<BoardPresetId::SeeedEe0575>::info();
+    case 41:return &BoardPresetTraits<BoardPresetId::SeeedReterminalE1001>::info();
+    case 42:return &BoardPresetTraits<BoardPresetId::SeeedReterminalE1002>::info();
+    case 43:return &BoardPresetTraits<BoardPresetId::SeeedReterminalE1003>::info();
+    case 44:return &BoardPresetTraits<BoardPresetId::SeeedReterminalE1004>::info();
+    case 45:return &BoardPresetTraits<BoardPresetId::SeeedReterminalSticky>::info();
+    case 46:return &BoardPresetTraits<BoardPresetId::SeeedTrmnl75Diy>::info();
+    case 47:return &BoardPresetTraits<BoardPresetId::SeeedXiao75Panel>::info();
+    case 48:return &BoardPresetTraits<BoardPresetId::WaveshareTouchLcd4B>::info();
+    case 49:return &BoardPresetTraits<BoardPresetId::WioTerminal>::info();
+    case 50:return &BoardPresetTraits<BoardPresetId::XiaoRound>::info();
+    case 51:return &BoardPresetTraits<BoardPresetId::XueersiEsp32>::info();
     default:return nullptr;
   }
 }

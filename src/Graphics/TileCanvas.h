@@ -78,6 +78,97 @@ class TileCanvas : public NICE_GFX {
     bottom=_vpH<tile_.y+tile_.height?_vpH:tile_.y+tile_.height;
     return data_ && !_vpOoB && right>left && bottom>top;
   }
+  // Validate this complete glyph ROI once. Native or bounded bilinear coverage
+  // touches the actual RGB565 underlay without per-run virtual span calls.
+#if defined(__GNUC__) && !defined(__clang__)
+  __attribute__((optimize("O3")))
+#endif
+  bool textRenderGrayGlyph(const TextGlyph &glyph,uint16_t width,uint16_t height,int64_t left,int64_t top,
+      const TextRasterClip &clip,uint16_t foreground,uint16_t background,bool opaque) override {
+    if(!data_||_vpOoB||!glyph.data||glyph.encoding!=TextEncoding::Coverage4||
+       !glyph.width||!glyph.height||!width||!height||glyph.stride<(uint32_t(glyph.width)+1)/2||
+       clip.left>=clip.right||clip.top>=clip.bottom||clip.right>width||clip.bottom>height)return false;
+    const bool resized=width!=glyph.width||height!=glyph.height;
+    if(resized&&(width>256||height>256||glyph.width>256||glyph.height>256))return false;
+    const size_t sourceRow=(uint32_t(glyph.width)+1)/2;
+    if(size_t(glyph.height-1)>(SIZE_MAX-sourceRow)/glyph.stride)return false;
+    const size_t sourceBytes=size_t(glyph.height-1)*glyph.stride+sourceRow;
+    const size_t targetBytes=(size_t(tile_.height-1)*stride_+size_t(tile_.width))*2;
+    const uintptr_t input=reinterpret_cast<uintptr_t>(glyph.data),output=reinterpret_cast<uintptr_t>(data_);
+    if(input>UINTPTR_MAX-sourceBytes||output>UINTPTR_MAX-targetBytes||
+       (input<output+targetBytes&&output<input+sourceBytes))return false;
+    const int64_t x=left+clip.left,y=top+clip.top,right=left+clip.right,bottom=top+clip.bottom;
+    if(x<tile_.x||y<tile_.y||right>int64_t(tile_.x)+tile_.width||bottom>int64_t(tile_.y)+tile_.height||
+       x<_vpX||y<_vpY||right>_vpW||bottom>_vpH)return false;
+    uint16_t palette[16];const uint16_t ink=stored(foreground);
+    if(opaque)for(uint8_t c=0;c<16;++c)palette[c]=stored(textCoverageColor(foreground,background,c));
+    uint16_t *target=data_+size_t(y-tile_.y)*stride_+size_t(x-tile_.x);
+    if(resized){
+      const int32_t dx=int32_t(width)*2,dy=int32_t(height)*2;
+      const uint32_t den=uint32_t(dx)*dy;
+      const auto floor32=[](int32_t n,int32_t d){return n>=0?n/d:-((-n+d-1)/d);};
+      const int32_t nx=(int32_t(clip.left)*2+1)*glyph.width-width;
+      const int32_t ny=(int32_t(clip.top)*2+1)*glyph.height-height;
+      const int32_t firstSx=floor32(nx,dx);const uint32_t firstFx=uint32_t(nx-firstSx*dx);
+      int32_t sy=floor32(ny,dy);uint32_t fy=uint32_t(ny-sy*dy);
+      const int32_t stepX=int32_t(glyph.width)*2,stepY=int32_t(glyph.height)*2;
+      const int32_t quotientX=stepX/dx,quotientY=stepY/dy;
+      const uint32_t remainderX=uint32_t(stepX%dx),remainderY=uint32_t(stepY%dy);
+      const auto sample=[&](int32_t sx,int32_t yy)
+#if defined(__GNUC__) || defined(__clang__)
+          __attribute__((always_inline))
+#endif
+          -> uint8_t {
+        if(sx<0||yy<0||sx>=glyph.width||yy>=glyph.height)return 0;
+        const uint8_t p=uint8_t(pgm_read_byte(glyph.data+size_t(yy)*glyph.stride+uint32_t(sx)/2));
+        return uint8_t((sx&1)?p&15:p>>4);
+      };
+      for(uint16_t yy=clip.top;yy<clip.bottom;++yy){
+        int32_t sx=firstSx;uint32_t fx=firstFx;uint16_t *dst=target;
+        for(uint16_t xx=clip.left;xx<clip.right;++xx,++dst){
+          const uint32_t a=uint32_t(sample(sx,sy))*(dx-fx)+uint32_t(sample(sx+1,sy))*fx;
+          const uint32_t b=uint32_t(sample(sx,sy+1))*(dx-fx)+uint32_t(sample(sx+1,sy+1))*fx;
+          const uint8_t coverage=uint8_t((a*(dy-fy)+b*fy+den/2)/den);
+          if(opaque)*dst=palette[coverage];
+          else if(coverage==15)*dst=ink;
+          else if(coverage){
+#if defined(CONFIG_IDF_TARGET_ESP32S31)
+            *dst=paletteBlend(foreground,*dst,coverage);
+#else
+            *dst=stored(textCoverageColor(foreground,stored(*dst),coverage));
+#endif
+          }
+          sx+=quotientX;fx+=remainderX;if(fx>=uint32_t(dx)){fx-=dx;++sx;}
+        }
+        target+=stride_;sy+=quotientY;fy+=remainderY;if(fy>=uint32_t(dy)){fy-=dy;++sy;}
+      }
+      return true;
+    }
+    for(uint16_t sy=clip.top;sy<clip.bottom;++sy){
+      const uint8_t *source=glyph.data+size_t(sy)*glyph.stride;
+      uint16_t *dst=target;uint8_t packed=0;
+      for(uint16_t sx=clip.left;sx<clip.right;++sx,++dst){
+        if(!(sx&1)||sx==clip.left)packed=uint8_t(pgm_read_byte(source+sx/2));
+        const uint8_t coverage=uint8_t((sx&1)?packed&15:packed>>4);
+        if(opaque)*dst=palette[coverage];
+        else if(coverage==15)*dst=ink;
+        else if(coverage){
+#if defined(CONFIG_IDF_TARGET_ESP32S31)
+          *dst=paletteBlend(foreground,*dst,coverage);
+#else
+          *dst=stored(textCoverageColor(foreground,stored(*dst),coverage));
+#endif
+        }
+      }
+      target+=stride_;
+    }
+    return true;
+  }
+  // Keep the span/palette hot loop optimized when sketches use -Os. The
+  // checked clipping and exact coverage arithmetic remain unchanged.
+#if defined(__GNUC__) && !defined(__clang__)
+  __attribute__((optimize("O3")))
+#endif
   bool textRenderSpan(int32_t x,int32_t y,int32_t w,int32_t h,uint16_t color,uint8_t coverage) override {
     // renderTextGlyph supplies absolute, visible rectangles with a neutral
     // origin. Retain the borrowed tile's bounds even if a future caller uses

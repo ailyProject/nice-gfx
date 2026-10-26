@@ -30,6 +30,12 @@ size_t NICE_GFX::write(uint8_t utf8)
 
 // Displays stream an opaque unscaled glyph through one hardware window;
 // clipped, transparent and Sprite targets consume the same horizontal runs.
+// Size-optimized ESP32 builds otherwise outline the sampling/emit closures in
+// this per-pixel hot path. Preserve integer sampling and clipping, with no
+// fast-math or project-specific rendering shortcuts.
+#if defined(__GNUC__) && !defined(__clang__)
+__attribute__((optimize("O3")))
+#endif
 void NICE_GFX::renderTextGlyph(const nice_gfx::TextGlyph &glyph, int32_t x, int32_t y,
     uint32_t foreground, uint32_t background, uint8_t scale, bool opaque,
     uint16_t targetWidth, uint16_t targetHeight)
@@ -58,6 +64,8 @@ void NICE_GFX::renderTextGlyph(const nice_gfx::TextGlyph &glyph, int32_t x, int3
     uint16_t((visibleRight-left+rasterScale-1)/rasterScale),uint16_t((visibleBottom-top+rasterScale-1)/rasterScale)};
   const bool cropped=rasterClip.left || rasterClip.top || rasterClip.right!=rasterWidth || rasterClip.bottom!=rasterHeight;
   WriteScope write(*this);
+  if(blendCoverage&&gray&&uint32_t(glyphWidth)*scale==rasterWidth&&uint32_t(glyphHeight)*scale==rasterHeight&&
+     textRenderGrayGlyph(glyph,rasterWidth,rasterHeight,left,top,rasterClip,uint16_t(foreground),uint16_t(background),opaque))return;
   const auto read = [](const uint8_t *address) { return uint8_t(pgm_read_byte(address)); };
   const bool stream = _panel && opaque && scale == 1 && !cropped;
   if (stream)

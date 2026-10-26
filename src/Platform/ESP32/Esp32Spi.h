@@ -21,6 +21,7 @@ class Esp32Spi : public Esp32Qspi {
     q.frequency=c.frequency; q.readFrequency=c.readFrequency; q.mode=c.mode;
     q.host=c.host; q.autoHost=c.autoHost || automatic; q.chunkBytes=c.chunkBytes; q.quad=false; q.dc=c.pins.dc;
     q.paddedCommands=c.paddedCommands;
+    q.byteOnly=c.byteOnly;
     q.writeStrobePin=c.writeStrobePin;
     q.threeWire=c.pins.miso>=0 && Esp32Pin::gpioNumber(c.pins.miso)==Esp32Pin::gpioNumber(c.pins.mosi);
     if(q.threeWire) q.pins.d1=-1;

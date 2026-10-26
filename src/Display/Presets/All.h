@@ -5,3 +5,8 @@
 #include "DisplayAliases.h"
 #include "../VideoDisplay.h"
 #include "VideoAliases.h"
+#include "../MonoDisplay.h"
+#include "../EpaperDisplay.h"
+#include "U8g2.h"
+#include "GxEpd2.h"
+#include "SeeedEpaper.h"

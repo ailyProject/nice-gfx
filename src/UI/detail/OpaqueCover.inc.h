@@ -57,7 +57,7 @@ bool canStageOpaqueCover(const nice_gfx::NativeFramebuffer &target,const FrameCa
 // Preflight the exact cropped image before the first transport write. A
 // synchronous copy has completed before CPU overlays touch the same region;
 // the normal Native refresh still owns the final framebuffer submission.
-Status blitOpaqueCover(nice_gfx::Panel &panel,int index,const DirtyRect &area,bool &painted) {
+Status blitOpaqueCover(nice_gfx::Backend &panel,int index,const DirtyRect &area,bool &painted) {
   painted=false;
   if(stagingNativeTarget){
     if(!canStageOpaqueCover(*stagingNativeTarget,*paintCache,index,area,paintOffsetX,paintOffsetY))return Status::Ok;

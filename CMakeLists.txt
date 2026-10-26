@@ -39,7 +39,7 @@ endif()
 
 # IDF also evaluates component requirements before build targets exist.
 if(NOT CMAKE_BUILD_EARLY_EXPANSION)
-    file(GLOB_RECURSE nice_gfx_sources CONFIGURE_DEPENDS "${nice_gfx_root}/src/*.cpp")
+    file(GLOB_RECURSE nice_gfx_sources CONFIGURE_DEPENDS "${nice_gfx_root}/src/*.cpp" "${nice_gfx_root}/src/*.c")
     if(NOT NICE_GFX_ARDUINO_COMPONENT)
         list(FILTER nice_gfx_sources EXCLUDE REGEX "/Platform/(Arduino|RP2040|STM32)/")
     endif()

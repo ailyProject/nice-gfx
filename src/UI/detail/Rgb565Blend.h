@@ -41,6 +41,26 @@ NICE_GFX_BLEND_INLINE uint16_t color(uint16_t foreground,uint16_t background,uin
   return uint16_t((r<<11)|(g<<5)|b);
 }
 
+// Exact channel-separable blend against one real constant background. Tables
+// cover every RGB565 foreground, including colors produced by glyph overlap.
+// Construction costs 128 small channel samples; each lookup uses three loads.
+class SolidBackgroundLut {
+ public:
+  SolidBackgroundLut(uint16_t background,uint8_t alpha) {
+    const uint32_t inverse=255u-alpha;
+    uint32_t r=(background>>11)*inverse+127u;
+    uint32_t g=((background>>5)&63u)*inverse+127u;
+    uint32_t b=(background&31u)*inverse+127u;
+    for(unsigned i=0;i<32;++i,r+=alpha,b+=alpha){red_[i]=uint16_t(divide255(r)<<11);blue_[i]=uint16_t(divide255(b));}
+    for(unsigned i=0;i<64;++i,g+=alpha)green_[i]=uint16_t(divide255(g)<<5);
+  }
+  NICE_GFX_BLEND_INLINE uint16_t lookupNative(uint16_t foreground) const {
+    return uint16_t(red_[foreground>>11]|green_[(foreground>>5)&63u]|blue_[foreground&31u]);
+  }
+ private:
+  uint16_t red_[32],green_[64],blue_[32];
+};
+
 // Two independent 16-bit lanes fit each weighted 5/6-bit numerator. No sum
 // reaches the next lane, so integer multiply/add handles two pixels exactly.
 // This keeps the original per-channel /255 rounding, rather than quantizing

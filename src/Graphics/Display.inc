@@ -44,6 +44,7 @@ nice_gfx::Status NICE_GFX::beginChecked() {
   if (_runtimeStatus == nice_gfx::Status::Ok) {
     _width = _init_width = _panel->width(); _height = _init_height = _panel->height();
     rotation = _panel->rotation();
+    if(_panel->capabilities().monochrome())_antialiasing=false;
     resetViewport();
   }
   return _runtimeStatus;

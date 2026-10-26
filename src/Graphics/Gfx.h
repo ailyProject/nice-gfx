@@ -35,7 +35,7 @@
 #include "../Core/Geometry.h"
 #include "../Display/DisplayAccess.h"
 
-namespace nice_gfx { struct TextGlyph; namespace detail { struct DisplayAccess; } }
+namespace nice_gfx { struct TextGlyph; struct TextRasterClip; namespace detail { struct DisplayAccess; } }
 
 /***************************************************************************************
 **                         Section 5: Font datum enumeration
@@ -145,7 +145,16 @@ class NICE_GFX : public nice_gfx::PrintBase { friend class GFX_Sprite; // Sprite
   nice_gfx::Status beginChecked();
   nice_gfx::Status lastError() const { return _runtimeStatus; }
   nice_gfx::Status wait() { dmaWait(); return _runtimeStatus; }
+  // Publishes buffered drawing once per logical update. E-paper returns after
+  // accepting it; pollDisplay(nowMs) advances physical completion.
+  nice_gfx::Status present() { return wait(); }
   bool asynchronous() const { return _panel && _panel->asynchronous(); }
+  nice_gfx::DisplayCapabilities displayCapabilities() const {
+    return _panel ? _panel->capabilities() : nice_gfx::DisplayCapabilities();
+  }
+  // Advances a buffered display's physical update without blocking input.
+  nice_gfx::Status pollDisplay(uint32_t nowMs) { return _panel ? _panel->poll(nowMs) : nice_gfx::Status::NotInitialized; }
+  bool displayRefreshing() const { return _panel && _panel->refreshBusy(); }
   // Absolute panel coordinates; stride and byte order are explicit, independent
   // of viewport/setSwapBytes. Keep data alive and unchanged until dmaWait().
   nice_gfx::Status flush(int32_t x, int32_t y, nice_gfx::PixelView view, bool async = true);
@@ -471,7 +480,7 @@ class NICE_GFX : public nice_gfx::PrintBase { friend class GFX_Sprite; // Sprite
   const nice_gfx::MonoFont *_monoFont = nullptr;
   bool _antialiasing = true;
 
-  nice_gfx::Panel *_panel = nullptr; // Internal reference; the concrete display owns its panel and transport.
+  nice_gfx::Backend *_panel = nullptr; // Internal reference; the concrete display owns its backend and transport.
   nice_gfx::Status _runtimeStatus = nice_gfx::Status::NotInitialized;
   nice_gfx::TouchController *_touch = nullptr;
   inline void beginPanelWrite();
@@ -507,7 +516,7 @@ class NICE_GFX : public nice_gfx::PrintBase { friend class GFX_Sprite; // Sprite
     WriteScope(const WriteScope &) = delete;
     WriteScope &operator=(const WriteScope &) = delete;
   };
-  explicit NICE_GFX(nice_gfx::Panel &panel); // Internal facade binding only.
+  explicit NICE_GFX(nice_gfx::Backend &panel); // Internal facade binding only.
   NICE_GFX(int16_t width, int16_t height); // Offscreen renderer, used by Sprite.
 
   // Font decoding is shared; virtual fillRect supplies the memory span target.
@@ -528,6 +537,11 @@ class NICE_GFX : public nice_gfx::PrintBase { friend class GFX_Sprite; // Sprite
   virtual bool textRenderSpan(int32_t, int32_t, int32_t, int32_t, uint16_t, uint8_t) {
     return false;
   }
+  // Coverage4 leaves may be consumed once by a memory backend. Bounds are
+  // absolute; clip coordinates address the final raster dimensions. A false
+  // result leaves all pixels untouched and retains the shared run renderer.
+  virtual bool textRenderGrayGlyph(const nice_gfx::TextGlyph &,uint16_t,uint16_t,int64_t,int64_t,
+      const nice_gfx::TextRasterClip &,uint16_t,uint16_t,bool) { return false; }
   void renderTextGlyph(const nice_gfx::TextGlyph &glyph, int32_t x, int32_t y,
       uint32_t foreground, uint32_t background, uint8_t scale, bool opaque,
       uint16_t targetWidth = 0, uint16_t targetHeight = 0);
@@ -579,7 +593,7 @@ class NICE_GFX : public nice_gfx::PrintBase { friend class GFX_Sprite; // Sprite
 
 }; // End of class NICE_GFX
 
-inline nice_gfx::Panel *nice_gfx::detail::DisplayAccess::panel(NICE_GFX &display) {
+inline nice_gfx::Backend *nice_gfx::detail::DisplayAccess::panel(NICE_GFX &display) {
   return display._panel;
 }
 

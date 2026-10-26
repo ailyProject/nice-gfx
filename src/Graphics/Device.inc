@@ -2,7 +2,7 @@
 ** Function name:           NICE_GFX
 ** Description:             Bind a panel or create an offscreen renderer
 ***************************************************************************************/
-NICE_GFX::NICE_GFX(nice_gfx::Panel &panel) : NICE_GFX(panel.width(), panel.height()) { _panel = &panel; }
+NICE_GFX::NICE_GFX(nice_gfx::Backend &panel) : NICE_GFX(panel.width(), panel.height()) { _panel = &panel; }
 
 NICE_GFX::~NICE_GFX() { if (_panel) _panel->finish(); }
 

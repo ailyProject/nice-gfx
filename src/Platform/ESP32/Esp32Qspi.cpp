@@ -39,6 +39,7 @@ static esp_err_t checkedPolling(spi_device_handle_t device,spi_transaction_t *tr
 }
 Status Esp32Qspi::begin() {
   if (device_) return Status::Ok;
+  if(config_.byteOnly&&config_.quad)return Status::InvalidArgument;
   const int logicalPins[] = {config_.pins.clock, config_.pins.d0, config_.pins.d1,
                             config_.pins.d2, config_.pins.d3, config_.pins.cs, config_.dc};
   int pins[7];
@@ -72,6 +73,7 @@ Status Esp32Qspi::begin() {
   if(transferBytes_>32764)transferBytes_=32764;
 #endif
   stagingBytes_=config_.stagingBytes<transferBytes_?config_.stagingBytes:transferBytes_;
+  if(config_.byteOnly&&stagingBytes_>1024)stagingBytes_=1024;
   if (config_.quad && (!config_.protocol.pixelQuantum || config_.protocol.pixelQuantum>4 ||
       stagingBytes_<size_t(config_.protocol.pixelQuantum)*wirePixelBytes(format_))) return Status::InvalidArgument;
   stopping_ = false;
@@ -79,13 +81,15 @@ Status Esp32Qspi::begin() {
   // Direct DMA needs descriptors, not equally large copies of both buffers.
   // Keep the default bounded 4 KiB staging; dedicated animation applications
   // may explicitly trade internal RAM for fewer queued copy transactions.
-  for (auto &buffer : staging_) {
-    buffer = static_cast<uint8_t *>(heap_caps_malloc(stagingBytes_, MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL));
-    if (!buffer) { end(); return Status::NoMemory; }
+  for (unsigned slot=0;slot<(config_.byteOnly?1u:2u);++slot) {
+    staging_[slot] = static_cast<uint8_t *>(heap_caps_malloc(stagingBytes_, MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL));
+    if (!staging_[slot]) { end(); return Status::NoMemory; }
   }
-  done_ = xSemaphoreCreateBinary();
-  if (!done_) { end(); return Status::NoMemory; }
-  xSemaphoreGive(done_);
+  if(!config_.byteOnly){
+    done_ = xSemaphoreCreateBinary();
+    if (!done_) { end(); return Status::NoMemory; }
+    xSemaphoreGive(done_);
+  }
   spi_bus_config_t bus = {};
   disableOctalPins(bus,0);
   bus.sclk_io_num = pins[0];
@@ -123,7 +127,7 @@ Status Esp32Qspi::begin() {
   // worker there too: a returned transaction can wake a worker on the other
   // core before spi_intr has finished its bus-lock bookkeeping. Releasing the
   // acquired bus at that point can race bg_exit_core (observed on IDF 5.5.5).
-  if (xTaskCreatePinnedToCore(workerEntry, "gfx-qspi", 3072, this, 2, &worker_,
+  if (!config_.byteOnly&&xTaskCreatePinnedToCore(workerEntry, "gfx-qspi", 3072, this, 2, &worker_,
                             xPortGetCoreID()) != pdPASS) {
     worker_ = nullptr; end(); return Status::NoMemory;
   }
@@ -154,7 +158,7 @@ uint32_t Esp32Qspi::actualFrequency() const {
 #endif
 }
 Status Esp32Qspi::wait() {
-  if (!done_) return device_ ? Status::IoError : Status::Ok;
+  if (!done_) return device_ ? (config_.byteOnly?result_:Status::IoError) : Status::Ok;
   xSemaphoreTake(done_, portMAX_DELAY);
   Status result = result_;
   xSemaphoreGive(done_);
@@ -162,6 +166,7 @@ Status Esp32Qspi::wait() {
 }
 bool Esp32Qspi::busy() const { return done_ && uxSemaphoreGetCount(done_) == 0; }
 bool Esp32Qspi::canFrameBlit(PixelView view) const {
+  if(config_.byteOnly)return false;
   if (!view.valid() || view.height > SIZE_MAX / view.width ||
       (view.order != PixelOrder::Native && view.order != PixelOrder::Wire)) return false;
   if (!config_.quad) return true;
@@ -175,6 +180,31 @@ bool Esp32Qspi::canFrameBlit(PixelView view) const {
 }
 Status Esp32Qspi::command(uint8_t command, const uint8_t *data, size_t bytes) {
   return sendCommand(command,8,data,bytes);
+}
+Status Esp32Qspi::commands(const uint8_t *data,size_t bytes) {
+  if(!device_)return Status::NotInitialized;
+  if(bytes&&!data)return Status::InvalidArgument;
+  if(!bytes)return Status::Ok;
+  // OLED command parameters also travel with DC low. Quad/padded bridge
+  // transports retain their protocol-specific, byte-command fallback.
+  if(config_.quad||config_.paddedCommands)return Transport::commands(data,bytes);
+  Status status=wait();if(status!=Status::Ok)return status;
+  const esp_err_t acquired=spi_device_acquire_bus(device_,portMAX_DELAY);
+  if(acquired!=ESP_OK)return statusOf(acquired);
+  esp32_platform::write(config_.dc,false);
+  while(bytes){
+    const size_t count=bytes<stagingBytes_?bytes:stagingBytes_;
+    memcpy(staging_[0],data,count);
+    spi_transaction_t transaction={};transaction.length=count*8;transaction.tx_buffer=staging_[0];
+    if(bytes>count)transaction.flags=SPI_TRANS_CS_KEEP_ACTIVE;
+    configureFrequency(transaction);
+    const esp_err_t error=checkedPolling(device_,&transaction);
+    if(error!=ESP_OK){status=statusOf(error);break;}
+    data+=count;bytes-=count;
+  }
+  esp32_platform::write(config_.dc,true);
+  if(status!=Status::Ok){spi_transaction_t release={};spi_device_polling_transmit(device_,&release);}
+  spi_device_release_bus(device_);return result_=status;
 }
 Status Esp32Qspi::command16(uint16_t command, const uint8_t *data, size_t bytes) {
   return sendCommand(command,16,data,bytes);
@@ -241,6 +271,7 @@ Status Esp32Qspi::pixels16(uint16_t command, PixelView view, bool async) { retur
 Status Esp32Qspi::dataPixels(PixelView view, bool async) { return image(0,0,view,async); }
 Status Esp32Qspi::image(uint16_t command, uint8_t bits, PixelView view, bool async) {
   if (!device_) return Status::NotInitialized;
+  if(config_.byteOnly)return Status::Unsupported;
   if (!view.valid() || view.height > SIZE_MAX / view.width) return Status::InvalidArgument;
   if (config_.quad && bits!=8 && !(bits==0 && config_.protocol.pixelContinuation)) return Status::Unsupported;
   if (config_.quad && ((view.width*view.height)%config_.protocol.pixelQuantum ||
@@ -264,6 +295,7 @@ Status Esp32Qspi::fill16(uint16_t command, uint16_t color, size_t count) { retur
 Status Esp32Qspi::dataFill(uint16_t color, size_t count) { return solid(0,0,color,count); }
 Status Esp32Qspi::solid(uint16_t command, uint8_t bits, uint16_t color, size_t count) {
   if (!device_) return Status::NotInitialized;
+  if(config_.byteOnly)return Status::Unsupported;
   if (config_.quad && bits!=8 && !(bits==0 && config_.protocol.pixelContinuation)) return Status::Unsupported;
   if (!count) return Status::Ok;
   if (config_.quad && count%config_.protocol.pixelQuantum) return Status::InvalidArgument;
@@ -320,6 +352,7 @@ Status Esp32Qspi::transmitSmall(uint16_t command, uint8_t bits, const uint8_t *d
   spi_device_release_bus(device_); return result_=s;
 }
 Status Esp32Qspi::submit(bool async) {
+  if(!worker_||!done_)return result_=Status::Unsupported;
   xSemaphoreTake(done_, portMAX_DELAY);
   xTaskNotifyGive(worker_);
   return async ? Status::Ok : wait();

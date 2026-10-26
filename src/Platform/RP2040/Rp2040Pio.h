@@ -12,6 +12,7 @@ class Rp2040PioPort : public StreamBus {
   explicit Rp2040PioPort(const SpiConfig &config);
   Rp2040PioPort(const ParallelConfig &config,uint8_t width);
   Status begin() override;
+  Status commands(const uint8_t *data,size_t bytes) override;
   void end() override;
   bool validOutputPin(int pin) const override;
   TransportInfo info() const override;
@@ -98,6 +99,7 @@ template<class GpioBus,uint8_t Width> class Rp2040BusAuto : public Transport {
   }
   void end() override { selected_->end(); }
   Status command(uint8_t c,const uint8_t *p,size_t n) override { return selected_->command(c,p,n); }
+  Status commands(const uint8_t *p,size_t n) override { return selected_->commands(p,n); }
   Status command16(uint16_t c,const uint8_t *p,size_t n) override { return selected_->command16(c,p,n); }
   Status register16(uint16_t c,uint16_t value,uint8_t bits=8) override { return selected_->register16(c,value,bits); }
   Status data(const uint8_t *p,size_t n) override { return selected_->data(p,n); }

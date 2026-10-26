@@ -2,6 +2,7 @@
 #ifndef GFX_RUNTIME_PANEL_H
 #define GFX_RUNTIME_PANEL_H
 #include "ControllerProfile.h"
+#include "Backend.h"
 
 namespace nice_gfx {
 
@@ -21,7 +22,7 @@ struct PanelConfig {
   uint8_t rotationMask; // Supported rotations, not a promise of software rotation.
 };
 
-class Panel {
+class Panel : public Backend {
  public:
   Panel(Transport &bus, const PanelConfig &config, int reset = -1,
         uint8_t windowAlignmentX = 1, uint8_t windowAlignmentY = 1)
@@ -102,6 +103,9 @@ class Panel {
   uint32_t id() const { return config_.id; }
   int resetPin() const { return reset_; }
   TransportInfo transportInfo() const { return bus_.info(); }
+  DisplayCapabilities capabilities() const override {
+    DisplayCapabilities result;result.nativeWidth=config_.width;result.nativeHeight=config_.height;return result;
+  }
   bool supportsFrameBlit() const { return bus_.supportsFrameBlit(); }
   bool canFrameBlit(PixelView view) const { return bus_.canFrameBlit(view); }
   Status mapNativeFramebuffer(NativeFramebuffer &frame) {

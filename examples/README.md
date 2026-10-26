@@ -2,6 +2,8 @@
 
 示例按“要学习的功能”组织，编号表示建议学习顺序。开发板、屏幕控制器、分辨率和引脚属于硬件配置，不作为示例分类。所有草图的主文件与所在文件夹同名，可从 Arduino IDE 的 NICE_GFX 示例菜单打开。
 
+单色屏可从[反白菜单](07_UI/MonochromeMenu/README.md)开始；电子纸的初始化、局刷与非阻塞更新见[刷新诊断](09_Diagnostics/EpaperRefresh/README.md)。这两种显示共用原有绘图和按键接口，具体支持范围见[单色屏与电子纸](../docs/MonochromeAndEpaper.md)。
+
 | 目录 | 内容 | 建议从这里开始 |
 | --- | --- | --- |
 | `01_Basics` | 初始化、字体选择、第一行文字 | [Hello_Display](01_Basics/Hello_Display/Hello_Display.ino) |

@@ -1,0 +1,126 @@
+{
+  "schemaVersion": 1,
+  "aliases": [
+    {
+      "label": "SSD1608",
+      "alias": "IL3820",
+      "panel": "GDEH029A1",
+      "scope": "Controller name aliases for the explicitly listed panel; not permission to interchange panel initialization or waveforms.",
+      "evidence": {
+        "repository": "ZinggJM/GxEPD2",
+        "revision": "de82887e77a78528ea386e68bba2cb0291d2c319",
+        "file": "README.md",
+        "line": 101,
+        "declaration": "- GDEH029A1      2.9\" b/w 128x296, SSD1608 (IL3820)",
+        "url": "https://github.com/ZinggJM/GxEPD2/blob/de82887e77a78528ea386e68bba2cb0291d2c319/README.md#L101"
+      }
+    },
+    {
+      "label": "SSD1675A",
+      "alias": "IL3897",
+      "panel": "GDEH0213B72",
+      "scope": "Controller name aliases for the explicitly listed panel; not permission to interchange panel initialization or waveforms.",
+      "evidence": {
+        "repository": "ZinggJM/GxEPD2",
+        "revision": "de82887e77a78528ea386e68bba2cb0291d2c319",
+        "file": "README.md",
+        "line": 81,
+        "declaration": "- GDEH0213B72    2.13\" b/w 122x250, SSD1675A (IL3897), replacement for GDE0213B1",
+        "url": "https://github.com/ZinggJM/GxEPD2/blob/de82887e77a78528ea386e68bba2cb0291d2c319/README.md#L81"
+      }
+    },
+    {
+      "label": "UC8151",
+      "alias": "IL0373",
+      "panel": "GDEW0154T8",
+      "scope": "Controller name aliases for the explicitly listed panel; not permission to interchange panel initialization or waveforms.",
+      "evidence": {
+        "repository": "ZinggJM/GxEPD2",
+        "revision": "de82887e77a78528ea386e68bba2cb0291d2c319",
+        "file": "README.md",
+        "line": 73,
+        "declaration": "- GDEW0154T8     1.54\" b/w 152x152, UC8151 (IL0373)",
+        "url": "https://github.com/ZinggJM/GxEPD2/blob/de82887e77a78528ea386e68bba2cb0291d2c319/README.md#L73"
+      }
+    },
+    {
+      "label": "UC8176",
+      "alias": "IL0398",
+      "panel": "GDEW042T2",
+      "scope": "Controller name aliases for the explicitly listed panel; not permission to interchange panel initialization or waveforms.",
+      "evidence": {
+        "repository": "ZinggJM/GxEPD2",
+        "revision": "de82887e77a78528ea386e68bba2cb0291d2c319",
+        "file": "README.md",
+        "line": 122,
+        "declaration": "- GDEW042T2      4.2\" b/w 400x300, UC8176 (IL0398)",
+        "url": "https://github.com/ZinggJM/GxEPD2/blob/de82887e77a78528ea386e68bba2cb0291d2c319/README.md#L122"
+      }
+    },
+    {
+      "label": "UC8171",
+      "alias": "IL0324",
+      "panel": "GDEW0371W7",
+      "scope": "Controller name aliases for the explicitly listed panel; not permission to interchange panel initialization or waveforms.",
+      "evidence": {
+        "repository": "ZinggJM/GxEPD2",
+        "revision": "de82887e77a78528ea386e68bba2cb0291d2c319",
+        "file": "README.md",
+        "line": 119,
+        "declaration": "- GDEW0371W7     3.7\" b/w 240x416, UC8171 (IL0324)",
+        "url": "https://github.com/ZinggJM/GxEPD2/blob/de82887e77a78528ea386e68bba2cb0291d2c319/README.md#L119"
+      }
+    },
+    {
+      "label": "UC8159c",
+      "alias": "IL0371",
+      "panel": "GDEW0583T7",
+      "scope": "Controller name aliases for the explicitly listed panel; not permission to interchange panel initialization or waveforms.",
+      "evidence": {
+        "repository": "ZinggJM/GxEPD2",
+        "revision": "de82887e77a78528ea386e68bba2cb0291d2c319",
+        "file": "README.md",
+        "line": 137,
+        "declaration": "- GDEW0583T7     5.83\" b/w 600x448, UC8159c (IL0371)",
+        "url": "https://github.com/ZinggJM/GxEPD2/blob/de82887e77a78528ea386e68bba2cb0291d2c319/README.md#L137"
+      }
+    },
+    {
+      "label": "EK79652",
+      "alias": "IL91874",
+      "panel": "GDEW027W3",
+      "scope": "Controller name aliases for the explicitly listed panel; not permission to interchange panel initialization or waveforms.",
+      "evidence": {
+        "repository": "ZinggJM/GxEPD2",
+        "revision": "de82887e77a78528ea386e68bba2cb0291d2c319",
+        "file": "README.md",
+        "line": 99,
+        "declaration": "- GDEW027W3      2.7\" b/w 176x264, EK79652 (IL91874)",
+        "url": "https://github.com/ZinggJM/GxEPD2/blob/de82887e77a78528ea386e68bba2cb0291d2c319/README.md#L99"
+      }
+    },
+    {
+      "label": "UC8179C",
+      "alias": "UC8179",
+      "panel": "GDEQ0583Z31",
+      "scope": "The fixed upstream README labels this panel UC8179C; its own exact driver header labels it UC8179. Preserve both labels for this panel without assuming interchangeability across variants.",
+      "evidence": {
+        "repository": "ZinggJM/GxEPD2",
+        "revision": "de82887e77a78528ea386e68bba2cb0291d2c319",
+        "file": "README.md",
+        "line": 141,
+        "declaration": "- GDEQ0583Z31    5.83\" b/w/r 648x480, UC8179C",
+        "url": "https://github.com/ZinggJM/GxEPD2/blob/de82887e77a78528ea386e68bba2cb0291d2c319/README.md#L141"
+      },
+      "driverEvidence": {
+        "file": "src/gdeq3c/GxEPD2_583c_GDEQ0583Z31.h",
+        "line": 6,
+        "declaration": "Controller: UC8179"
+      }
+    }
+  ],
+  "distinct": [
+    "SSD1675 generic class is provided by its separate Adafruit protocol; do not equate it with IL3895 or SSD1675B.",
+    "GDEH0213Z19 and GDEW0213Z19 names are not assumed interchangeable."
+  ]
+}

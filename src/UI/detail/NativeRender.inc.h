@@ -2,11 +2,11 @@
 // untransformed snapshots directly into a mapped native scanout framebuffer.
 // Dirty regions and source leases stay under the normal Refresh lifecycle.
 PixelOrder renderOrder=PixelOrder::Wire;
-// Cached content fades can keep their navigation chrome stationary even when
-// the display has no mapped framebuffer (for example S31 QSPI). PPA blends
-// only the viewport into an independent native scratch surface. The scheduler
-// borrows that surface and immutable Wire565 chrome until the whole frame is
-// drained, exactly as it borrows cached slide slices.
+// Cached content fades keep navigation chrome stationary. Full-width aligned
+// viewports can blend directly into a mapped native framebuffer; other layouts
+// and unmapped displays (for example S31 QSPI) retain an independent scratch
+// surface. Refresh borrows either output and immutable Wire565 chrome until
+// the complete frame has drained, exactly as it borrows cached slide slices.
 bool prepareViewportFade(FrameSlice *pieces,size_t &count) {
   const Rect v=snapshotMotionRect;const auto &t=transitionFrame;
   const int32_t w=rasterFrame.current.page->width,h=rasterFrame.current.page->height;
@@ -36,7 +36,28 @@ bool prepareViewportFade(FrameSlice *pieces,size_t &count) {
     // Preflight native/packed output before launching the blocking PPA job.
     if(!panel->canFrameBlit(PixelView(snapshotSurface->pixels,v.width,v.height,v.width,PixelOrder::Native)))return false;
     RenderTimer timer(*this);const uint32_t started=profilingClock?profilingClock():0;
-    const uint16_t *blended=ppaFade.blendSourcesToNative(snapshotSurface->pixels+offset,w,
+    const uint16_t *blended=nullptr;
+    // The existing PPA target API accepts complete packed rows only. Keeping
+    // this fast path full-width prevents its output-cache invalidation from
+    // discarding CPU-owned side chrome. beginFrame() already owns the mapped
+    // target; its exact rectangle is later committed without another copy.
+    if(!v.x&&v.width==w){
+      nice_gfx::NativeFramebuffer frame{};
+      if(panel->mapNativeFramebuffer(frame)==Status::Ok&&frame.pixels&&
+         frame.width==size_t(w)&&frame.height==size_t(h)&&frame.stride==size_t(w)&&
+         frame.stride<=SIZE_MAX/frame.height/2&&frame.bytes>=frame.stride*frame.height*2){
+        uint16_t *target=frame.pixels+offset;
+        const size_t bytes=size_t(v.width)*v.height*2;
+        const uintptr_t address=reinterpret_cast<uintptr_t>(target);
+        if(!(address&63)&&!(bytes&63)&&
+           !nativeMemoryOverlap(address,bytes,snapshotSurface->pixels,size_t(w)*h*2)&&
+           !nativeMemoryOverlap(address,bytes,previewSurface->pixels,size_t(w)*h*2)&&
+           panel->canFrameBlit(PixelView(target,v.width,v.height,w,PixelOrder::Native))&&
+           ppaFade.blendSourcesIntoNative(target,w,frame.bytes-offset*2,
+             snapshotSurface->pixels+offset,w,previewSurface->pixels+offset,w,v.width,v.height,t.opacity))blended=target;
+      }
+    }
+    if(!blended)blended=ppaFade.blendSourcesToNative(snapshotSurface->pixels+offset,w,
       previewSurface->pixels+offset,w,v.width,v.height,t.opacity);
     if(!blended){++stats.ppaBlendFailures;return false;}
     moving=PixelView(blended,v.width,v.height,v.width,PixelOrder::Native);
@@ -137,9 +158,12 @@ void releaseColdFadeSurface(){
 struct NativeRenderFrame {nice_gfx::NativeFramebuffer frame{};DirtyRect regions[16];uint8_t count=0;};
 bool nativeOpaquePage(const PageDesc &p,const RetainedVector<State> &values) const {
   for(uint16_t i=0;i<p.count;++i)if(visible(p,values,i)){
-    // Affine/reveal motion kernels still use Wire565. Ordinary node opacity
-    // uses a bounded, order-aware underlay; legacy slides remain supported.
-    if(p.nodes[i].motion)return false;
+    // Only the sampled affine pose requires the Wire565 transform kernel.
+    // Completed keyframes, translations, rectangular reveals and opacity use
+    // ordinary native geometry/underlays even if a motion descriptor remains.
+    if(p.nodes[i].motion){const auto &pose=motionPose(p,values,i);
+      if(pose.scale!=1024||pose.rotation%360!=0)return false;
+    }
   }
   return true;
 }
@@ -153,11 +177,9 @@ bool nativeSourceOverlap(const PageDesc &p,const RetainedVector<State> &values,u
       size_t sourceBytes=0;
       if(v.imageOverride&&v.image.impl_)sourceBytes=v.image.impl_->source.byteLength;
       else {
-        const size_t pixelBytes=mediaPixelBytes(*source),prefix=mediaColorKeyed(*source)?2:0;
-        if(!source->width||!source->frames||!pixelBytes||size_t(source->height)>SIZE_MAX/source->width||
-           size_t(source->width)*source->height>SIZE_MAX/source->frames||
-           size_t(source->width)*source->height*source->frames>(SIZE_MAX-prefix)/pixelBytes)return true;
-        sourceBytes=size_t(source->width)*source->height*source->frames*pixelBytes+prefix;
+        const size_t frameBytes=mediaFrameBytes(*source),prefix=mediaColorKeyed(*source)?2:0;
+        if(!source->width||!source->frames||!frameBytes||frameBytes>(SIZE_MAX-prefix)/source->frames)return true;
+        sourceBytes=frameBytes*source->frames+prefix;
       }
       if(nativeMemoryOverlap(output,bytes,source->pixels,sourceBytes))return true;
     }}
@@ -255,10 +277,11 @@ Status prepareColdFade(PixelView &output) {
   const uint8_t alpha=tail?255:transitionFrame.opacity;
   if(!ppaBlendEnabled||!rgb565_ppa::Context::available()||buildingSurface||renderingViewport||rasterFrame.preview.page||(!snapshotTransition&&!tail)||
      snapshotSurface||snapshotAnimationSurface||snapshotInput||snapshotKeyboard.visible||snapshotPressed>=0||down||
-     snapshotGroupIndex>=0||transition.config.effect!=TransitionEffect::Fade||
+      (snapshotGroupIndex>=0&&snapshotGroup.indicatorHeight)||transition.config.effect!=TransitionEffect::Fade||
      (!tail&&snapshotPhase!=TransitionPhase::Enter&&snapshotPhase!=TransitionPhase::Exit)||
-     !alpha||viewport.x||viewport.y||
-     viewport.width!=rasterFrame.current.page->width||viewport.height!=rasterFrame.current.page->height||
+      !alpha||viewport.x||viewport.y<0||viewport.height<=0||
+      viewport.width!=rasterFrame.current.page->width||
+      int64_t(viewport.y)+viewport.height>rasterFrame.current.page->height||
      transitionFrame.outX||transitionFrame.outY||transitionFrame.inX||transitionFrame.inY||
      !nativeOpaquePage(*rasterFrame.current.page,rasterFrame.current.values))return Status::Unsupported;
   auto *panel=nice_gfx::detail::DisplayAccess::panel(display);
@@ -337,10 +360,21 @@ Status prepareColdFade(PixelView &output) {
     copied=blended==Status::Ok;
     if(blended!=Status::Ok&&blended!=Status::Unsupported)return blended;
   }
-  if(!copied)blended=ppaFade.blendSolidNativeIntoNative(target.pixels,target.stride,target.bytes,
-    stage.pixels,w,w,h,snapshotBackground,alpha);
+  if(!copied){
+    // Fixed chrome keeps the incoming/current page's unblended pixels. Restrict
+    // DMA output to full aligned rows so it cannot invalidate side padding.
+    Rect fixed[4];const int count=raster_occlusion::strips({0,0,int32_t(w),int32_t(h)},viewport,fixed);
+    for(int i=0;i<count;++i){const Rect r=fixed[i];
+      blended=ppaFade.copyIntoNative(target,r.x,r.y,PixelView(stage.pixels,w,h,w,PixelOrder::Native),
+        bytes,r.x,r.y,r.width,r.height);
+      if(blended!=Status::Ok)return blended;
+    }
+    const size_t offset=size_t(viewport.y)*w;
+    blended=ppaFade.blendSolidNativeIntoNative(target.pixels+offset,target.stride,target.bytes-offset*2,
+      stage.pixels+offset,w,w,viewport.height,snapshotBackground,alpha);
+  }
   if(blended!=Status::Ok){if(blended!=Status::Unsupported)++stats.ppaBlendFailures;return blended;}
-  if(!copied){++stats.ppaBlendCalls;stats.ppaBlendPixels+=w*h;if(profilingClock)stats.ppaBlendMicros+=profilingClock()-started;}
+  if(!copied){++stats.ppaBlendCalls;stats.ppaBlendPixels+=uint64_t(viewport.width)*viewport.height;if(profilingClock)stats.ppaBlendMicros+=profilingClock()-started;}
   if(tail&&!animationsRunning())releaseColdFadeSurface();
   output=PixelView(target.pixels,w,h,w,PixelOrder::Native);return Status::Ok;
 }

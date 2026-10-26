@@ -5,11 +5,13 @@
 
 namespace nice_gfx { namespace htmlui {
 
-enum class ImageFormat : uint8_t { RGB565, RGB332 };
+enum class ImageFormat : uint8_t { RGB565, RGB332, Mono1, Mono1Masked };
 
 // A bounded, single-frame pixel source. Width/height and stride are independent
 // of the component's authored bounds. RGB565 Native means uint16_t color values;
-// Wire means high byte first. RGB332 uses one byte per pixel. A zero stride is
+// Wire means high byte first. RGB332 uses one byte per pixel. Mono1 is row-padded
+// MSB-left, white=1; Mono1Masked appends an opaque=1 plane after stride*height.
+// A zero stride is
 // tightly packed; byteLength must include the last visible row, not its padding.
 struct ImageView {
   const void *pixels;
@@ -40,7 +42,7 @@ class Image {
   ImageView view() const; // Borrowed data; keep this handle alive and unchanged.
   size_t storageBytes() const; // Owned pixels only; includes adopted padding.
   // Failure preserves out. Copy packs rows; the caller may immediately reuse its
-  // input on success. Dimensions are 1..1024; source/storage is bounded to 8 MiB.
+  // input on success. Dimensions are 1..4096; source/storage is bounded to 8 MiB.
   static Status copy(const ImageView &source, Image &out);
   // Transfers ownership only on success. Pixels must remain immutable; release
   // runs exactly once when the final handle/state/frame/cache releases them.

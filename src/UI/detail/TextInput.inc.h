@@ -278,8 +278,8 @@
       else if(d.type==InputFieldType::Number&&(!d.hasMin||d.min<0))rows.push_back({{key("sign","±","","sign"),done},{10,20},30,0});
       else row({done});
     }else if(grouped){
-      if(k.mode){static const char *pages[]={"123456","7890.-","@_/:,;","!?$%&+","()[]{}","=\"'\\#*"};const auto values=letters(pages[(k.mode-1)%6]);row({values[0],values[1],values[2]});row({values[3],values[4],values[5]});}
-      else {static const char *groups[]={"abcd","efgh","ijkl","mnop","qrst","uvwxyz"};static const char *labels[]={"a-d","e-h","i-l","m-p","q-t","u-z"};
+      if(k.mode){static const char *const pages[]={"123456","7890.-","@_/:,;","!?$%&+","()[]{}","=\"'\\#*"};const auto values=letters(pages[(k.mode-1)%6]);row({values[0],values[1],values[2]});row({values[3],values[4],values[5]});}
+      else {static const char *const groups[]={"abcd","efgh","ijkl","mnop","qrst","uvwxyz"};static const char *const labels[]={"a-d","e-h","i-l","m-p","q-t","u-z"};
         if(k.group>=0){const auto values=letters(groups[k.group]);for(size_t r=0;r<2;++r){std::vector<SoftKey> keys;for(size_t c=0;c<3;++c){size_t index=r*3+c;keys.push_back(index<values.size()?values[index]:empty);}row(keys);}}
         else for(int r=0;r<2;++r){std::vector<SoftKey> keys;for(int c=0;c<3;++c){const int g=r*3+c;std::string label=labels[g];if(k.shift){label[0]-=32;label[2]-=32;}keys.push_back({"group-"+std::to_string(g),label,groups[g],"group",{}});}row(keys);}
       }
@@ -367,7 +367,7 @@
     if(action=="done")return softCommit(value=="next");if(action=="hide")return softHide();
     if(action=="backspace")return softBackspace();if(action=="sign")return softSign();
     if(action=="insert")return softInsert(value.c_str());
-    if(action=="group"){static const char *groups[]={"abcd","efgh","ijkl","mnop","qrst","uvwxyz"};for(int g=0;g<6;++g)if(value==groups[g])softInput.group=g;}
+    if(action=="group"){static const char *const groups[]={"abcd","efgh","ijkl","mnop","qrst","uvwxyz"};for(int g=0;g<6;++g)if(value==groups[g])softInput.group=g;}
     else if(action=="groups")softInput.group=-1;
     else if(action=="shift")softInput.shift=!softInput.shift;
     else if(action=="mode"){softInput.mode=softInput.mode?0:1;softInput.group=-1;}

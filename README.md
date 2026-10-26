@@ -1,31 +1,34 @@
 # NICE_GFX 1.0.0
 
-NICE_GFX 是面向彩色屏幕的 Arduino / ESP-IDF 图形库。显示对象在构造时接收引脚与配置，提供图元、UTF-8 文字、离屏 Sprite、触摸和局部刷新；部分平台使用 DMA 或 PIO 加速传输。原生 ESP-IDF 接入直接使用 IDF 驱动、GPIO、计时和内存接口，无需 Arduino 组件。
+NICE_GFX is an Arduino / ESP-IDF graphics library for color displays, monochrome displays, and e-paper. It also supports all public physical-display configurations from a pinned version of u8g2. Display objects receive pins and configuration through their constructors and provide drawing primitives, UTF-8 text, off-screen Sprites, touch input, and partial updates. Selected platforms use DMA or PIO to accelerate transfers. Native ESP-IDF integration uses IDF drivers, GPIO, timing, and memory interfaces directly, without an Arduino component.
 
-应用界面通过配套设计器编译为原生 C++ 资源 `ui.h`。运行库负责组件状态、输入、动画、路由和分块绘制，应用代码负责业务数据、事件回调与硬件操作。
+The companion designer compiles application interfaces into native C++ resources in `ui.h`. The runtime handles component state, input, animation, routing, and tiled rendering; application code manages business data, event callbacks, and hardware operations.
 
-- [快速开始](#快速开始)
-- [屏幕与触摸设备支持](docs/DeviceSupport.md)
-- [Waveshare ESP32-S3-Touch-LCD-4B：ST7701、GT911与TCA9554板级配置](examples/07_UI/Waveshare4B/README.md)
-- [开发平台支持表](#开发平台支持表)
-- [字体与 Sprite](#字体与-sprite)
-- [设计器界面与设备交互](#设计器界面与设备交互)
-- [功能与资源限制](#功能与资源限制)
-- [文档与示例](#文档与示例)
-- [源码布局与检查](#源码布局与检查)
+- [Quick start](#quick-start)
+- [Display and touch device support](docs/DeviceSupport.md)
+- [Monochrome displays, e-paper, and menu updates](docs/MonochromeAndEpaper.md)
+- [Full u8g2 catalog compatibility, wiring, and performance](docs/U8g2Compatibility.md)
+- [E-paper controllers, library comparisons, and multicolor panels](docs/EpaperCompatibility.md)
+- [Waveshare ESP32-S3-Touch-LCD-4B: ST7701, GT911, and TCA9554 board configuration](examples/07_UI/Waveshare4B/README.md)
+- [Platform support](#platform-support)
+- [Fonts and Sprites](#fonts-and-sprites)
+- [Designer UIs and device interaction](#designer-uis-and-device-interaction)
+- [Features and resource limits](#features-and-resource-limits)
+- [Documentation and examples](#documentation-and-examples)
+- [Source layout and checks](#source-layout-and-checks)
 
-## 快速开始
+## Quick start
 
-示例按功能与学习顺序组织，完整分类见 [示例目录](examples/README.md)。先运行 [Hello_Display](examples/01_Basics/Hello_Display/Hello_Display.ino)，再试 [Basic_Shapes](examples/02_Graphics/Basic_Shapes/Basic_Shapes.ino)、[Sprite_Basics](examples/05_Sprites/Sprite_Basics/Sprite_Basics.ino) 与 [Display_Color_Bars](examples/09_Diagnostics/Display_Color_Bars/Display_Color_Bars.ino)。这些示例从屏幕当前宽高计算布局，接线、旋转和背光在草图内的 Hardware.h 配置；Wio Terminal 也使用同一套入口，模板选择板载 SPI3、旋转 3 与 LCD_BACKLIGHT。完整的 [Wio Field Lab](examples/08_Applications/WioFieldLab/README.md) 提供传感器、SD、红外与异步 Wi-Fi 应用及可导入编辑器的项目。
+Examples are organized by feature and learning order; see the [example catalog](examples/README.md) for the full list. Start with [Hello_Display](examples/01_Basics/Hello_Display/Hello_Display.ino), then try [Basic_Shapes](examples/02_Graphics/Basic_Shapes/Basic_Shapes.ino), [Sprite_Basics](examples/05_Sprites/Sprite_Basics/Sprite_Basics.ino), and [Display_Color_Bars](examples/09_Diagnostics/Display_Color_Bars/Display_Color_Bars.ino). These examples calculate their layouts from the display's current width and height. Configure wiring, rotation, and backlight in the sketch's `Hardware.h`. Wio Terminal uses the same entry points, with its template selecting onboard SPI3, rotation 3, and `LCD_BACKLIGHT`. The complete [Wio Field Lab](examples/08_Applications/WioFieldLab/README.md) includes sensor, SD, infrared, and asynchronous Wi-Fi applications, plus a project you can import into the editor.
 
-将 `NICE_GFX` 文件夹放入 Arduino 草图目录的 `libraries/`，安装所用开发板的 Arduino core，再从 IDE 示例菜单打开本库示例。示例接线与额外依赖见 [examples/README.md](examples/README.md)。
+Place the `NICE_GFX` folder in the `libraries/` folder of your Arduino sketchbook, install the Arduino core for your board, and open a library example from the IDE's Examples menu. See [examples/README.md](examples/README.md) for wiring and additional dependencies.
 
-下面使用 ESP32 经典款与 SPI 接口 ILI9341。引脚必须与实际接线一致，其他屏幕及触摸类型见 [设备支持](docs/DeviceSupport.md)。
+The following example uses a classic ESP32 and an ILI9341 connected over SPI. The pins must match your wiring. See [device support](docs/DeviceSupport.md) for other displays and touch controllers.
 
 ```cpp
 #include <NICE_GFX.h>
 
-// CS、DC、RST、SCK、MOSI、MISO
+// CS, DC, RST, SCK, MOSI, MISO
 ILI9341_240x320_SPI gfx(5, 2, 4, 18, 23, 19);
 
 void setup() {
@@ -38,45 +41,45 @@ void setup() {
 void loop() {}
 ```
 
-`gfx.displayInfo()` 查询控制器、尺寸、引脚和总线信息，`gfx.lastError()` 查询初始化或传输错误，`gfx.asynchronous()` 查询当前显示对象的异步传输能力。
+Use `gfx.displayInfo()` to query the controller, dimensions, pins, and bus; `gfx.lastError()` to inspect initialization or transfer errors; and `gfx.asynchronous()` to query the current display object's asynchronous transfer capabilities.
 
-显示初始化使用 `begin()` 或 `beginChecked()`；重复颜色使用 `pushBlock(color, pixelCount)`，像素数组使用 `pushPixels(data, pixelCount)`，批量写入通过 `startWrite()/endWrite()` 管理。`pushPixels` 的长度统一为像素数，主机 RGB565 数组使用 `setSwapBytes(true)`，MSB 在前的字节数组使用 `setSwapBytes(false)`。显示对象的 `init()`、两参数 `pushColor()`、`pushColors()` 和两参数 `writeColor()` 转发入口已移除。Sprite 的 `pushColor(color, pixelCount)` 是独立的画布实现，继续可用。
+Initialize displays with `begin()` or `beginChecked()`. Use `pushBlock(color, pixelCount)` for a repeated color, `pushPixels(data, pixelCount)` for pixel arrays, and `startWrite()/endWrite()` to group writes. The length passed to `pushPixels` is always a pixel count. Use `setSwapBytes(true)` for host RGB565 arrays and `setSwapBytes(false)` for MSB-first byte arrays. The display object's forwarding entry points `init()`, two-argument `pushColor()`, `pushColors()`, and two-argument `writeColor()` have been removed. Sprite's `pushColor(color, pixelCount)` is a separate canvas implementation and remains available.
 
-`initDMA()` 不接收片选参数；片选与传输配置由构造函数选择。`asynchronous()` 查询能力，`initDMA()` 启用支持的异步图片提交，`deInitDMA()` 排空并关闭该模式，`wait()` 等待已接收的传输完成。
+`initDMA()` takes no chip-select argument; chip select and transfer settings are selected through the constructor. `asynchronous()` queries capabilities, `initDMA()` enables supported asynchronous image submission, `deInitDMA()` drains pending transfers and disables that mode, and `wait()` waits for accepted transfers to complete.
 
-ESP-IDF 工程通过原生组件接入本库，使用 C++ `app_main()`；同级独立的 [nice_gfx_idf_examples 1.0.0 示例项目包](../nice_gfx_idf_examples/README.md) 提供 34 个工程，覆盖绘图、字体、Sprite/DMA、UI 及 IDF 任务、定时器、GPIO、NVS 和事件循环。
+ESP-IDF projects integrate the library as a native component and use a C++ `app_main()`. The separate sibling [nice_gfx_idf_examples 1.0.0 example package](../nice_gfx_idf_examples/README.md) provides 34 projects covering drawing, fonts, Sprite/DMA, UI, and IDF tasks, timers, GPIO, NVS, and event loops.
 
-## 显示芯片与实例化代码
+## Display controllers and instantiation
 
-[屏幕与触摸设备支持](docs/DeviceSupport.md) 集中维护全部屏幕芯片、接口、默认分辨率和实例化方法，涵盖 SPI、软件 SPI、8/16 位并口、普通 QSPI、RGB、MIPI 与 ST77903 持续扫描 QSPI。
+[Display and touch device support](docs/DeviceSupport.md) is the central reference for display controllers, interfaces, default resolutions, and instantiation methods. It covers SPI, software SPI, 8/16-bit parallel buses, standard QSPI, RGB, MIPI, and ST77903 continuous-scan QSPI.
 
-触摸实现包括 XPT2046、CST816 / FT6x36 / GT911 / GT1151 等 I²C 控制器及四线电阻屏。驱动入口、板卡组合和校准见 [触摸接入](docs/DeviceSupport.md#触摸芯片与使用入口)，接线示例见 [Vendor_Capacitive_Touch](examples/06_Touch/Vendor_Capacitive_Touch/Vendor_Capacitive_Touch.ino)。屏幕分辨率、接口、电源和时序应与实际模组匹配。
+Touch implementations include XPT2046, I²C controllers such as CST816 / FT6x36 / GT911 / GT1151, and four-wire resistive panels. See [touch integration](docs/DeviceSupport.md#触摸芯片与使用入口) for driver entry points, board combinations, and calibration, and [Vendor_Capacitive_Touch](examples/06_Touch/Vendor_Capacitive_Touch/Vendor_Capacitive_Touch.ino) for a wiring example. Display resolution, interface, power, and timing must match the actual module.
 
-## 开发平台支持表
+## Platform support
 
-下表说明当前源码提供的后端。具体显示接口还取决于目标芯片外设、Arduino core、可用引脚和内存；选择目标后应编译自己的工程并验证实际屏幕。
+The table below describes the backends provided by the current source. Available display interfaces also depend on the target chip's peripherals, Arduino core, available pins, and memory. Compile your own project for the chosen target and validate it on the actual display.
 
-| 平台 | 显示总线与加速 | 主要边界 |
+| Platform | Display buses and acceleration | Main constraints |
 | --- | --- | --- |
-| ESP32 系列 | SPI / QSPI、软件 SPI、GPIO 8/16 位并口；支持相应后端时使用 DMA | RGB 需要 LCD RGB 外设；MIPI 使用 ESP32-P4；ST77903 扫描需要 SPI SCT 外设 |
-| ESP8266 | core SPI、软件 SPI、GPIO 并口 | 同步传输，硬件 SPI 引脚受 core 限制 |
-| STM32 | core SPI、软件 SPI、GPIO 并口；部分系列与 SPI 实例提供 DMA | 当前 DMA 映射覆盖 F0/F1/F2/F3/F4/F7/G0/G4/L0/L1/L4；H7/U5 使用同步路径 |
-| RP2040 / RP2350，Arduino-Pico core | PIO SPI、原生 SPI DMA、PIO/GPIO 并口、软件 SPI | PIO 与 DMA 资源有限；并口的数据引脚连续性和 GPIO 窗口不满足时回退 GPIO |
-| RP2040，Arduino mbed core | core SPI、软件 SPI、GPIO 并口 | 使用 mbed 的 SPI 映射与同步路径 |
-| AVR ATmega328P / ATmega2560 | core SPI、软件 SPI、GPIO 并口，直接 PORT 写入优化 | RAM、Flash 与引脚数较少；基础绘图、短文本和小 Sprite 按容量使用 |
-| SAMD / Renesas | core SPI、软件 SPI、GPIO 并口 | 通用同步路径；能力按具体 core 和板卡确认 |
-| CI13XX | core SPI、软件 SPI、GPIO 并口 | CI1302 core 的 SPI 接口使用软件实现 |
-| 其他 Arduino core | 通用 Arduino SPI / GPIO 路径 | 需要兼容的 GPIO、SPI、Print 与计时接口，并单独编译验证 |
+| ESP32 family | SPI / QSPI, software SPI, GPIO 8/16-bit parallel; DMA where supported by the backend | RGB requires an LCD RGB peripheral; MIPI uses ESP32-P4; ST77903 scanning requires an SPI SCT peripheral |
+| ESP8266 | Core SPI, software SPI, GPIO parallel | Synchronous transfers; hardware SPI pins are constrained by the core |
+| STM32 | Core SPI, software SPI, GPIO parallel; DMA on selected families and SPI instances | Current DMA mappings cover F0/F1/F2/F3/F4/F7/G0/G4/L0/L1/L4; H7/U5 use the synchronous path |
+| RP2040 / RP2350, Arduino-Pico core | PIO SPI, native SPI DMA, PIO/GPIO parallel, software SPI | PIO and DMA resources are limited; parallel transfers fall back to GPIO when data-pin continuity or GPIO window requirements are not met |
+| RP2040, Arduino mbed core | Core SPI, software SPI, GPIO parallel | Uses mbed SPI mappings and the synchronous path |
+| AVR ATmega328P / ATmega2560 | Core SPI, software SPI, GPIO parallel, optimized direct PORT writes | Limited RAM, Flash, and pin count; use basic drawing, short text, and small Sprites within available capacity |
+| SAMD / Renesas | Core SPI, software SPI, GPIO parallel | Generic synchronous path; confirm capabilities for the specific core and board |
+| CI13XX | Core SPI, software SPI, GPIO parallel | The CI1302 core's SPI interface uses a software implementation |
+| Other Arduino cores | Generic Arduino SPI / GPIO path | Requires compatible GPIO, SPI, Print, and timing interfaces, plus separate compilation validation |
 
-DMA 能力与资源分配由实际对象决定，使用 `gfx.asynchronous()` 查询。STM32 的映射与回退逻辑见 [Stm32Spi.h](src/Platform/STM32/Stm32Spi.h)，RP2040/RP2350 后端见 [Rp2040Spi.h](src/Platform/RP2040/Rp2040Spi.h) 和 [Rp2040Pio.h](src/Platform/RP2040/Rp2040Pio.h)。
+DMA capabilities and resource allocation depend on the actual object; query them with `gfx.asynchronous()`. See [Stm32Spi.h](src/Platform/STM32/Stm32Spi.h) for STM32 mappings and fallback logic, and [Rp2040Spi.h](src/Platform/RP2040/Rp2040Spi.h) and [Rp2040Pio.h](src/Platform/RP2040/Rp2040Pio.h) for the RP2040/RP2350 backends.
 
-## 字体与 Sprite
+## Fonts and Sprites
 
-内置 22 套等宽点阵字体，包括 13 套英文和 9 套中文。屏幕与 Sprite 分别通过 `setFont()` 选择字体，`setTextSize(1..7)` 使用整数倍像素缩放。默认不选择字体；未引用的字库可由链接器裁剪。
+The library includes 22 monospaced bitmap fonts: 13 English and 9 Chinese. Select fonts independently for the display and each Sprite with `setFont()`. `setTextSize(1..7)` scales pixels by an integer factor. No font is selected by default; unreferenced font data can be removed by the linker.
 
-`drawString()`、`drawNumber()`、`drawFloat()`、`print()/println()` 使用当前字体，字符串采用 UTF-8。完整中文字库需要较多 Flash，AVR 使用短文本子集并检查 PROGMEM 地址范围。字形图样、字符覆盖、后备字体及子集生成见 [字体指南](docs/font.md) 和 [字体维护说明](src/Fonts/README.md)。
+`drawString()`, `drawNumber()`, `drawFloat()`, and `print()/println()` use the current font, with strings encoded as UTF-8. Full Chinese fonts require substantial Flash. On AVR, use subsets for short text and check the PROGMEM address range. See the [font guide](docs/font.md) and [font maintenance notes](src/Fonts/README.md) for glyph previews, character coverage, fallback fonts, and subset generation.
 
-`GFX_Sprite` 提供 1/4/8/16 位离屏画布。下面片段用于已经初始化的显示对象 `gfx`：
+`GFX_Sprite` provides 1/4/8/16-bit off-screen canvases. The following snippet assumes that the display object `gfx` has already been initialized:
 
 ```cpp
 GFX_Sprite sprite(&gfx);
@@ -91,16 +94,16 @@ if (sprite.createSprite(120, 48)) {
 }
 ```
 
-创建画布后检查返回值；缓冲占用随尺寸和色深增长。接口见 [Graphics/Sprite.h](src/Graphics/Sprite.h)。
+Check the return value when creating a canvas. Buffer usage grows with dimensions and color depth. See [Graphics/Sprite.h](src/Graphics/Sprite.h) for the interface.
 
-## 设计器界面与设备交互
+## Designer UIs and device interaction
 
-配套 [NICE GFX Studio](../nice_gfx_editor/README.md) 提供页面、组件、主题、路由和硬件配置。HTML/CSS 在导出时编译为 `ui.h`，设备运行原生 `nice_gfx::htmlui::View`。
+The companion [NICE GFX Studio](../nice_gfx_editor/README.md) provides pages, components, themes, routing, and hardware configuration. HTML/CSS is compiled into `ui.h` at export time, and the device runs a native `nice_gfx::htmlui::View`.
 
-1. 在设计器选择屏幕、分辨率、旋转、触摸或实体按键，并核对实际引脚。
-2. 创建页面与组件，给需要业务访问的元素设置稳定 ID，声明事件动作。
-3. 首次导出完整 Arduino 工程，将业务状态与回调写入主程序。
-4. 持续调用生成的 `pollUi()`，通过 `setText/setValue/setImage` 等接口更新当前页面。
+1. Select the display, resolution, rotation, touch input or physical buttons in the designer, and verify the actual pins.
+2. Create pages and components, assign stable IDs to elements accessed by application code, and declare event actions.
+3. Export a complete Arduino project initially, then add application state and callbacks to the main program.
+4. Call the generated `pollUi()` continuously and update the current page through interfaces such as `setText/setValue/setImage`.
 
 ```cpp
 #include "Hardware.h"
@@ -113,84 +116,83 @@ bool uiReady = false;
 void setup() {
   if (!beginDisplayHardware()) return;
   uiReady = ui_config::load(ui) == nice_gfx::Status::Ok;
-  // 按 ui.h 中生成的 bind_* 接口绑定业务回调。
+  // Bind application callbacks using the bind_* interfaces generated in ui.h.
 }
 void loop() {
   if (uiReady) pollUi(ui, millis());
 }
 ```
 
-运行库提供按钮、开关、滑块、输入框、仪表、图表、图片、滚动、分页、焦点与路由。触摸和实体按键进入同一事件系统；应用数据由业务代码保存，再按页面和变化项更新界面。动态图片的复制、所有权交接及预置资源切换见 [动态图片指南](docs/DynamicImages.md)。
+The runtime provides buttons, switches, sliders, input fields, gauges, charts, images, scrolling, pagination, focus, and routing. Touch and physical buttons feed into the same event system. Application code retains the data and updates the UI by page and changed item. See the [dynamic image guide](docs/DynamicImages.md) for image copying, ownership transfer, and switching to preset resources.
 
-输入框和数值步进框使用共用自动键盘：默认全屏，可配置高度，支持浅色 / 深色风格、点击或左右滑动内容移动光标及退格删除。设计器通过 `data-keyboard-theme="light|dark"` 保存字段风格，固件使用 `ui.setKeyboardTheme(nice_gfx::htmlui::KeyboardTheme::Dark)` 切换深色，传入 `KeyboardTheme::Light` 切换浅色；`ui.resetKeyboardTheme()` 恢复字段配置，`ui.keyboardTheme()` 查询有效风格。键盘顶部仅保留收起和密码显隐，输入与提交 API 见 [编译器说明](../nice_gfx_editor/packages/html-ui/README.md#原生输入-api)。
+Input fields and numeric steppers share an automatic keyboard. It is full-screen by default, supports a configurable height and light/dark themes, and allows cursor movement by tapping or swiping left/right across the content, plus backspace deletion. The designer stores the field's theme through `data-keyboard-theme="light|dark"`. In firmware, use `ui.setKeyboardTheme(nice_gfx::htmlui::KeyboardTheme::Dark)` for dark mode or pass `KeyboardTheme::Light` for light mode. `ui.resetKeyboardTheme()` restores the field configuration, and `ui.keyboardTheme()` queries the effective theme. The keyboard's top bar contains only collapse and password visibility controls. See the [compiler documentation](../nice_gfx_editor/packages/html-ui/README.md#原生输入-api) for input and submission APIs.
 
+The current resource ABI is 17. Compatibility is determined by [UI/Compiled.h](src/UI/Compiled.h) and the assertions in generated `ui.h`. When upgrading, re-export the complete project and synchronize the runtime and generated adapters while retaining your existing application main program. Motion supports a limited set of multi-property keyframes, staggering, alternating playback, visibility and completion events, local scaling/rotation of images and icons, and subtree reveals. See the [native motion API](src/UI/README.md#compiled-keyframes-and-local-transforms-abi-17-motion-api-1). For component APIs, callback semantics, and navigation rules, see [Arduino component interaction](docs/ArduinoComponentInteraction.md); for HTML/CSS syntax, see [compiler support](../nice_gfx_editor/packages/html-ui/HTML_CSS_SUPPORT.md).
 
-当前资源 ABI 为 17，兼容性以 [UI/Compiled.h](src/UI/Compiled.h) 和生成 `ui.h` 的断言为准。升级时重新导出完整工程，同步运行库及生成适配器，保留已有业务主程序。动效支持有限多属性关键帧、错峰、往返、显隐与完成事件，以及图片和图标的局部缩放/旋转、子树揭示；详见 [原生动效接口](src/UI/README.md#compiled-keyframes-and-local-transforms-abi-17-motion-api-1)。组件 API、回调语义与导航规则见 [Arduino 组件交互](docs/ArduinoComponentInteraction.md)，HTML/CSS 语法见 [编译器支持范围](../nice_gfx_editor/packages/html-ui/HTML_CSS_SUPPORT.md)。
+## Features and resource limits
 
-## 功能与资源限制
-
-| 项目 | 使用要求 |
+| Feature | Requirements |
 | --- | --- |
-| 原生设计器 UI | 需要完整 C++ 标准库和足够的动态内存；AVR 当前仅使用基础显示绘图接口 |
-| RGB565 帧缓冲 | 像素内存为宽×高×2 字节，双缓冲加倍；按内部 RAM / PSRAM 预算配置 |
-| Sprite、图片与缓存 | 检查分配结果；更新中的旧图片和在途帧可能短暂同时占用内存 |
-| 异步传输 | 按接口要求保留输入缓冲，等待 `wait()` 完成后再复用；完成拷贝不等于物理 VSYNC |
-| 多任务访问 | 同一显示对象与 View 由应用串行访问；`startWrite()/endWrite()` 是绘制批次 |
-| UI 调度 | 持续处理输入与 `tick()/pollUi()`；事件回调记录工作请求，耗时操作由状态机或后台任务执行 |
-| 图片与外部资源 | PNG/JPEG 解码、存储、网络和传感器由应用或相应依赖处理 |
-| 模组与 SDK | 电源、GPIO、视频时序、色序和读回接线按实际硬件配置；升级 SDK 后重新编译与验收 |
+| Native designer UI | Requires a complete C++ standard library and sufficient dynamic memory; AVR currently uses only the basic display drawing interfaces |
+| RGB565 framebuffer | Pixel memory is width × height × 2 bytes, doubled for double buffering; configure within the internal RAM / PSRAM budget |
+| Sprites, images, and caches | Check allocation results; old images being replaced and in-flight frames may briefly occupy memory at the same time |
+| Asynchronous transfers | Retain input buffers as required by the interface and wait for `wait()` to complete before reusing them; copy completion does not imply physical VSYNC |
+| Multitasking access | The application must serialize access to the same display object and View; `startWrite()/endWrite()` group drawing operations |
+| UI scheduling | Keep processing input and calling `tick()/pollUi()`; event callbacks should record work requests, with time-consuming operations handled by state machines or background tasks |
+| Images and external resources | PNG/JPEG decoding, storage, networking, and sensors are handled by the application or corresponding dependencies |
+| Modules and SDKs | Configure power, GPIO, video timing, color order, and readback wiring for the actual hardware; rebuild and validate after SDK upgrades |
 
-原生 UI 采用分块绘制，缓存按配置使用；刷新吞吐取决于区域大小、总线、内存与页面复杂度。可通过 `runtimeStats()`、`memoryStats()` 和实际显示传输测量评估预算。
+The native UI uses tiled rendering and configurable caches. Refresh throughput depends on region size, bus, memory, and page complexity. Evaluate resource budgets using `runtimeStats()`, `memoryStats()`, and measurements of actual display transfers.
 
-## 文档与示例
+## Documentation and examples
 
-| 文档或示例 | 内容 |
+| Document or example | Contents |
 | --- | --- |
-| [设备支持](docs/DeviceSupport.md) | 屏幕与触摸芯片、接口、分辨率、实例化和初始化限制 |
-| [字体指南](docs/font.md) | 全部字体图样、覆盖范围、调用方法与中文子集 |
-| [Arduino 组件交互](docs/ArduinoComponentInteraction.md) | 稳定 ID、事件、数值与输入、导航、业务联动和调度 |
-| [动态图片](docs/DynamicImages.md) | 运行时像素更新、所有权、预置资源和内存契约 |
-| [UI 运行库](src/UI/README.md) | 资源生命周期、渲染、输入、路由与动画 |
-| [ESP-IDF 示例项目包](../nice_gfx_idf_examples/README.md) | 34 个原生 IDF 工程，含与 Arduino 共用场景的性能基准 |
-| [示例目录](examples/README.md) | 接线、字体、触摸和额外依赖 |
-| [GfxTouchDemo](examples/07_UI/GfxTouchDemo/README.md) | 可编辑设计器工程、生成资源、应用状态和事件回调 |
-| [DynamicImageDemo](examples/07_UI/DynamicImageDemo/README.md) | 动态图片完整 Arduino 示例 |
-| [MosaicoCameraDemo](examples/08_Applications/MosaicoCameraDemo/README.md) | ESP-Mosaico V1.2 摄像头实时预览、颜色识别与检测框叠加 |
-| [Display_Info](examples/09_Diagnostics/Display_Info) | 查询实际显示对象与总线能力 |
-| [Touch_calibrate](examples/06_Touch/Touch_calibrate/Touch_calibrate.ino) | XPT2046 接线与校准 |
+| [Device support](docs/DeviceSupport.md) | Display and touch controllers, interfaces, resolutions, instantiation, and initialization constraints |
+| [Font guide](docs/font.md) | Previews of all fonts, coverage, usage, and Chinese subsets |
+| [Arduino component interaction](docs/ArduinoComponentInteraction.md) | Stable IDs, events, values and input, navigation, application integration, and scheduling |
+| [Dynamic images](docs/DynamicImages.md) | Runtime pixel updates, ownership, preset resources, and memory contracts |
+| [UI runtime](src/UI/README.md) | Resource lifecycles, rendering, input, routing, and animation |
+| [ESP-IDF example package](../nice_gfx_idf_examples/README.md) | 34 native IDF projects, including performance benchmarks using scenarios shared with Arduino |
+| [Example catalog](examples/README.md) | Wiring, fonts, touch, and additional dependencies |
+| [GfxTouchDemo](examples/07_UI/GfxTouchDemo/README.md) | Editable designer project, generated resources, application state, and event callbacks |
+| [DynamicImageDemo](examples/07_UI/DynamicImageDemo/README.md) | Complete Arduino example for dynamic images |
+| [MosaicoCameraDemo](examples/08_Applications/MosaicoCameraDemo/README.md) | ESP-Mosaico V1.2 live camera preview, color recognition, and detection-box overlays |
+| [Display_Info](examples/09_Diagnostics/Display_Info) | Querying the actual display object and bus capabilities |
+| [Touch_calibrate](examples/06_Touch/Touch_calibrate/Touch_calibrate.ino) | XPT2046 wiring and calibration |
 
-## 源码布局与检查
+## Source layout and checks
 
-| 路径 | 职责 |
+| Path | Responsibility |
 | --- | --- |
-| `src/NICE_GFX.h` | 绘图、Sprite、内置字体和显示预设的便捷入口 |
-| `src/Core/` | 状态、像素、几何和公共算法工具 |
-| `src/Graphics/` | 绘图、文字、Sprite、TileCanvas；`Gfx.h` 为较轻的绘图声明入口 |
-| `src/Display/` | 显示对象、公共 Panel、传输抽象、刷新；`Presets/` 保存尺寸、接口及模组预设 |
-| `src/Drivers/Display/`、`src/Drivers/Touch/` | 芯片程序与具体驱动；显示芯片的初始化、旋转和类定义在同一文件中维护 |
-| `src/Platform/` | Arduino 通用总线，以及 ESP32、STM32、RP2040 的独立平台实现 |
-| `src/Fonts/` | 字体声明、解码与 26 个独立字模编译单元 |
-| `src/UI/` | 资源结构、View、组件、输入、导航和渲染支持 |
-| `docs/`、`examples/` | 使用文档与 Arduino 示例；IDF 示例位于同级 `../nice_gfx_idf_examples/` |
+| `src/NICE_GFX.h` | Convenience entry point for drawing, Sprites, built-in fonts, and display presets |
+| `src/Core/` | Status, pixels, geometry, and shared algorithm utilities |
+| `src/Graphics/` | Drawing, text, Sprites, and TileCanvas; `Gfx.h` is the lighter entry point for drawing declarations |
+| `src/Display/` | Display objects, shared Panel, transfer abstractions, and refresh; `Presets/` stores size, interface, and module presets |
+| `src/Drivers/Display/`, `src/Drivers/Touch/` | Controller programs and concrete drivers; each display controller's initialization, rotation, and class definition are maintained in the same file |
+| `src/Platform/` | Generic Arduino buses and separate ESP32, STM32, and RP2040 platform implementations |
+| `src/Fonts/` | Font declarations, decoding, and 26 separate glyph-data compilation units |
+| `src/UI/` | Resource structures, View, components, input, navigation, and rendering support |
+| `docs/`, `examples/` | Usage documentation and Arduino examples; IDF examples are in the sibling `../nice_gfx_idf_examples/` directory |
 
-设计器应用与 HTML/CSS 编译器保存在独立的 `nice_gfx_editor/` 仓库。主库的维护脚本位于 `tools/`，正式主机测试位于 `tests/`；设备固件使用主库源码和生成资源。目录职责、兼容入口、板级配置和构建方式见 [架构说明](docs/Architecture.md)。
+The designer application and HTML/CSS compiler live in the separate `nice_gfx_editor/` repository. Maintenance scripts for the main library are in `tools/`, and host tests are in `tests/`. Device firmware uses the main library source and generated resources. See the [architecture guide](docs/Architecture.md) for directory responsibilities, compatibility entry points, board configuration, and build methods.
 
-修改芯片程序与窗口对齐时编辑 `src/Drivers/Display/` 中对应的文件；修改显示组合和类型别名时编辑 `src/Display/`。Arduino 与 ESP-IDF 共用图形、字体和 UI 源码；原生 IDF 选择 ESP32 平台源文件，跳过 Arduino、RP2040 和 STM32 平台实现。显示目录与能力表由维护工具更新。
+To change controller programs or address-window alignment, edit the corresponding files in `src/Drivers/Display/`. To change display combinations and type aliases, edit `src/Display/`. Arduino and ESP-IDF share the graphics, font, and UI source. Native IDF selects the ESP32 platform source files and excludes the Arduino, RP2040, and STM32 platform implementations. Maintenance tools update the display catalog and capability tables.
 
-Arduino 草图先包含 `<NICE_GFX.h>`，使构建工具发现已安装的库；设计器资源包含 `<UI/View.h>` 和所用字体的声明。模块头是正式接口：`<Graphics/Gfx.h>` 声明绘图对象，`<Graphics/Sprite.h>` 声明 Sprite，`<Fonts/Builtin.h>` 声明内置字体，`<Display/Presets/All.h>` 提供显示预设。普通 C++ 和 ESP-IDF 可以直接按需要组合模块头，绘图与 UI 声明不引入具体显示芯片或 MCU 后端。
+Arduino sketches should include `<NICE_GFX.h>` first so the build tools can discover the installed library. Designer resources include `<UI/View.h>` and declarations for the fonts they use. Module headers are public interfaces: `<Graphics/Gfx.h>` declares drawing objects, `<Graphics/Sprite.h>` declares Sprites, `<Fonts/Builtin.h>` declares built-in fonts, and `<Display/Presets/All.h>` provides display presets. Standard C++ and ESP-IDF projects can combine module headers as needed; graphics and UI declarations do not pull in concrete display controllers or MCU backends.
 
-在本库根目录检查发布信息、文档链接、示例配置与模块依赖：
+Run the following commands from the library root to check release metadata, documentation links, example configuration, and module dependencies:
 
 ```powershell
 npm run check
-# 需要 PATH 中的 C++17 编译器和 CMake，或设置 CXX / CMAKE：
+# Requires a C++17 compiler and CMake on PATH, or set CXX / CMAKE:
 npm test
-# 更新版本号、资源 ABI 说明和动效链接后再检查：
+# Synchronize version numbers, resource ABI notes, and motion links, then check again:
 npm run metadata:sync
 ```
 
-主机回归直接使用库内固定资源，不依赖设计器仓库；帧生命周期、原生/分块渲染对比与内存分配失败也纳入同一入口。配置说明见 [主机测试](tests/README.md)。
+Host regression tests use fixed resources within the library and do not depend on the designer repository. The same test entry point covers frame lifecycles, native/tiled rendering comparisons, and memory allocation failures. See [host tests](tests/README.md) for configuration.
 
-实际工程需验证颜色、坐标、输入、首帧与持续运行。
+Validate colors, coordinates, input, the first frame, and sustained operation in your actual project.
 
-字体、图标和随库代码的许可与声明见 [字体许可目录](src/Fonts/licenses)、[图标许可](src/Graphics/LICENSE-Font-Awesome.txt)、[绘图许可](src/Graphics/LICENSE-Bodmer.txt) 和 [其他许可文件](LICENSES)。
+For licenses and notices covering fonts, icons, and bundled code, see the [font license directory](src/Fonts/licenses), [icon license](src/Graphics/LICENSE-Font-Awesome.txt), [graphics license](src/Graphics/LICENSE-Bodmer.txt), and [other license files](LICENSES).

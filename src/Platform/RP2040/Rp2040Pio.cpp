@@ -113,6 +113,13 @@ void Rp2040PioPort::end() {
 bool Rp2040PioPort::drained() const { return sm_<0 || (pio_sm_is_tx_fifo_empty(pio_,sm_) && pio_sm_get_pc(pio_,sm_)==offset_); }
 void Rp2040PioPort::drain() const { while (!drained()) tight_loop_contents(); }
 void Rp2040PioPort::word(uint16_t value) { pio_sm_put_blocking(pio_,sm_,width_==1 ? uint32_t(uint8_t(value)) << 24 : value); }
+Status Rp2040PioPort::commands(const uint8_t *data,size_t bytes) {
+  if(!begun_)return Status::NotInitialized;
+  if(bytes&&!data)return Status::InvalidArgument;
+  if(!bytes)return Status::Ok;
+  const Status status=start(0,0,false);if(status!=Status::Ok)return status;
+  dc_.write(false);writeBlock(data,bytes,false);finish();return Status::Ok;
+}
 Status Rp2040PioPort::start(uint16_t command,uint8_t bits,bool reading) {
   if (reading && (width_==1 ? spiConfig_.pins.miso : parallelConfig_.pins.read)<0) return Status::Unsupported;
   drain(); cs_.write(false);

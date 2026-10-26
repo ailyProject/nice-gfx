@@ -1,0 +1,288 @@
+{
+  "repository": "Seeed-Studio/Seeed_GFX2",
+  "revision": "a736f1726cedb89692ca9ebcedcc3d2468ef92f5",
+  "license": "LICENSE",
+  "changes": "Private namespace/register macros; per-instance GPIO/time HAL; retained-memory allocation with error propagation; UC8179/SSD2677 cache destructors. Protocol register sequences retained.",
+  "files": [
+    {
+      "file": "Bus.h",
+      "source": "src/core/Bus.h",
+      "gitBlob": "320561a650094ee27ac9c8a22a961cfb60df104d",
+      "sourceSha256": "39aaf8a74c154bd8c14d4d80ffbf63cac3e1f58c4cee2ecbeff81c852731e7b1",
+      "sha256": "923881466765ca553c5c9c667045a2ca9158efec7def1e3c362d17be27b6e119"
+    },
+    {
+      "file": "Capabilities.h",
+      "source": "src/core/Capabilities.h",
+      "gitBlob": "4b16ba1afaa2e2cf8861bcd91beb6466a3a2a0ad",
+      "sourceSha256": "e5f18b73a7ae5b387c8292bef2d4ebba2f1bfa8bace5a6a2b1a9fa222893845c",
+      "sha256": "63d58b533332ba1f6dbdc0c42c6835404815046856246c9d8671e94f31820bcd"
+    },
+    {
+      "file": "Driver.h",
+      "source": "src/core/Driver.h",
+      "gitBlob": "059cb4f2db2e8465799cf82f769847e52fc7d0c6",
+      "sourceSha256": "56aa1e7cec0fd8be9d43a251029d07b84dee983f62ebc19c2377a6d33f2a6dc9",
+      "sha256": "0c46334f166767cdc3cdf42219eeb22183719d324bf11e83da1bb47a20fd20cf"
+    },
+    {
+      "file": "Driver_ED103TC2.cpp",
+      "source": "src/driver/epaper/Driver_ED103TC2.cpp",
+      "gitBlob": "be93b679d39a4e90fa8503f51f8348a621e969ee",
+      "sourceSha256": "04afb8d59dc45d7e85be0c9ebf9c6660f566e9178e6432b8dc93919b3e4922ac",
+      "sha256": "3b7c2dc5bce27d2b1648ba5ec2be624bd8b5b85e44c701dc10e88532493b0746"
+    },
+    {
+      "file": "Driver_ED103TC2.h",
+      "source": "src/driver/epaper/Driver_ED103TC2.h",
+      "gitBlob": "149d770e11a4c719c377702bff9beb83ccc4e9f9",
+      "sourceSha256": "edf49775c016e624bed05d884dd8d2e5bbca6706b035fab41cc011e79f04ca62",
+      "sha256": "e8019a458f4503a7eb9999b716e9ba7707f9459b73c71582e27149d819ee83b5"
+    },
+    {
+      "file": "Driver_ED2208.cpp",
+      "source": "src/driver/epaper/Driver_ED2208.cpp",
+      "gitBlob": "c575e62f4b538a451c9cf4dffc766d603e7a3437",
+      "sourceSha256": "7350cf3dc95d711647636a5e0b8770435d791e3ebe7c9800eb9395a022bc891f",
+      "sha256": "0616d105fb5ec6b76de3c11a65b9bd4711c7bfef5c22b7e3a13221b63bda0331"
+    },
+    {
+      "file": "Driver_ED2208.h",
+      "source": "src/driver/epaper/Driver_ED2208.h",
+      "gitBlob": "fa486e5e65854713480c347b1607b2dab678260f",
+      "sourceSha256": "f0bb1b09721d91fa63f663ec8e49462f19b5ef9bc55f0557e82eac7b5405dbd1",
+      "sha256": "36fef66a6311099240c0a670f9e48c8736c751b829dc6837ef3993373f3bc842"
+    },
+    {
+      "file": "Driver_GDEB0709E01.cpp",
+      "source": "src/driver/epaper/Driver_GDEB0709E01.cpp",
+      "gitBlob": "d20ea33b80c1cd40b55eca0e563c79330cae1b23",
+      "sourceSha256": "40e4cb78ec540a744401b1e866a1fbdf0da3ce2c94c569567a303eafcb409fe8",
+      "sha256": "6bebc80e1b26734599cebb35d4df80f0fca5e1b178b8d3d70ae70ea84489e204"
+    },
+    {
+      "file": "Driver_GDEB0709E01.h",
+      "source": "src/driver/epaper/Driver_GDEB0709E01.h",
+      "gitBlob": "900832d2e743aff57fa5c1950f0d3153f7b1a19c",
+      "sourceSha256": "fe1812c95f21ee0e0d33c9c9856386092b84a2fbf2e437f41297d7a3e09d0cfe",
+      "sha256": "dd4e0ec2fe9a4762f62ed7d656d1b4378fe796f0580ce63e00e8d2f783c9911e"
+    },
+    {
+      "file": "Driver_IT8951.cpp",
+      "source": "src/driver/epaper/Driver_IT8951.cpp",
+      "gitBlob": "f3669e02ff1acc62f277750cb1c17c806fdfc7cd",
+      "sourceSha256": "753249fcb8fb4396f15c4ef2693ba76a356391eef2f231e50c2897c0c15f6a1f",
+      "sha256": "0b1b65640ba297d9cf2b1c37baff8039e063fea0c19df2737757fc5b6f799f19"
+    },
+    {
+      "file": "Driver_IT8951.h",
+      "source": "src/driver/epaper/Driver_IT8951.h",
+      "gitBlob": "b31b8f630c4f4031a164b80cf2206b3bd316723a",
+      "sourceSha256": "2384186c208ad4eb35685c95c25a558aae17f0ce2fd777d7457334b445302757",
+      "sha256": "e8949b0df5b82f84441dda65dccf46fb99af692b4d3cfc01b5095e60a3b2b299"
+    },
+    {
+      "file": "Driver_JD79660.cpp",
+      "source": "src/driver/epaper/Driver_JD79660.cpp",
+      "gitBlob": "09f216c7c332aae74c5ff47c71a82182b034014f",
+      "sourceSha256": "e8e4b2034221d7cab41f88d139f7d680e60b5a249457ded6c7713d4eca46e2b7",
+      "sha256": "de4b3c1be124961c33096eda1845a1fd9b7719d9fa51571c8ca4208cd5a1d1a0"
+    },
+    {
+      "file": "Driver_JD79660.h",
+      "source": "src/driver/epaper/Driver_JD79660.h",
+      "gitBlob": "6338ed55ba772cb38cdf3a280129399e83fa00dd",
+      "sourceSha256": "f929124150cbd30d013386b2f7bde45b031df4b34628b691f1ebd011c4c41a3a",
+      "sha256": "db04ae9493754b29d9533a6eb16b7ea1b9dfcacba27bfc4166b41fd6e1a5f504"
+    },
+    {
+      "file": "Driver_JD79667.cpp",
+      "source": "src/driver/epaper/Driver_JD79667.cpp",
+      "gitBlob": "4eecc2d1841b169a91191790a2f3d525d93ab3c0",
+      "sourceSha256": "bf6a4c3136e8d386916e0bc12f95c94c20244be0d07b09535a4063b85bc780a7",
+      "sha256": "94ccae2d8e1a9fad3211bbe66d564f78a79f8206c84251c77ad6a9eba0577073"
+    },
+    {
+      "file": "Driver_JD79667.h",
+      "source": "src/driver/epaper/Driver_JD79667.h",
+      "gitBlob": "3e7cb6c1d2a611d4cceb5ee9cda6203759234ff8",
+      "sourceSha256": "a7af70551bad4853edbabb653b29e03cb3e5b06dbb1334266da5ee69e22d1a53",
+      "sha256": "4c29b9080bc8f47050114822bd91a054d916ded3aa29752fd6c3d1d7325b78fa"
+    },
+    {
+      "file": "Driver_JD79676.cpp",
+      "source": "src/driver/epaper/Driver_JD79676.cpp",
+      "gitBlob": "0302d55b0bd82fad177a33e0c911b221efcf719a",
+      "sourceSha256": "dbca17ad7f180de45aadc03e8d06a8eb140d439a8ec7738319fa8856748c6e23",
+      "sha256": "a3a8272d96acf5d7447caee3be627c4ac2d7e0c8dce8410b4bc9945337068f9e"
+    },
+    {
+      "file": "Driver_JD79676.h",
+      "source": "src/driver/epaper/Driver_JD79676.h",
+      "gitBlob": "863d6a4b237f652591845d05afd4a2ba1cd4aa7a",
+      "sourceSha256": "a47bea3a6ea2efcfbd88cbbc3a41261a46b129ef5cbdb595c5df34d0ee73e4c6",
+      "sha256": "cdffc2e08c1c5ad65a23427c5414f322cb8f1f1f5671b18f76ddc96033a25d2f"
+    },
+    {
+      "file": "Driver_JD79686B.cpp",
+      "source": "src/driver/epaper/Driver_JD79686B.cpp",
+      "gitBlob": "5c41f9416bb451f486335a510bbd6a5fde49e337",
+      "sourceSha256": "35e8c717da4f8d874dfdcda0a030d8394a02a3da8203ce3021648c4017dfa2f3",
+      "sha256": "bea6d238629235d5bffa311ada815131e012b56fca97582e3599b7da009bbeeb"
+    },
+    {
+      "file": "Driver_JD79686B.h",
+      "source": "src/driver/epaper/Driver_JD79686B.h",
+      "gitBlob": "b37ad4bb700298f9e1e79428bf1c5c313756c9ee",
+      "sourceSha256": "9d99f180a83d61a78d16b4436c1c7349612129429363140e45ee8697dad61d5e",
+      "sha256": "f362233aa54efad366cb0a35fd76309f9d5af081e65e736481f5e899633eccdc"
+    },
+    {
+      "file": "Driver_SSD1677.cpp",
+      "source": "src/driver/epaper/Driver_SSD1677.cpp",
+      "gitBlob": "667f55fdec5a71b8eaf964d4d11496d34920dc86",
+      "sourceSha256": "aa308e1f442b285afe66e08bcdf083ac06e68529f11bd9a4122372ad73879a53",
+      "sha256": "be81a3570aa90c38c7436cd635b63fd4bbca886e20397f71b97d93ed8d4c6983"
+    },
+    {
+      "file": "Driver_SSD1677.h",
+      "source": "src/driver/epaper/Driver_SSD1677.h",
+      "gitBlob": "3e7aff0f29fe031456319bba49378d0f4f1bda65",
+      "sourceSha256": "d989e940d0b52528259f27f6f19e2e2be02b7300e0e4a11c73d781ca6a4cc7fb",
+      "sha256": "289ef5f1805a5c87c2546afa15d252719109a0cbe093a214d27393a5700bcf5f"
+    },
+    {
+      "file": "Driver_SSD1680.cpp",
+      "source": "src/driver/epaper/Driver_SSD1680.cpp",
+      "gitBlob": "ad98927f418d124f0e744a0d7443ca402a2e4e63",
+      "sourceSha256": "25aef352ef66da06af101e8db407b2e6cf47d95e7bee6ecf992c7c1c5391b479",
+      "sha256": "4a6af2fb5dbfdfbe701686c1c95c6114a33bab5bd248a69381d8612aa6659cae"
+    },
+    {
+      "file": "Driver_SSD1680.h",
+      "source": "src/driver/epaper/Driver_SSD1680.h",
+      "gitBlob": "4f524fadbba8b2d5355885ab5bfc9ebcc568cb13",
+      "sourceSha256": "5ddf88ff26cfe559ad32fb48619b136d58b86bce4388b3f715c272567f62319b",
+      "sha256": "eabb50096f547ef8d1116de9b2875cd5690f3666f8233c27c853fb5c802241ec"
+    },
+    {
+      "file": "Driver_SSD1681.cpp",
+      "source": "src/driver/epaper/Driver_SSD1681.cpp",
+      "gitBlob": "cfe6d31fc93400657422df2c95ad5201b5c3eb0b",
+      "sourceSha256": "f574268d1a7b878ad3513bfa4faa16e4982b25aaca5cf9e1fd3abf13c4b1a22f",
+      "sha256": "a4ba852323d0b6ef12bcfc5dfd6c833048063cc38c3e1cea81e6f88bf3500db6"
+    },
+    {
+      "file": "Driver_SSD1681.h",
+      "source": "src/driver/epaper/Driver_SSD1681.h",
+      "gitBlob": "65a5aaac00bf5d75a7e20b0cab61d1cd26f70cd0",
+      "sourceSha256": "a3b412ec79fa3376c797dedff0722168aa9107b5f0978c5c988630d8211ba59c",
+      "sha256": "1b347e18bd8388538b13162db28fcf215c42e64f50af08cbc5d8f822714d4e03"
+    },
+    {
+      "file": "Driver_SSD1683.cpp",
+      "source": "src/driver/epaper/Driver_SSD1683.cpp",
+      "gitBlob": "0d24f3341285fcf563ebbe2054d9403855225ca8",
+      "sourceSha256": "7cb929437eaf348f4fd931c12b73855144ce4f7b844f11466ff4d035e4ca31b8",
+      "sha256": "ad601ab526ff582e56bf271d2c2157fbc8561d99061ba6d7895a877ed06f1f0b"
+    },
+    {
+      "file": "Driver_SSD1683.h",
+      "source": "src/driver/epaper/Driver_SSD1683.h",
+      "gitBlob": "9bb2bca5604c1953db1d7ba043efc832f6949756",
+      "sourceSha256": "2212dc2d1068b4bfee6c711f24502423748faf9b069de8a6b5e87581bfab2e45",
+      "sha256": "98371b24ccacb4b9a50d4165d930f221265d1ae59783f4de7beffe0976703af2"
+    },
+    {
+      "file": "Driver_SSD2677.cpp",
+      "source": "src/driver/epaper/Driver_SSD2677.cpp",
+      "gitBlob": "4daa988b4831942b5eb16d24d04ec3c7b9473e14",
+      "sourceSha256": "e0cc5299aa813c89ab455d062bce83b1122bbdd1b0d57edd28cded58f03e27b3",
+      "sha256": "6efe9178906d4a1618c9e1401993c900d5f2a9f8755a239d4e09d208be4c35d8"
+    },
+    {
+      "file": "Driver_SSD2677.h",
+      "source": "src/driver/epaper/Driver_SSD2677.h",
+      "gitBlob": "5984570a3734697c41fbd71d19d56790eb067b11",
+      "sourceSha256": "97b0054f7ea2229f6cacea4e1e42ae2757eec124ef32f6b5f1ce28d7b2d430dc",
+      "sha256": "0a4c702523fc3f930a60429dac47a6a136e00a7b867108f686bfe09cb66f06df"
+    },
+    {
+      "file": "Driver_Sticky_Auto.cpp",
+      "source": "src/driver/epaper/Driver_Sticky_Auto.cpp",
+      "gitBlob": "7b37d46756a2dde2ed7366901ec7218baa0653d9",
+      "sourceSha256": "47abec0d1d9e0af78c5478d15725cb19d1d079ff64a1dc2235f5cf04ae78d9b3",
+      "sha256": "652a58ee7e05de191752b44b60d7de5a11580750b1153303f6af47b9babad741"
+    },
+    {
+      "file": "Driver_Sticky_Auto.h",
+      "source": "src/driver/epaper/Driver_Sticky_Auto.h",
+      "gitBlob": "6b87e6cbbaa2d2027b349458600f5aadacc940bb",
+      "sourceSha256": "2f80c5562aeac952e3c631c4cfc46ee20dd7a9f200c0615ed387b8da1bc38cf8",
+      "sha256": "bb489da7c8b8c00737c1f665dea9f4c05c632559311e54dfc946cdec62e0a734"
+    },
+    {
+      "file": "Driver_T133A01.cpp",
+      "source": "src/driver/epaper/Driver_T133A01.cpp",
+      "gitBlob": "3ab950b6c428e652048dc8cf094173c5f67e6ba7",
+      "sourceSha256": "52d13bc83cdf023a7288e2af9d0b5dedf2f8c8fdfe0a6b573c8e5cbcf567b5b2",
+      "sha256": "0842931378f42463af8f995f77530b3beffafe929a1182b0a6273979b0df854e"
+    },
+    {
+      "file": "Driver_T133A01.h",
+      "source": "src/driver/epaper/Driver_T133A01.h",
+      "gitBlob": "67ed8374ac3d13d118276fec7eb695faca04975e",
+      "sourceSha256": "a8b17279ca7f4356c946cd04025effa76bf2e35a692aaff0841a4040d7d1e54d",
+      "sha256": "3baea4e565e91edf26bc734e87e2749e6118dd89fde3da0fcf834d33aaa874ea"
+    },
+    {
+      "file": "Driver_UC8151D.cpp",
+      "source": "src/driver/epaper/Driver_UC8151D.cpp",
+      "gitBlob": "491b5dde46a3df790497e560d3a4c904cc489850",
+      "sourceSha256": "d50d158940e667486b07d8d689549d0f5719bc449736cb7eadba91444824daad",
+      "sha256": "bda0f017c6ac0a4dc52dfce2e20c39eb397cc30b42aa963c4b09f5df5d6d3d96"
+    },
+    {
+      "file": "Driver_UC8151D.h",
+      "source": "src/driver/epaper/Driver_UC8151D.h",
+      "gitBlob": "94cd2552faac4fe891f34d61a02116af72a4b83d",
+      "sourceSha256": "5433315c7cb1817b9a042954eee93fdb215050751252db3a0e5cdfb7a945750b",
+      "sha256": "957feabe70955a8baec9d3d71dd5bfa3c6ec9a2fdcaf08aae88442d1ad6534a4"
+    },
+    {
+      "file": "Driver_UC8179.cpp",
+      "source": "src/driver/epaper/Driver_UC8179.cpp",
+      "gitBlob": "baf9853d2b905778c80a1ae1ffd2efa45fb51f0c",
+      "sourceSha256": "3c201948fa3f2b2af813f47855b273878eb2104d2bb0748a8baebdbe7dbc0981",
+      "sha256": "c753ebbf55070f751dc53a4e409a72d3a4c3d902aa6f906853326a5fa53083f0"
+    },
+    {
+      "file": "Driver_UC8179.h",
+      "source": "src/driver/epaper/Driver_UC8179.h",
+      "gitBlob": "727f22a233d6369e9e6f09a3b52d2a9f6aed7aa6",
+      "sourceSha256": "19a015c01edc7edc6328b4a8c8886be982e52767b2486524dc413492957430a1",
+      "sha256": "af0827a790e876ff9fdc116bcf98a900d3db5ed29642ff9a17e7d0ca17a0c1bb"
+    },
+    {
+      "file": "SeeedEPaperProfiles.cpp",
+      "source": "src/driver/epaper/SeeedEPaperProfiles.cpp",
+      "gitBlob": "22873c7028df191ca41c3f1af6e7924de081abcb",
+      "sourceSha256": "cd8138543d18c596eebc70f02274e0ae21565192d942f2afb9d3ffd816253309",
+      "sha256": "36a6a108298fa901c62bff49d5785b768194995747fdd9168162d2b10210043d"
+    },
+    {
+      "file": "seeed_ep.h",
+      "source": "src/driver/epaper/seeed_ep.h",
+      "gitBlob": "67df71c7cf2a2eb0410028e07e7abb56ed74c282",
+      "sourceSha256": "e624fc25b0bfd864f1a9a7ceec0547e2b29616bb6a0949446b57ee1bc3780fff",
+      "sha256": "67f02b69099031d5a73927f1e08a07da9fd498e46df3ccd2e9197a17d83de51a"
+    },
+    {
+      "file": "seeed_ep.inl",
+      "source": "src/driver/epaper/seeed_ep.inl",
+      "gitBlob": "d036dd4d718082ac4b73e7265dbb5bfaf1236ef1",
+      "sourceSha256": "56c6d0a7ee1ba08b003db668424d44bcf49ff8c6bf4fb96f418076d3795b6eb9",
+      "sha256": "061d0307c43e0277f06941a61ab43ed0aceb2adc42a5f10a005208f127d5f72a"
+    }
+  ]
+}

@@ -163,7 +163,7 @@ Status paintAnimationSurface(const DirtyRect &area) {
 // atlas; no in-place framebuffer move, scratch bitmap or source lease escapes.
 // Unsupported is returned only before the first write. A driver error after a
 // write must propagate to the caller, rather than starting a partial fallback.
-Status composeAnimationNative(nice_gfx::Panel &panel,nice_gfx::NativeFramebuffer &output) {
+Status composeAnimationNative(nice_gfx::Backend &panel,nice_gfx::NativeFramebuffer &output) {
   output=nice_gfx::NativeFramebuffer{};
   if(!snapshotAnimationSurface||!panel.supportsFrameBlit()||!rasterFrame.current.page||
      (snapshotTransition&&(snapshotPhase!=TransitionPhase::Enter||transitionFrame.opacity!=255)))return Status::Unsupported;

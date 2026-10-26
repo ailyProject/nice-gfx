@@ -7,6 +7,7 @@
 #define NICE_GFX_UI_PIVOT_MOTION_VERSION 1
 #define NICE_GFX_UI_VERTICAL_RANGE_VERSION 1
 #define NICE_GFX_UI_MEDIA_COLOR_KEY_VERSION 1
+#define NICE_GFX_MEDIA_MONO1_VERSION 1
 
 namespace nice_gfx { struct MonoFont; struct MonoIcon; }
 namespace nice_gfx { namespace htmlui {
@@ -84,8 +85,16 @@ struct MediaDesc { const uint8_t *pixels; uint16_t width, height, frames; uint8_
 // Preserve descriptor ABI: 0x82 denotes wire RGB565 with a two-byte, MSB-first
 // transparent-color prefix. The prefix is shared by all frames, not per pixel.
 constexpr uint8_t MediaRgb565ColorKey = 0x82;
+// Row-padded, MSB-left bits. Each frame contains its white=1 color plane,
+// followed by an optional opaque=1 mask plane. Resource layout stays ABI 17.
+constexpr uint8_t MediaMono1 = 0x41;
+constexpr uint8_t MediaMono1Masked = 0xc1;
 inline bool mediaColorKeyed(const MediaDesc &m) { return m.bytesPerPixel==MediaRgb565ColorKey; }
-inline uint8_t mediaPixelBytes(const MediaDesc &m) { return uint8_t(m.bytesPerPixel&0x7f); }
+inline bool mediaPacked(const MediaDesc &m) { return m.bytesPerPixel==MediaMono1||m.bytesPerPixel==MediaMono1Masked; }
+inline bool mediaMasked(const MediaDesc &m) { return m.bytesPerPixel==MediaMono1Masked; }
+inline uint8_t mediaPixelBytes(const MediaDesc &m) { return mediaPacked(m)?0:uint8_t(m.bytesPerPixel&0x7f); }
+inline size_t mediaStrideBytes(const MediaDesc &m) { return mediaPacked(m)?(size_t(m.width)+7)/8:size_t(m.width)*mediaPixelBytes(m); }
+inline size_t mediaFrameBytes(const MediaDesc &m,size_t stride=0) { return (stride?stride:mediaStrideBytes(m))*m.height*(mediaMasked(m)?2:1); }
 inline const uint8_t *mediaPixels(const MediaDesc &m) { return m.pixels+(mediaColorKeyed(m)?2:0); }
 enum class ShapeType : uint8_t { Circle, Ellipse, Rect, Line, Polyline, Polygon };
 enum ShapeFlags : uint8_t { ShapeFill = 1, ShapeStroke = 2 };

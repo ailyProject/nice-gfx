@@ -8,6 +8,7 @@ bool localCandidate(int i,bool horizontal) const {
 void acquireOwner(int i,Drag kind) {
   owner=i;drag=kind;
   if(kind==Drag::Scroll||kind==Drag::Pager){startScrollX=state()[i].scrollX;startScrollY=state()[i].scrollY;cancelTarget();}
+  else if(kind==Drag::Media)cancelTarget();
   if(down){ownerStarted=true;dispatch(i,EventType::GestureStart);}
 }
 void recognizeCoordinated(int32_t dx,int32_t dy,uint32_t now) {
@@ -23,6 +24,7 @@ void recognizeCoordinated(int32_t dx,int32_t dy,uint32_t now) {
   // The deepest declared local recognizer (e.g. map/canvas) and the native
   // control participate in the same ranking. Explicit claims are candidates.
   for(int a=target;a>=0;a=parent(a)){
+    if(horizontal&&allowX&&mediaScrubTarget(a)>=0){if(edge)claimGesture(edge,now);else acquireMediaScrub(a);return;}
     if(localCandidate(a,horizontal)){acquireOwner(a,page().nodes[a].kind==Kind::Range?Drag::Range:Drag::Custom);return;}
     if(a==pointerClaim&&detail::acceptsAxis(pointerClaimAxis,horizontal)&&policy(a).ownership!=GestureOwnership::Parent){acquireOwner(a,Drag::Custom);return;}
   }

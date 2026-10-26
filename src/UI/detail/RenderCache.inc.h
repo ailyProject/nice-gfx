@@ -80,6 +80,7 @@ bool fastSurfaceImageRepair(uint16_t index,const Geometry &geometry) const {
 // Ordinary changes have a four-tile budget; full-size opaque RAM image updates
 // may repair at most one page through the same renderer, preserving overlays.
 Surface *patchSurface(bool &geometryPrepared,uint64_t repairBudget=0) {
+  ProfileTimer repairTimer(*this,&RuntimeStats::repairMicros);
   // A claimed follow gesture owns immutable incoming/outgoing snapshots and
   // cancels pressed-control feedback. Repair those keys once even while the
   // physical pointer remains down; ordinary pressed/input frames stay excluded.
@@ -204,12 +205,15 @@ Surface *acquireFrameSurface(const Surface *a,const Surface *b,const Surface *c)
   slot->used=++surfaceClock;surfaceWarmPending=true;
   return slot;
 }
-// Cold interactive pages are rasterized once, into an existing borrowed slot.
-// Waiting for idle warming while a pointer is down would otherwise force every
-// drag sample through the native element renderer. No extra framebuffer is
-// allocated and both surfaces already leased by this frame stay protected.
+// Cold paired snapshots are rasterized into an existing borrowed slot. Both
+// interactive slides and ordinary fades need immutable incoming/outgoing keys;
+// waiting for idle warming would rerasterize them at every transition sample.
+// Live incoming animations still advance and repair/capture their new key on
+// subsequent frames. No additional surface allocation or clock freezing occurs.
 Surface *captureGestureSurface(bool &geometryPrepared) {
-  if(!groupMotion.active||!groupMotion.prepared||!snapshotTransition||snapshotPhase!=TransitionPhase::Paired||
+  ProfileTimer captureTimer(*this,&RuntimeStats::captureMicros);
+  const bool pairedFade=snapshotTransition&&snapshotPhase==TransitionPhase::Paired&&transition.config.effect==TransitionEffect::Fade;
+  if((!pairedFade&&(!groupMotion.active||!groupMotion.prepared))||!snapshotTransition||snapshotPhase!=TransitionPhase::Paired||
      surfaces.size()<2||snapshotPressed>=0||snapshotInput||snapshotKeyboard.visible||snapshotAnimationSurface)return nullptr;
   Surface *slot=nullptr;
   for(auto &candidate:surfaces)if(candidate.page==rasterFrame.current.page && &candidate!=snapshotSurface && &candidate!=previewSurface){slot=&candidate;break;}
@@ -315,6 +319,15 @@ bool activeWarmProducer(int index,const Surface *slot=nullptr) const {
   }
   return false;
 }
+bool borrowedWarmSurface(const Surface &surface) const {
+  return &surface==snapshotSurface||&surface==previewSurface||
+    &surface==snapshotAnimationSurface||&surface==coldFadeSurface;
+}
+void discardWarmSurface(Surface &surface) {
+  ++surface.pixelsRevision;surface.presentedAtFrame=UINT64_MAX;
+  surface.page=nullptr;surface.key.clear();surface.geometry=FrameCache{};
+  surface.ready=surface.paused=surface.compressionAttempted=false;surface.row=surface.column=0;
+}
 // One page/one immutable key is built to complete coverage. If a setter or an
 // animation changes that key between tiles, none of the partial image is used.
 void warmSurfaceTile(uint32_t now,bool allowDirty=false) {
@@ -391,14 +404,26 @@ void warmSurfaceTile(uint32_t now,bool allowDirty=false) {
     // cache underneath its pending ordinary refresh.
     if(allowDirty&&refresh->dirty()&&index==history.back())continue;
     initializePage(uint16_t(index));const PageDesc &p=project->pages[index];auto &state=pages[index];
-    if(surfaceReady(index))continue;
+    if(surfaceReady(index)){
+      // A normal frame may repair the retained key while its replacement is
+      // still being built. The incomplete duplicate no longer has any work.
+      for(auto &entry:surfaces)if(entry.page==&p&&!entry.ready&&!borrowedWarmSurface(entry))discardWarmSurface(entry);
+      continue;
+    }
     Surface *slot=nullptr;
-    for(auto &entry:surfaces)if(entry.page==&p){slot=&entry;break;}
+    Surface *retained=nullptr;
+    for(auto &entry:surfaces)if(entry.page==&p){
+      if(entry.ready){if(!retained||entry.used>retained->used)retained=&entry;}
+      else if(!slot||entry.used>slot->used)slot=&entry;
+    }
+    if(!slot)slot=retained;
     if(!slot)for(auto &entry:surfaces)if(!entry.page){slot=&entry;break;}
     if(!slot)for(auto &entry:surfaces){const int old=entry.page?int(entry.page-project->pages):-1;
       if(std::find(wanted.begin(),wanted.end(),old)==wanted.end()&&(!slot||entry.used<slot->used))slot=&entry;
     }
-    if(!slot)return;
+    // With two slots the live page may temporarily own a complete source and
+    // its builder. An unserviceable prewarm request must not block that builder.
+    if(!slot)continue;
     bool resumed=false;
     if(slot->paused){
       if(!activeWarmProducer(index,slot)){slot->paused=false;resumed=true;}
@@ -415,6 +440,18 @@ void warmSurfaceTile(uint32_t now,bool allowDirty=false) {
       // old key available for exact hits/repairs; retry once state is quiet.
       if(!resumed&&slot->page==&p&&(slot->ready||slot->row||slot->column)&&activeWarmProducer(index,slot)){
         slot->paused=true;slot->pauseEpoch=surfaceMutationEpoch;slot->quietAt=now;continue;
+      }
+      if(index==history.back()&&slot->ready&&surfaces.size()>1){
+        // Keep the last complete live-page key available for a departure or
+        // bounded repair. Build its replacement in a different existing slot;
+        // never expand the caller's pixel budget or overwrite a borrowed source.
+        Surface *replacement=nullptr;
+        for(auto &entry:surfaces)if(&entry!=slot&&!borrowedWarmSurface(entry)){
+          if(!entry.page){replacement=&entry;break;}
+          if(!replacement||entry.used<replacement->used)replacement=&entry;
+        }
+        if(!replacement)continue;
+        slot=replacement;
       }
       ++slot->pixelsRevision;slot->presentedAtFrame=UINT64_MAX;slot->page=&p;slot->key=state;slot->row=slot->column=0;slot->ready=slot->paused=slot->compressionAttempted=false;
       const RuntimeStats saved=stats;prepareCache(p,slot->key,slot->geometry);stats=saved;
@@ -441,7 +478,12 @@ void warmSurfaceTile(uint32_t now,bool allowDirty=false) {
     if(result!=Status::Ok){slot->page=nullptr;slot->key.clear();slot->ready=false;return;}
     ++surfaceStats.warmedTiles;slot->used=++surfaceClock;
     slot->column+=width;if(slot->column==p.width){slot->column=0;slot->row+=height;}
-    if(slot->row==p.height){slot->ready=true;releaseSurfaceText(*slot);}
+    if(slot->row==p.height){
+      slot->ready=true;releaseSurfaceText(*slot);
+      // Publish complete coverage before releasing the previous source. No
+      // refresh can borrow either slot while this bounded idle work runs.
+      for(auto &entry:surfaces)if(&entry!=slot&&entry.page==&p&&!borrowedWarmSurface(entry))discardWarmSurface(entry);
+    }
     surfaceWarmNext=(wantedAt+1)%count;
     return;
   }

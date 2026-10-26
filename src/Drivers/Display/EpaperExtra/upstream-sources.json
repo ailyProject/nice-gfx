@@ -1,0 +1,156 @@
+{
+  "schemaVersion": 1,
+  "repositories": [
+    {
+      "repository": "adafruit/Adafruit_EPD",
+      "revision": "84deca8416b2c9e31120a3c3c343cccb4daf92fd",
+      "license": "MIT",
+      "files": [
+        {
+          "path": "license.txt",
+          "sha256": "1f7223071f5a04ba2eeb405501c2bac397c3d61e94d41967a7912f8d037a6b4b",
+          "gitBlob": "52e22249aa91c7c1d0dae6549a9c762afd456dc9",
+          "url": "https://raw.githubusercontent.com/adafruit/Adafruit_EPD/84deca8416b2c9e31120a3c3c343cccb4daf92fd/license.txt"
+        },
+        {
+          "path": "src/drivers/Adafruit_SSD1619.h",
+          "sha256": "3dc55ce239e32239bc15ca79a551b91a15290028b687152cd75f8d9d2612b078",
+          "gitBlob": "610845fbaf0997c60ab18fffaeb1e0565b454c3d",
+          "url": "https://raw.githubusercontent.com/adafruit/Adafruit_EPD/84deca8416b2c9e31120a3c3c343cccb4daf92fd/src/drivers/Adafruit_SSD1619.h"
+        },
+        {
+          "path": "src/drivers/Adafruit_SSD1619.cpp",
+          "sha256": "adf689e2d36f3ce51edb41883b6005b10c1dc2dc49f6533699be2b9e61d4256c",
+          "gitBlob": "5be46a27b71c3f63ffd2fe854b3d0cb459a47dbe",
+          "url": "https://raw.githubusercontent.com/adafruit/Adafruit_EPD/84deca8416b2c9e31120a3c3c343cccb4daf92fd/src/drivers/Adafruit_SSD1619.cpp"
+        },
+        {
+          "path": "src/drivers/Adafruit_EK79686.h",
+          "sha256": "eca3c27f2d9475f3d0154446a440d11577802c927c9bc070c0cd56ed81c91565",
+          "gitBlob": "bfb9675a9d0491824a9b50f52a49260df6d1468a",
+          "url": "https://raw.githubusercontent.com/adafruit/Adafruit_EPD/84deca8416b2c9e31120a3c3c343cccb4daf92fd/src/drivers/Adafruit_EK79686.h"
+        },
+        {
+          "path": "src/drivers/Adafruit_EK79686.cpp",
+          "sha256": "f2a76c3cad801624ee295fb32fb0f22b6474bf8c76a174815610cac686926279",
+          "gitBlob": "7d411e07d97c74ef146d88ba724ba1bbe88392ce",
+          "url": "https://raw.githubusercontent.com/adafruit/Adafruit_EPD/84deca8416b2c9e31120a3c3c343cccb4daf92fd/src/drivers/Adafruit_EK79686.cpp"
+        },
+        {
+          "path": "src/drivers/Adafruit_SSD1675.h",
+          "sha256": "15ba68e5ad6aed717fecfd81cec68b8b2b614f5e17b6e59f1c987ae168abf25c",
+          "gitBlob": "c1df9e56bf1e96f901c5c03c24cd5b4ce0c71f4f",
+          "url": "https://raw.githubusercontent.com/adafruit/Adafruit_EPD/84deca8416b2c9e31120a3c3c343cccb4daf92fd/src/drivers/Adafruit_SSD1675.h"
+        },
+        {
+          "path": "src/drivers/Adafruit_SSD1675.cpp",
+          "sha256": "58d801660dbcde7c119df2fe61e63593c7e9a1eeaebf8224783eefc8425ffc26",
+          "gitBlob": "c7a185224f7fab569d1ff49665d33415c311452f",
+          "url": "https://raw.githubusercontent.com/adafruit/Adafruit_EPD/84deca8416b2c9e31120a3c3c343cccb4daf92fd/src/drivers/Adafruit_SSD1675.cpp"
+        },
+        {
+          "path": "src/panels/ThinkInk_420_Tricolor_RW.h",
+          "sha256": "57b1630e52e3338d15756157d7c5468f31c0a6ce811d6df33c3854e62de7ef99",
+          "gitBlob": "f5e1dc16cfa749db62cba1b0e722f93282bcad84",
+          "url": "https://raw.githubusercontent.com/adafruit/Adafruit_EPD/84deca8416b2c9e31120a3c3c343cccb4daf92fd/src/panels/ThinkInk_420_Tricolor_RW.h"
+        },
+        {
+          "path": "src/panels/ThinkInk_270_Tricolor_Z70.h",
+          "sha256": "dd5eff5337cf2af4d9863febc0616aa48593f24d8ad9e0b54edf1e787700f06d",
+          "gitBlob": "422f7e1f48d1b9c37fef2d93592478d34c866046",
+          "url": "https://raw.githubusercontent.com/adafruit/Adafruit_EPD/84deca8416b2c9e31120a3c3c343cccb4daf92fd/src/panels/ThinkInk_270_Tricolor_Z70.h"
+        },
+        {
+          "path": "src/panels/ThinkInk_213_Mono_B72.h",
+          "sha256": "8c98033aa2732da0c5db642cc32520dfbcf96dcc605027351b88e934e0af2b2f",
+          "gitBlob": "df3651f0c75c14ee9208fc66288e803a0e86cb5d",
+          "url": "https://raw.githubusercontent.com/adafruit/Adafruit_EPD/84deca8416b2c9e31120a3c3c343cccb4daf92fd/src/panels/ThinkInk_213_Mono_B72.h"
+        }
+      ]
+    },
+    {
+      "repository": "bitbank2/bb_epaper",
+      "revision": "62b4318edf4e269d962f0848bb0b2d82facd5a61",
+      "license": "GPL-3.0-or-later",
+      "files": [
+        {
+          "path": "LICENSE",
+          "sha256": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986",
+          "gitBlob": "f288702d2fa16d3cdf0035b15a9fcbc552cd88e7",
+          "url": "https://raw.githubusercontent.com/bitbank2/bb_epaper/62b4318edf4e269d962f0848bb0b2d82facd5a61/LICENSE"
+        },
+        {
+          "path": "src/bb_epaper.h",
+          "sha256": "6da8313613d0ae5ad0e1cacb3915d2f0be2c28c7297cde45a4c2bb445a5712f0",
+          "gitBlob": "827a74fb670e8a2a959a9eea62467b8a081bf9b0",
+          "url": "https://raw.githubusercontent.com/bitbank2/bb_epaper/62b4318edf4e269d962f0848bb0b2d82facd5a61/src/bb_epaper.h"
+        },
+        {
+          "path": "src/bb_ep.inl",
+          "sha256": "95076b211ca8d5d626c0e61115f386022a96558f5a49f7465d252a4547dd010f",
+          "gitBlob": "5c12ad6f61a90b2e2d4bf64099ad58cae4f52c94",
+          "url": "https://raw.githubusercontent.com/bitbank2/bb_epaper/62b4318edf4e269d962f0848bb0b2d82facd5a61/src/bb_ep.inl"
+        },
+        {
+          "path": "src/arduino_io.inl",
+          "sha256": "f9b76dfeab5d6f2234f851604e138515c0ce62e25b0693509c0e623abc93e8ec",
+          "gitBlob": "8b255286db3682e100d9f6d97ee6c950aa794d80",
+          "url": "https://raw.githubusercontent.com/bitbank2/bb_epaper/62b4318edf4e269d962f0848bb0b2d82facd5a61/src/arduino_io.inl"
+        }
+      ]
+    },
+    {
+      "repository": "ZinggJM/GxEPD",
+      "revision": "a40fbc48a0f39de6c1a3d7365b9ad4d3d0365687",
+      "license": "GPL-3.0",
+      "files": [
+        {
+          "path": "LICENSE",
+          "sha256": "589ed823e9a84c56feb95ac58e7cf384626b9cbf4fda2a907bc36e103de1bad2",
+          "gitBlob": "9cecc1d4669ee8af2ca727a5d8cde10cd8b2d7cc",
+          "url": "https://raw.githubusercontent.com/ZinggJM/GxEPD/a40fbc48a0f39de6c1a3d7365b9ad4d3d0365687/LICENSE"
+        },
+        {
+          "path": "src/GxGDEW0154Z17/GxGDEW0154Z17.h",
+          "sha256": "3578dae51c1a02ae403dd94f35a4676c553d563afe8f0f1d2ccfa39e5625601e",
+          "gitBlob": "620ffc71d57ded62253767dabff175f9d076dc1e",
+          "url": "https://raw.githubusercontent.com/ZinggJM/GxEPD/a40fbc48a0f39de6c1a3d7365b9ad4d3d0365687/src/GxGDEW0154Z17/GxGDEW0154Z17.h"
+        },
+        {
+          "path": "src/GxGDEW0154Z17/GxGDEW0154Z17.cpp",
+          "sha256": "5d46686aab75a7d48279268367c6e4e2091565f0201005ad25cae8110a052e31",
+          "gitBlob": "258b02d6109565d9763d9364bbadfa6e39437c54",
+          "url": "https://raw.githubusercontent.com/ZinggJM/GxEPD/a40fbc48a0f39de6c1a3d7365b9ad4d3d0365687/src/GxGDEW0154Z17/GxGDEW0154Z17.cpp"
+        },
+        {
+          "path": "src/GxGDEH0213Z19/GxGDEH0213Z19.h",
+          "sha256": "55404ce17eae88e2b67e1ca5c3212044d6a0908806b825829ff629b37f493966",
+          "gitBlob": "3459c9fc05610079c73bb9440ba87366d90e9559",
+          "url": "https://raw.githubusercontent.com/ZinggJM/GxEPD/a40fbc48a0f39de6c1a3d7365b9ad4d3d0365687/src/GxGDEH0213Z19/GxGDEH0213Z19.h"
+        },
+        {
+          "path": "src/GxGDEH0213Z19/GxGDEH0213Z19.cpp",
+          "sha256": "a9117d783d81965cdece9f1d480265c361975ddead0bcb238231f002383dfeae",
+          "gitBlob": "9478808df8d0a1cbaaf035ea77d4d7a63f67206f",
+          "url": "https://raw.githubusercontent.com/ZinggJM/GxEPD/a40fbc48a0f39de6c1a3d7365b9ad4d3d0365687/src/GxGDEH0213Z19/GxGDEH0213Z19.cpp"
+        }
+      ]
+    }
+  ],
+  "changes": [
+    "Use NICE_GFX private GxEPD2 protocol HAL, without the upstream rendering/framebuffer layers.",
+    "Preserve exact command bytes and SSD1675 waveform; full-screen refresh only.",
+    "Normalize framebuffer coordinates to row-major controller-native portrait orientation (Adafruit source uses a transposed column buffer).",
+    "Preserve SSD1619 CS edge per byte and EK79686 FLG command on each BUSY poll.",
+    "Spectra6 uses continuous logical palette indices 0..5; translate to source wire codes 0,1,2,3,5,6.",
+    "Split Spectra6 dual-controller data into each row left/right halves, preserving original 13.3-inch CS-specific initialization and DRF=1.",
+    "Old GxEPD panels retain their own wake-up and plane polarity rather than assuming same-chip profile equivalence.",
+    "All physical timing waits are delegated to the nonblocking NICE_GFX HAL."
+  ],
+  "constraints": [
+    "No partial/differential update is advertised by these added profiles.",
+    "No independent source identifies the three Spectra6 controllers: model names retained, controller reported unknown.",
+    "SSD1675 waveform and literal gate bytes are retained from the pinned Adafruit source, separately from SSD1675B.",
+    "Pinned Adafruit_SSD1675.cpp powerUp emits gate bytes FA 01 00 although its comment says 250-1. These literal source bytes are retained and require physical panel verification; host validation does not establish electrical or optical qualification."
+  ]
+}

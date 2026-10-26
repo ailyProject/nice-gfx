@@ -13,12 +13,12 @@ namespace nice_gfx { namespace detail {
 #if NICE_GFX_NATIVE_IDF
 class BoardI2c : public I2cBus {
  public:
-  BoardI2c(int sda,int scl):sda_(sda),scl_(scl) {}
+  BoardI2c(int sda,int scl,uint32_t frequency=400000):sda_(sda),scl_(scl),frequency_(frequency) {}
   ~BoardI2c(){if(device_)i2c_master_bus_rm_device(device_);if(bus_)i2c_del_master_bus(bus_);}
   BoardI2c(const BoardI2c&)=delete;
   BoardI2c &operator=(const BoardI2c&)=delete;
   Status begin(uint8_t address) override {
-    if(address<8||address>0x77)return Status::InvalidArgument;
+    if(address<8||address>0x77||!frequency_||frequency_>1000000)return Status::InvalidArgument;
     if(!bus_) {
       i2c_master_bus_config_t c={};c.i2c_port=I2C_NUM_0;
       c.sda_io_num=gpio_num_t(sda_);c.scl_io_num=gpio_num_t(scl_);
@@ -28,7 +28,7 @@ class BoardI2c : public I2cBus {
     if(device_&&address_==address)return Status::Ok;
     if(device_){i2c_master_bus_rm_device(device_);device_=nullptr;}
     i2c_device_config_t c={};c.dev_addr_length=I2C_ADDR_BIT_LEN_7;
-    c.device_address=address;c.scl_speed_hz=400000;
+    c.device_address=address;c.scl_speed_hz=frequency_;
     if(i2c_master_bus_add_device(bus_,&c,&device_)!=ESP_OK)return Status::IoError;
     address_=address;return Status::Ok;
   }
@@ -42,18 +42,19 @@ class BoardI2c : public I2cBus {
   void delayMs(uint16_t ms) override {platform::delayMs(ms);}
   void delayUs(uint16_t us) override {esp_rom_delay_us(us);}
  private:
-  int sda_,scl_;uint8_t address_=0;
+  int sda_,scl_;uint32_t frequency_;uint8_t address_=0;
   i2c_master_bus_handle_t bus_=nullptr;i2c_master_dev_handle_t device_=nullptr;
 };
 #else
 class BoardI2c : public I2cWire {
  public:
-  BoardI2c(int sda,int scl):I2cWire(Wire),sda_(sda),scl_(scl) {}
+  BoardI2c(int sda,int scl,uint32_t frequency=400000):I2cWire(Wire),sda_(sda),scl_(scl),frequency_(frequency) {}
   Status begin(uint8_t address) override {
-    if(!ready_){if(!Wire.begin(sda_,scl_,400000))return Status::IoError;Wire.setTimeOut(20);ready_=true;}
+    if(address<8||address>0x77||!frequency_||frequency_>1000000)return Status::InvalidArgument;
+    if(!ready_){if(!Wire.begin(sda_,scl_,frequency_))return Status::IoError;Wire.setTimeOut(20);ready_=true;}
     return I2cWire::begin(address);
   }
- private:int sda_,scl_;bool ready_=false;
+  private:int sda_,scl_;uint32_t frequency_;bool ready_=false;
 };
 #endif
 } } // namespace nice_gfx::detail

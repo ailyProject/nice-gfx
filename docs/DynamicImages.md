@@ -1,6 +1,6 @@
 # 运行时更新图片
 
-通过 `nice_gfx::htmlui::View` 更新 Media 节点，图片参与裁剪、动画、页面与缓存管理。下载和 PNG/JPEG 解码由应用完成。此功能要求 `NICE_GFX_UI_DYNAMIC_IMAGE_VERSION >= 1`；升级时同步运行库与导出的 `ui.h`，资源兼容性以 [Compiled.h](../src/UI/Compiled.h) 为准。
+通过 `nice_gfx::htmlui::View` 更新 Media 节点，图片参与裁剪、动画、页面与缓存管理。下载和 PNG/JPEG 解码由应用完成。升级时同步运行库与导出的 `ui.h`，资源兼容性以 [Compiled.h](../src/UI/Compiled.h) 为准。
 
 ## 准备图片区域
 
@@ -37,6 +37,8 @@ Status updatePhoto(const uint16_t *pixels, size_t width, size_t height,
 | 普通 `uint16_t` RGB565（红色为 `0xF800`） | 默认 `ImageFormat::RGB565, PixelOrder::Native` |
 | RGB565 高字节在前的字节流 | `ImageFormat::RGB565, PixelOrder::Wire` |
 | RGB332，每像素一字节 | `ImageFormat::RGB332` |
+| 单色，每行补齐到字节，MSB 在左，1 白 / 0 黑 | `ImageFormat::Mono1` |
+| 单色加同尺寸遮罩，1 不透明 | `ImageFormat::Mono1Masked` |
 
 最后一个参数 `strideBytes` 是字节步距，0 表示紧密排列；`byteLength` 至少覆盖最后一行的可见像素，不必包含该行末尾填充：
 
@@ -45,7 +47,7 @@ ui.setImage(photoId, ImageView(bytes, width, height, byteCount,
   nice_gfx::htmlui::ImageFormat::RGB565, nice_gfx::PixelOrder::Wire, rowStrideBytes));
 ```
 
-动态 `Image` 没有独立 alpha 或透明色键，透明图需先合成背景。复制结果按紧密行保存，RGB565 转为高字节在前。
+动态 RGB 图片没有独立 alpha 或透明色键，透明图需先合成背景；单色图片可使用 `Mono1Masked` 的二值遮罩。遮罩平面紧随颜色平面，偏移为 `strideBytes×height`；零步距按每行 `(width+7)/8` 字节计算。复制结果按紧密行保存，RGB565 转为高字节在前。
 
 ## 交接大图所有权
 
@@ -115,7 +117,7 @@ ui.resetImage(photoId); // 恢复 ui.h 中的初始资源，或初始空内容�
 | InvalidArgument | 当前页元素缺失或不是 Media，或图片参数无效 |
 | NoMemory | 无法分配像素或所有权描述块 |
 
-失败保留原图片；`Image::copy/adopt` 失败也保留输出句柄。参数限制：宽高 1–1024、输入字节数不超过 8 MiB、步距足够、缓冲区覆盖可见像素、格式与字节序有效且计算不溢出。
+失败保留原图片；`Image::copy/adopt` 失败也保留输出句柄。参数限制：宽高 1–4096、输入字节数不超过 8 MiB、步距足够、缓冲区覆盖可见像素、格式与字节序有效且计算不溢出。
 
 在途帧继续用旧源，后续帧用新源，缓存按图片身份失效，无需 delay 等待。内存须允许旧、新图片短暂共存；240×180 RGB565 约需 84.4 KiB，复制上传期间还保留输入缓冲。adopt 可省一次复制，但不能省去仍被帧引用的旧图。`memoryStats()` 去重统计拥有的像素和描述块，预置 Flash 像素不计入动态像素占用。
 

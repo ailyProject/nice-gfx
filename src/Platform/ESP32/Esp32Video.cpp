@@ -477,6 +477,10 @@ Status VideoTransport::synchronizeFramebuffer(int x, int y, size_t width, size_t
   // CPU stores and blocking PPA have consumed their sources. Cache maintenance
   // does not publish an atomic back buffer: only commitFrame changes DMA links.
   if (!cpuWritten || !esp_cache_get_line_size_by_addr(rgbFramebuffer_)) return result_ = Status::Ok;
+  struct SyncTimer {
+    VideoCopyStats *stats; int64_t started;
+    ~SyncTimer(){if(stats)stats->framebufferSyncMicros+=uint64_t(esp_timer_get_time()-started);}
+  } syncTimer{copyStats_,copyStats_?esp_timer_get_time():0};
   auto *first = rgbFramebuffer_ + size_t(y) * rasterWidth() + size_t(x);
   const int flags = ESP_CACHE_MSYNC_FLAG_DIR_C2M | ESP_CACHE_MSYNC_FLAG_UNALIGNED;
   // A narrow tile must not write back every LCD scanline it intersects.

@@ -7,6 +7,12 @@ namespace nice_gfx { namespace platform {
 inline void *allocateUiTile(size_t pixels) {
   return heap_caps_calloc(pixels, sizeof(uint16_t), MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA);
 }
+inline void *allocateUiMetadata(size_t bytes,size_t reserve) {
+  const uint32_t caps=MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT;
+  const size_t available=heap_caps_get_free_size(caps);
+  if(bytes>available||reserve>available-bytes)return nullptr;
+  return heap_caps_malloc(bytes,caps);
+}
 inline void *allocateRetained(size_t bytes) {
   void *memory = nullptr;
 #if defined(CONFIG_IDF_TARGET_ESP32S3)

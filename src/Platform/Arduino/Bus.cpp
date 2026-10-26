@@ -211,6 +211,13 @@ void ArduinoSpi::end() {
 }
 bool ArduinoSpi::validOutputPin(int pin) const { return unusedSpiPin(config_.pins,pin) && !samePin(pin,config_.writeStrobePin); }
 TransportInfo ArduinoSpi::info() const { return spiInfo(config_); }
+Status ArduinoSpi::commands(const uint8_t *data,size_t bytes) {
+  if(!begun_)return Status::NotInitialized;
+  if(bytes&&!data)return Status::InvalidArgument;
+  if(!bytes)return Status::Ok;
+  const Status status=start(0,0,false);if(status!=Status::Ok)return status;
+  dc_.write(false);writeBlock(data,bytes,false);finish();return Status::Ok;
+}
 Status ArduinoSpi::start(uint16_t c, uint8_t bits, bool reading) {
   if (reading && config_.pins.miso < 0) return Status::Unsupported;
   // Arduino's mode constants are core-specific (STM32 mode 3 is not literal 3).
@@ -319,6 +326,13 @@ uint8_t SoftwareSpi::exchange(uint8_t value, bool read) {
     if (!phase) clock_.write(idle);
   }
   return result;
+}
+Status SoftwareSpi::commands(const uint8_t *data,size_t bytes) {
+  if(!begun_)return Status::NotInitialized;
+  if(bytes&&!data)return Status::InvalidArgument;
+  if(!bytes)return Status::Ok;
+  const Status status=start(0,0,false);if(status!=Status::Ok)return status;
+  dc_.write(false);writeBlock(data,bytes,false);finish();return Status::Ok;
 }
 Status SoftwareSpi::start(uint16_t c, uint8_t bits, bool reading) {
   if (reading && config_.pins.miso < 0) return Status::Unsupported;

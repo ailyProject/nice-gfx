@@ -58,6 +58,7 @@ class ArduinoSpi : public StreamBus {
   ArduinoSpi(ArduinoSpiClass &spi, const SpiConfig &config) : spi_(spi), config_(config) {}
   ~ArduinoSpi() override { end(); }
   Status begin() override;
+  Status commands(const uint8_t *data,size_t bytes) override;
   void end() override;
   bool validOutputPin(int pin) const override;
   TransportInfo info() const override;
@@ -82,6 +83,7 @@ class SoftwareSpi : public StreamBus {
   explicit SoftwareSpi(const SpiConfig &config) : config_(config) {}
   ~SoftwareSpi() override { end(); }
   Status begin() override;
+  Status commands(const uint8_t *data,size_t bytes) override;
   void end() override { if (begun_) cs_.write(true); begun_ = false; }
   bool validOutputPin(int pin) const override;
   TransportInfo info() const override;

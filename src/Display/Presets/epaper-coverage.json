@@ -1,0 +1,2354 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-24",
+  "scope": "Four selected general-purpose SPI Arduino e-paper libraries, ordered by their observed GitHub stars. This is not an exhaustive global GitHub ranking.",
+  "baseline": [
+    "SSD1680",
+    "SSD1681",
+    "IL3820",
+    "SSD1606",
+    "SSD1607"
+  ],
+  "comparedLibraries": [
+    {
+      "repository": "ZinggJM/GxEPD2",
+      "revision": "de82887e77a78528ea386e68bba2cb0291d2c319",
+      "stars": 1502,
+      "license": "GPL-3.0"
+    },
+    {
+      "repository": "ZinggJM/GxEPD",
+      "revision": "a40fbc48a0f39de6c1a3d7365b9ad4d3d0365687",
+      "stars": 885,
+      "license": "GPL-3.0"
+    },
+    {
+      "repository": "bitbank2/bb_epaper",
+      "revision": "62b4318edf4e269d962f0848bb0b2d82facd5a61",
+      "stars": 217,
+      "license": "GPL-3.0-or-later"
+    },
+    {
+      "repository": "adafruit/Adafruit_EPD",
+      "revision": "84deca8416b2c9e31120a3c3c343cccb4daf92fd",
+      "stars": 181,
+      "license": "MIT"
+    }
+  ],
+  "coverage": {
+    "controllerLabels": 47,
+    "missingControllerLabels": 0,
+    "panelProfiles": 112,
+    "recordedProfiles": 105,
+    "workerProfiles": 7
+  },
+  "controllers": [
+    {
+      "label": "EK79652",
+      "presentAtStart": false,
+      "profiles": [
+        "NGFX_GXEPD2_270"
+      ],
+      "evidence": [
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 99,
+          "declaration": "- GDEW027W3      2.7\" b/w 176x264, EK79652 (IL91874)"
+        }
+      ]
+    },
+    {
+      "label": "EK79655",
+      "presentAtStart": false,
+      "profiles": [
+        "NGFX_GXEPD2_583_T8",
+        "NGFX_GXEPD2_750_T7",
+        "NGFX_GXEPD2_583C_Z83",
+        "NGFX_GXEPD2_750C_GDEW075Z08",
+        "NGFX_GXEPD2_750C_Z08"
+      ],
+      "evidence": [
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 138,
+          "declaration": "- GDEW0583T8     5.83\" b/w 648x480, EK79655 (GD7965)"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 139,
+          "declaration": "- GDEW0583Z83    5.83\" b/w/r 648x480, EK79655 (GD7965)"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 146,
+          "declaration": "- GDEW075T7      7.5\" b/w 800x480, EK79655 (GD7965)"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 149,
+          "declaration": "- GDEW075Z08     7.5\" b/w/r 800x480, EK79655 (GD7965)"
+        }
+      ]
+    },
+    {
+      "label": "EK79686",
+      "presentAtStart": false,
+      "profiles": [
+        "NGFX_EPD_EK79686_THINKINK_270_Z70"
+      ],
+      "evidence": [
+        {
+          "repository": "adafruit/Adafruit_EPD",
+          "file": "src/drivers/Adafruit_EK79686.h",
+          "line": 60,
+          "declaration": "Driver class Adafruit_EK79686"
+        }
+      ]
+    },
+    {
+      "label": "GD7965",
+      "presentAtStart": false,
+      "profiles": [
+        "NGFX_GXEPD2_583_T8",
+        "NGFX_GXEPD2_750_T7",
+        "NGFX_GXEPD2_583C_Z83",
+        "NGFX_GXEPD2_750C_GDEW075Z08",
+        "NGFX_GXEPD2_750C_Z08",
+        "NGFX_GXEPD2_750_GDEY075T7"
+      ],
+      "evidence": [
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 138,
+          "declaration": "- GDEW0583T8     5.83\" b/w 648x480, EK79655 (GD7965)"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 139,
+          "declaration": "- GDEW0583Z83    5.83\" b/w/r 648x480, EK79655 (GD7965)"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 146,
+          "declaration": "- GDEW075T7      7.5\" b/w 800x480, EK79655 (GD7965)"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 147,
+          "declaration": "- GDEY075T7      7.5\" b/w 800x480, UC8179 (GD7965)"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 149,
+          "declaration": "- GDEW075Z08     7.5\" b/w/r 800x480, EK79655 (GD7965)"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/epd/GxEPD2_583_T8.h",
+          "line": 6,
+          "declaration": "GD7965"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/epd/GxEPD2_750_T7.h",
+          "line": 6,
+          "declaration": "GD7965"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/epd3c/GxEPD2_583c_Z83.h",
+          "line": 6,
+          "declaration": "GD7965"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/epd3c/GxEPD2_750c_GDEW075Z08.h",
+          "line": 6,
+          "declaration": "GD7965"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/epd3c/GxEPD2_750c_Z08.h",
+          "line": 6,
+          "declaration": "GD7965"
+        },
+        {
+          "repository": "ZinggJM/GxEPD",
+          "file": "src/GxGDEW075T7/GxGDEW075T7.h",
+          "line": 4,
+          "declaration": "GD7965"
+        },
+        {
+          "repository": "ZinggJM/GxEPD",
+          "file": "src/GxGDEW075Z08/GxGDEW075Z08.h",
+          "line": 4,
+          "declaration": "GD7965"
+        }
+      ]
+    },
+    {
+      "label": "HX8717",
+      "presentAtStart": false,
+      "profiles": [
+        "NGFX_GXEPD2_420C_GDEY0420F51",
+        "NGFX_GXEPD2_579C_GDEY0579F51"
+      ],
+      "evidence": [
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 128,
+          "declaration": "- GDEY0420F51    4.2\" 4-color 400x300, HX8717"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 136,
+          "declaration": "- GDEY0579F51    5.79\" 4-color 792x272, HX8717"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/epd4c/GxEPD2_420c_GDEY0420F51.h",
+          "line": 7,
+          "declaration": "HX8717, no specs, see panel specs for command list subset"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/epd4c/GxEPD2_579c_GDEY0579F51.h",
+          "line": 7,
+          "declaration": "HX8717"
+        }
+      ]
+    },
+    {
+      "label": "IL0324",
+      "presentAtStart": false,
+      "profiles": [
+        "NGFX_GXEPD2_371"
+      ],
+      "evidence": [
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 119,
+          "declaration": "- GDEW0371W7     3.7\" b/w 240x416, UC8171 (IL0324)"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/epd/GxEPD2_371.h",
+          "line": 6,
+          "declaration": "IL0324"
+        },
+        {
+          "repository": "ZinggJM/GxEPD",
+          "file": "src/GxGDEW0371W7/GxGDEW0371W7.h",
+          "line": 4,
+          "declaration": "IL0324"
+        }
+      ]
+    },
+    {
+      "label": "IL0326",
+      "presentAtStart": false,
+      "profiles": [
+        "NGFX_GXEPD2_1248"
+      ],
+      "evidence": [
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/epd/GxEPD2_1248.h",
+          "line": 6,
+          "declaration": "IL0326"
+        }
+      ]
+    },
+    {
+      "label": "IL0371",
+      "presentAtStart": false,
+      "profiles": [
+        "NGFX_GXEPD2_583",
+        "NGFX_GXEPD2_750",
+        "NGFX_GXEPD2_583C",
+        "NGFX_GXEPD2_750C"
+      ],
+      "evidence": [
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 137,
+          "declaration": "- GDEW0583T7     5.83\" b/w 600x448, UC8159c (IL0371)"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 145,
+          "declaration": "- GDEW075T8      7.5\" b/w 640x384, UC8159c (IL0371)"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 148,
+          "declaration": "- GDEW075Z09     7.5\" b/w/r 640x384, UC8159c (IL0371)"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/epd/GxEPD2_583.h",
+          "line": 5,
+          "declaration": "IL0371"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/epd/GxEPD2_750.h",
+          "line": 5,
+          "declaration": "IL0371"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/epd3c/GxEPD2_583c.h",
+          "line": 5,
+          "declaration": "IL0371"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/epd3c/GxEPD2_750c.h",
+          "line": 5,
+          "declaration": "IL0371"
+        },
+        {
+          "repository": "ZinggJM/GxEPD",
+          "file": "src/GxGDEW0583T7/GxGDEW0583T7.h",
+          "line": 4,
+          "declaration": "IL0371"
+        },
+        {
+          "repository": "ZinggJM/GxEPD",
+          "file": "src/GxGDEW075T8/GxGDEW075T8.h",
+          "line": 4,
+          "declaration": "IL0371"
+        },
+        {
+          "repository": "ZinggJM/GxEPD",
+          "file": "src/GxGDEW075Z09/GxGDEW075Z09.h",
+          "line": 4,
+          "declaration": "IL0371"
+        }
+      ]
+    },
+    {
+      "label": "IL0373",
+      "presentAtStart": false,
+      "profiles": [
+        "NGFX_GXEPD2_154_T8",
+        "NGFX_GXEPD2_213_M21",
+        "NGFX_GXEPD2_213_T5D",
+        "NGFX_GXEPD2_213_FLEX",
+        "NGFX_GXEPD2_260",
+        "NGFX_GXEPD2_260_M01",
+        "NGFX_GXEPD2_290_T5",
+        "NGFX_GXEPD2_213C",
+        "NGFX_GXEPD2_290C",
+        "NGFX_EPD_IL0373_GDEW0154Z17"
+      ],
+      "evidence": [
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 73,
+          "declaration": "- GDEW0154T8     1.54\" b/w 152x152, UC8151 (IL0373)"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 84,
+          "declaration": "- GDEW0213I5F    2.13\" b/w 104x212, UC8151 (IL0373), flexible"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 85,
+          "declaration": "- GDEW0213T5D    2.13\" b/w 104x212, UC8151 (IL0373)"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 86,
+          "declaration": "- GDEW0213M21    2.13\" b/w 104x212, UC8151 (IL0373), DES"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 87,
+          "declaration": "- GDEW0213Z16    2.13\" b/w/r 104x212, UC8151 (IL0373)"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 93,
+          "declaration": "- GDEW026T0      2.6\" b/w 152x296, UC8151 (IL0373)"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 94,
+          "declaration": "- GDEW026M01     2.6\" b/w 152x296, UC8151 (IL0373), DES"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 102,
+          "declaration": "- GDEW029T5      2.9\" b/w 128x296, UC8151 (IL0373)"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 107,
+          "declaration": "- GDEW029Z10     2.9\" b/w/r 128x296, UC8151 (IL0373)"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/epd/GxEPD2_154_T8.h",
+          "line": 6,
+          "declaration": "IL0373"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/epd/GxEPD2_213_M21.h",
+          "line": 5,
+          "declaration": "UC8151 (IL0373)"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/epd/GxEPD2_213_M21.h",
+          "line": 6,
+          "declaration": "IL0373 (UC8151)"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/epd/GxEPD2_213_flex.h",
+          "line": 5,
+          "declaration": "IL0373"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/epd/GxEPD2_260.h",
+          "line": 6,
+          "declaration": "IL0373"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/epd/GxEPD2_260_M01.h",
+          "line": 5,
+          "declaration": "UC8151 (IL0373)"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/epd/GxEPD2_260_M01.h",
+          "line": 6,
+          "declaration": "IL0373 (UC8151)"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/epd/GxEPD2_290_T5.h",
+          "line": 5,
+          "declaration": "IL0373"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/epd3c/GxEPD2_213c.h",
+          "line": 5,
+          "declaration": "IL0373"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/epd3c/GxEPD2_290c.h",
+          "line": 5,
+          "declaration": "IL0373"
+        },
+        {
+          "repository": "ZinggJM/GxEPD",
+          "file": "src/GxGDEW0154T8/GxGDEW0154T8.h",
+          "line": 5,
+          "declaration": "IL0373"
+        },
+        {
+          "repository": "ZinggJM/GxEPD",
+          "file": "src/GxGDEW0154Z17/GxGDEW0154Z17.h",
+          "line": 4,
+          "declaration": "IL0373"
+        },
+        {
+          "repository": "ZinggJM/GxEPD",
+          "file": "src/GxGDEW0213I5F/GxGDEW0213I5F.h",
+          "line": 4,
+          "declaration": "IL0373"
+        },
+        {
+          "repository": "ZinggJM/GxEPD",
+          "file": "src/GxGDEW0213Z16/GxGDEW0213Z16.h",
+          "line": 4,
+          "declaration": "IL0373"
+        },
+        {
+          "repository": "ZinggJM/GxEPD",
+          "file": "src/GxGDEW026T0/GxGDEW026T0.h",
+          "line": 4,
+          "declaration": "IL0373"
+        },
+        {
+          "repository": "ZinggJM/GxEPD",
+          "file": "src/GxGDEW029T5/GxGDEW029T5.h",
+          "line": 4,
+          "declaration": "IL0373"
+        },
+        {
+          "repository": "ZinggJM/GxEPD",
+          "file": "src/GxGDEW029Z10/GxGDEW029Z10.h",
+          "line": 4,
+          "declaration": "IL0373"
+        },
+        {
+          "repository": "adafruit/Adafruit_EPD",
+          "file": "src/drivers/Adafruit_IL0373.h",
+          "line": 41,
+          "declaration": "Driver class Adafruit_IL0373"
+        }
+      ]
+    },
+    {
+      "label": "IL0376F",
+      "presentAtStart": false,
+      "profiles": [
+        "NGFX_GXEPD2_154C"
+      ],
+      "evidence": [
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 77,
+          "declaration": "- GDEW0154Z04    1.54\" b/w/r 200x200, IL0376F, no longer available"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/epd3c/GxEPD2_154c.h",
+          "line": 5,
+          "declaration": "IL0376F"
+        },
+        {
+          "repository": "ZinggJM/GxEPD",
+          "file": "src/GxGDEW0154Z04/GxGDEW0154Z04.h",
+          "line": 4,
+          "declaration": "IL0376F"
+        }
+      ]
+    },
+    {
+      "label": "IL0398",
+      "presentAtStart": false,
+      "profiles": [
+        "NGFX_GXEPD2_420",
+        "NGFX_GXEPD2_420_M01",
+        "NGFX_GXEPD2_420C"
+      ],
+      "evidence": [
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 122,
+          "declaration": "- GDEW042T2      4.2\" b/w 400x300, UC8176 (IL0398)"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 123,
+          "declaration": "- GDEW042M01     4.2\" b/w 400x300, UC8176 (IL0398), DES"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 124,
+          "declaration": "- GDEW042Z15     4.2\" b/w/r 400x300, UC8176 (IL0398)"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/epd/GxEPD2_420.h",
+          "line": 5,
+          "declaration": "IL0398"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/epd/GxEPD2_420_M01.h",
+          "line": 5,
+          "declaration": "UC8176 (IL0398)"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/epd/GxEPD2_420_M01.h",
+          "line": 6,
+          "declaration": "IL0398 (UC8176)"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/epd3c/GxEPD2_420c.h",
+          "line": 5,
+          "declaration": "IL0398"
+        },
+        {
+          "repository": "ZinggJM/GxEPD",
+          "file": "src/GxGDEW042T2/GxGDEW042T2.h",
+          "line": 4,
+          "declaration": "IL0398"
+        },
+        {
+          "repository": "ZinggJM/GxEPD",
+          "file": "src/GxGDEW042Z15/GxGDEW042Z15.h",
+          "line": 4,
+          "declaration": "IL0398"
+        },
+        {
+          "repository": "adafruit/Adafruit_EPD",
+          "file": "src/drivers/Adafruit_IL0398.h",
+          "line": 58,
+          "declaration": "Driver class Adafruit_IL0398"
+        }
+      ]
+    },
+    {
+      "label": "IL3820",
+      "presentAtStart": true,
+      "profiles": [
+        "NGFX_GXEPD2_290"
+      ],
+      "evidence": [
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 101,
+          "declaration": "- GDEH029A1      2.9\" b/w 128x296, SSD1608 (IL3820)"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/epd/GxEPD2_290.h",
+          "line": 5,
+          "declaration": "IL3820"
+        },
+        {
+          "repository": "ZinggJM/GxEPD",
+          "file": "src/GxGDEH029A1/GxGDEH029A1.h",
+          "line": 4,
+          "declaration": "IL3820"
+        }
+      ]
+    },
+    {
+      "label": "IL3829",
+      "presentAtStart": false,
+      "profiles": [
+        "NGFX_GXEPD2_154"
+      ],
+      "evidence": [
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 71,
+          "declaration": "- GDEP015OC1     1.54\" b/w 200x200, IL3829, no longer available"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/epd/GxEPD2_154.h",
+          "line": 5,
+          "declaration": "IL3829"
+        },
+        {
+          "repository": "ZinggJM/GxEPD",
+          "file": "src/GxGDEP015OC1/GxGDEP015OC1.h",
+          "line": 4,
+          "declaration": "IL3829"
+        }
+      ]
+    },
+    {
+      "label": "IL3895",
+      "presentAtStart": false,
+      "profiles": [
+        "NGFX_GXEPD2_213"
+      ],
+      "evidence": [
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 80,
+          "declaration": "- GDE0213B1      2.13\" b/w 122x250, IL3895, phased out"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/epd/GxEPD2_213.h",
+          "line": 5,
+          "declaration": "IL3895"
+        },
+        {
+          "repository": "ZinggJM/GxEPD",
+          "file": "src/GxGDE0213B1/GxGDE0213B1.h",
+          "line": 4,
+          "declaration": "IL3895"
+        }
+      ]
+    },
+    {
+      "label": "IL3897",
+      "presentAtStart": false,
+      "profiles": [
+        "NGFX_GXEPD2_213_B72"
+      ],
+      "evidence": [
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 81,
+          "declaration": "- GDEH0213B72    2.13\" b/w 122x250, SSD1675A (IL3897), replacement for GDE0213B1"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/epd/GxEPD2_213_B72.h",
+          "line": 5,
+          "declaration": "IL3897 :"
+        },
+        {
+          "repository": "ZinggJM/GxEPD",
+          "file": "src/GxGDEH0213B72/GxGDEH0213B72.h",
+          "line": 4,
+          "declaration": "IL3897 :"
+        }
+      ]
+    },
+    {
+      "label": "IL91874",
+      "presentAtStart": false,
+      "profiles": [
+        "NGFX_GXEPD2_270",
+        "NGFX_GXEPD2_270C"
+      ],
+      "evidence": [
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 98,
+          "declaration": "- GDEW027C44     2.7\" b/w/r 176x264, IL91874"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 99,
+          "declaration": "- GDEW027W3      2.7\" b/w 176x264, EK79652 (IL91874)"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/epd/GxEPD2_270.h",
+          "line": 5,
+          "declaration": "IL91874"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/epd3c/GxEPD2_270c.h",
+          "line": 5,
+          "declaration": "IL91874"
+        },
+        {
+          "repository": "ZinggJM/GxEPD",
+          "file": "src/GxGDEW027C44/GxGDEW027C44.h",
+          "line": 4,
+          "declaration": "IL91874"
+        },
+        {
+          "repository": "ZinggJM/GxEPD",
+          "file": "src/GxGDEW027W3/GxGDEW027W3.h",
+          "line": 4,
+          "declaration": "IL91874"
+        },
+        {
+          "repository": "adafruit/Adafruit_EPD",
+          "file": "src/drivers/Adafruit_IL91874.h",
+          "line": 37,
+          "declaration": "Driver class Adafruit_IL91874"
+        }
+      ]
+    },
+    {
+      "label": "IT8951",
+      "presentAtStart": false,
+      "profiles": [
+        "NGFX_GXEPD2_IT103_1872X1404",
+        "NGFX_GXEPD2_IT60",
+        "NGFX_GXEPD2_IT60_1448X1072",
+        "NGFX_GXEPD2_IT78_1872X1404"
+      ],
+      "evidence": [
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 166,
+          "declaration": "- ED060SCT        6\" grey levels, on Waveshare e-Paper IT8951 Driver HAT"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 167,
+          "declaration": "- ED060KC1        6\" grey levels, 1448x1072, on Waveshare e-Paper IT8951 Driver HAT"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 168,
+          "declaration": "- ED078KC2      7.8\" grey levels, 1872x1404, on Waveshare e-Paper IT8951 Driver HAT"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 169,
+          "declaration": "- ES103TC1     10.3\" grey levels, 1872x1404, on Waveshare e-Paper IT8951 Driver HAT"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/it8951/GxEPD2_it103_1872x1404.h",
+          "line": 5,
+          "declaration": "IT8951"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/it8951/GxEPD2_it60.h",
+          "line": 5,
+          "declaration": "IT8951"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/it8951/GxEPD2_it60_1448x1072.h",
+          "line": 5,
+          "declaration": "IT8951"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/it8951/GxEPD2_it78_1872x1404.h",
+          "line": 5,
+          "declaration": "IT8951"
+        }
+      ]
+    },
+    {
+      "label": "JD79653A",
+      "presentAtStart": false,
+      "profiles": [
+        "NGFX_GXEPD2_154_M09"
+      ],
+      "evidence": [
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 74,
+          "declaration": "- GDEW0154M09    1.54\" b/w 200x200, JD79653A"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/epd/GxEPD2_154_M09.h",
+          "line": 6,
+          "declaration": "JD79653A"
+        },
+        {
+          "repository": "ZinggJM/GxEPD",
+          "file": "src/GxGDEW0154M09/GxGDEW0154M09.h",
+          "line": 5,
+          "declaration": "JD79653A"
+        }
+      ]
+    },
+    {
+      "label": "JD79660",
+      "presentAtStart": false,
+      "profiles": [
+        "NGFX_GXEPD2_154C_GDEM0154F51H"
+      ],
+      "evidence": [
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 79,
+          "declaration": "- GDEM0154F51H   1.54\" 4-color 200x200, JD79660"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/epd4c/GxEPD2_154c_GDEM0154F51H.h",
+          "line": 6,
+          "declaration": "JD79660"
+        }
+      ]
+    },
+    {
+      "label": "JD79661",
+      "presentAtStart": false,
+      "profiles": [
+        "NGFX_GXEPD2_213C_GDEY0213F51"
+      ],
+      "evidence": [
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 90,
+          "declaration": "- GDEY0213F51    2.13\" 4-color 122x250, JD79661"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/epd4c/GxEPD2_213c_GDEY0213F51.h",
+          "line": 6,
+          "declaration": "JD79661"
+        },
+        {
+          "repository": "adafruit/Adafruit_EPD",
+          "file": "src/drivers/Adafruit_JD79661.h",
+          "line": 30,
+          "declaration": "Driver class Adafruit_JD79661"
+        }
+      ]
+    },
+    {
+      "label": "JD79665AA",
+      "presentAtStart": false,
+      "profiles": [
+        "NGFX_GXEPD2_750C_GDEM075F52"
+      ],
+      "evidence": [
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 152,
+          "declaration": "- GDEM075F52     7.5\" 4-color, 800x480, JD79665AA"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/epd4c/GxEPD2_750c_GDEM075F52.h",
+          "line": 6,
+          "declaration": "JD79665AA, no specs, see GDEM075F52 panel specs for command list subset"
+        }
+      ]
+    },
+    {
+      "label": "JD79667",
+      "presentAtStart": false,
+      "profiles": [
+        "NGFX_GXEPD2_266C_GDEY0266F51H",
+        "NGFX_GXEPD2_290C_GDEY029F51H",
+        "NGFX_GXEPD2_350C_GDEM035F51"
+      ],
+      "evidence": [
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 97,
+          "declaration": "- GDEY0266F51H   2.66\" 4-color 184x460, JD79667"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 113,
+          "declaration": "- GDEY029F51H    2.9\" 4-color 168x384, JD79667"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 116,
+          "declaration": "- GDEM035F51     3.5\" 4-color 184x384, JD79667"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/epd4c/GxEPD2_266c_GDEY0266F51H.h",
+          "line": 7,
+          "declaration": "JD79667 : no specs, see panel specs for command list subset"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/epd4c/GxEPD2_290c_GDEY029F51H.h",
+          "line": 6,
+          "declaration": "JD79667, no specs, see GDEY0266F51H panel specs for command list subset"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/epd4c/GxEPD2_350c_GDEM035F51.h",
+          "line": 6,
+          "declaration": "JD79667, no specs, see GDEM035F51 panel specs for command list subset"
+        },
+        {
+          "repository": "adafruit/Adafruit_EPD",
+          "file": "src/drivers/Adafruit_JD79667.h",
+          "line": 30,
+          "declaration": "Driver class Adafruit_JD79667"
+        }
+      ]
+    },
+    {
+      "label": "JD79686AB",
+      "presentAtStart": false,
+      "profiles": [
+        "NGFX_GXEPD2_1085_GDEM1085T51"
+      ],
+      "evidence": [
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 154,
+          "declaration": "- GDEM1085T51   10.85 b/w 1360x480, JD79686AB"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/gdem/GxEPD2_1085_GDEM1085T51.h",
+          "line": 6,
+          "declaration": "JD79686AB : "
+        }
+      ]
+    },
+    {
+      "label": "SSD1608",
+      "presentAtStart": false,
+      "profiles": [
+        "NGFX_GXEPD2_290"
+      ],
+      "evidence": [
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 101,
+          "declaration": "- GDEH029A1      2.9\" b/w 128x296, SSD1608 (IL3820)"
+        },
+        {
+          "repository": "adafruit/Adafruit_EPD",
+          "file": "src/drivers/Adafruit_SSD1608.h",
+          "line": 46,
+          "declaration": "Driver class Adafruit_SSD1608"
+        }
+      ]
+    },
+    {
+      "label": "SSD1619",
+      "presentAtStart": false,
+      "profiles": [
+        "NGFX_EPD_SSD1619_THINKINK_420_BWR"
+      ],
+      "evidence": [
+        {
+          "repository": "adafruit/Adafruit_EPD",
+          "file": "src/drivers/Adafruit_SSD1619.h",
+          "line": 42,
+          "declaration": "Driver class Adafruit_SSD1619"
+        }
+      ]
+    },
+    {
+      "label": "SSD1675",
+      "presentAtStart": false,
+      "profiles": [
+        "NGFX_EPD_SSD1675_THINKINK_213_B72"
+      ],
+      "evidence": [
+        {
+          "repository": "adafruit/Adafruit_EPD",
+          "file": "src/drivers/Adafruit_SSD1675.h",
+          "line": 41,
+          "declaration": "Driver class Adafruit_SSD1675"
+        }
+      ]
+    },
+    {
+      "label": "SSD1675A",
+      "presentAtStart": false,
+      "profiles": [
+        "NGFX_GXEPD2_213_B72"
+      ],
+      "evidence": [
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 81,
+          "declaration": "- GDEH0213B72    2.13\" b/w 122x250, SSD1675A (IL3897), replacement for GDE0213B1"
+        }
+      ]
+    },
+    {
+      "label": "SSD1675B",
+      "presentAtStart": false,
+      "profiles": [
+        "NGFX_GXEPD2_213_B73"
+      ],
+      "evidence": [
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 82,
+          "declaration": "- GDEH0213B73    2.13\" b/w 122x250, SSD1675B, new replacement for GDE0213B1, GDEH0213B72"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/epd/GxEPD2_213_B73.h",
+          "line": 6,
+          "declaration": "SSD1675B"
+        },
+        {
+          "repository": "ZinggJM/GxEPD",
+          "file": "src/GxGDEH0213B73/GxGDEH0213B73.h",
+          "line": 4,
+          "declaration": "SSD1675B"
+        },
+        {
+          "repository": "adafruit/Adafruit_EPD",
+          "file": "src/drivers/Adafruit_SSD1675B.h",
+          "line": 41,
+          "declaration": "Driver class Adafruit_SSD1675B"
+        }
+      ]
+    },
+    {
+      "label": "SSD1677",
+      "presentAtStart": false,
+      "profiles": [
+        "NGFX_GXEPD2_1160_T91",
+        "NGFX_GXEPD2_370_TC1",
+        "NGFX_GXEPD2_750C_Z90",
+        "NGFX_GXEPD2_1020_GDEM102T91",
+        "NGFX_GXEPD2_1330_GDEM133T91",
+        "NGFX_GXEPD2_397_GDEM0397T81",
+        "NGFX_GXEPD2_1330C_GDEM133Z91",
+        "NGFX_GXEPD2_426_GDEQ0426T82",
+        "NGFX_GXEPD2_1160C_GDEY116Z91"
+      ],
+      "evidence": [
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 118,
+          "declaration": "- ED037TC1       3.7\" b/w 280x480, SSD1677, Waveshare 3.7\""
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 120,
+          "declaration": "- GDEM0397T81    3.97\" b/w 480x800, SSD1677"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 129,
+          "declaration": "- GDEQ0426T82    4.26\" b/w 800x480, SSD1677"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 151,
+          "declaration": "- GDEH075Z90     7.5\" b/w/r 880x528, SSD1677"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 153,
+          "declaration": "- GDEM102T91    10.2\" b/w 960x640, SSD1677"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 155,
+          "declaration": "- GDEH116T91    11.6\" b/w 960x640, SSD1677"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 156,
+          "declaration": "- GDEY116Z91    11.6\" b/w/r 960x640, SSD1677"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 160,
+          "declaration": "- GDEM133T91    13.3\" b/w 960x680, SSD1677"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 161,
+          "declaration": "- GDEM133Z91    13.3\" b/w/r 960x680, SSD1677"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/epd/GxEPD2_1160_T91.h",
+          "line": 6,
+          "declaration": "SSD1677"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/epd/GxEPD2_370_TC1.h",
+          "line": 6,
+          "declaration": "SSD1677"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/epd3c/GxEPD2_750c_Z90.h",
+          "line": 6,
+          "declaration": "SSD1677"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/gdem/GxEPD2_1020_GDEM102T91.h",
+          "line": 6,
+          "declaration": "SSD1677"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/gdem/GxEPD2_1330_GDEM133T91.h",
+          "line": 6,
+          "declaration": "SSD1677"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/gdem/GxEPD2_397_GDEM0397T81.h",
+          "line": 6,
+          "declaration": "SSD1677"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/gdem3c/GxEPD2_1330c_GDEM133Z91.h",
+          "line": 6,
+          "declaration": "SSD1677"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/gdeq/GxEPD2_426_GDEQ0426T82.h",
+          "line": 6,
+          "declaration": "SSD1677"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/gdey3c/GxEPD2_1160c_GDEY116Z91.h",
+          "line": 6,
+          "declaration": "SSD1677"
+        },
+        {
+          "repository": "adafruit/Adafruit_EPD",
+          "file": "src/drivers/Adafruit_SSD1677.h",
+          "line": 46,
+          "declaration": "Driver class Adafruit_SSD1677"
+        }
+      ]
+    },
+    {
+      "label": "SSD1680",
+      "presentAtStart": true,
+      "profiles": [
+        "NGFX_GXEPD2_213_B74",
+        "NGFX_GXEPD2_213_BN",
+        "NGFX_GXEPD2_266_BN",
+        "NGFX_GXEPD2_290_BS",
+        "NGFX_GXEPD2_290_T94",
+        "NGFX_GXEPD2_290_T94_V2",
+        "NGFX_GXEPD2_213_Z98C",
+        "NGFX_GXEPD2_266C",
+        "NGFX_GXEPD2_290_C90C",
+        "NGFX_GXEPD2_213_GDEY0213B74",
+        "NGFX_GXEPD2_266_GDEY0266T90",
+        "NGFX_GXEPD2_270_GDEY027T91",
+        "NGFX_GXEPD2_290_GDEY029T94"
+      ],
+      "evidence": [
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 83,
+          "declaration": "- GDEM0213B74    2.13\" b/w 122x250, SSD1680"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 89,
+          "declaration": "- GDEY0213Z98    2.13\" b/w/r 122x250, SSD1680"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 91,
+          "declaration": "- DEPG0213BN     2.13\" b/w 122x250, SSD1680, e.g. LILYGO® TTGO T5 V2.3.1 2.13 inch"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 92,
+          "declaration": "- GDEY0213B74    2.13\" b/w 122x250, SSD1680"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 95,
+          "declaration": "- DEPG0266BN     2.66\" b/w 152x296, SSD1680, e.g. LILYGO® TTGO T5 2.66 inch"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 96,
+          "declaration": "- GDEY0266Z90    2.66\" b/w/r 152x296, SSD1680"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 100,
+          "declaration": "- GDEY027T91     2.7\" b/w 176x264, SSD1680"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 105,
+          "declaration": "- GDEM029T94     2.9\" b/w 128x296, SSD1680"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 109,
+          "declaration": "- GDEM029C90     2.9\" b/w/y 128x296, SSD1680"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 110,
+          "declaration": "- DEPG0290BS     2.9\" b/w 128x296, SSD1680, e.g. LILYGO® TTGO T5 V2.4.1 2.9\""
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 111,
+          "declaration": "- GDEY029T94     2.9\" b/w 128x296, SSD1680"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/epd/GxEPD2_213_B74.h",
+          "line": 6,
+          "declaration": "SSD1680"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/epd/GxEPD2_213_BN.h",
+          "line": 5,
+          "declaration": "SSD1680"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/epd/GxEPD2_266_BN.h",
+          "line": 6,
+          "declaration": "SSD1680"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/epd/GxEPD2_290_BS.h",
+          "line": 6,
+          "declaration": "SSD1680"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/epd/GxEPD2_290_T94.h",
+          "line": 6,
+          "declaration": "SSD1680"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/epd/GxEPD2_290_T94_V2.h",
+          "line": 6,
+          "declaration": "SSD1680"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/epd3c/GxEPD2_213_Z98c.h",
+          "line": 6,
+          "declaration": "SSD1680"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/epd3c/GxEPD2_266c.h",
+          "line": 6,
+          "declaration": "SSD1680"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/epd3c/GxEPD2_290_C90c.h",
+          "line": 5,
+          "declaration": "SSD1680"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/gdey/GxEPD2_213_GDEY0213B74.h",
+          "line": 6,
+          "declaration": "SSD1680"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/gdey/GxEPD2_266_GDEY0266T90.h",
+          "line": 6,
+          "declaration": "SSD1680"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/gdey/GxEPD2_270_GDEY027T91.h",
+          "line": 6,
+          "declaration": "SSD1680"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/gdey/GxEPD2_290_GDEY029T94.h",
+          "line": 6,
+          "declaration": "SSD1680"
+        },
+        {
+          "repository": "ZinggJM/GxEPD",
+          "file": "src/GxDEPG0213BN/GxDEPG0213BN.h",
+          "line": 5,
+          "declaration": "SSD1680"
+        },
+        {
+          "repository": "ZinggJM/GxEPD",
+          "file": "src/GxDEPG0266BN/GxDEPG0266BN.h",
+          "line": 5,
+          "declaration": "SSD1680"
+        },
+        {
+          "repository": "ZinggJM/GxEPD",
+          "file": "src/GxDEPG0290BS/GxDEPG0290BS.h",
+          "line": 5,
+          "declaration": "SSD1680"
+        },
+        {
+          "repository": "ZinggJM/GxEPD",
+          "file": "src/GxGDEM0213B74/GxGDEM0213B74.h",
+          "line": 5,
+          "declaration": "SSD1680"
+        },
+        {
+          "repository": "ZinggJM/GxEPD",
+          "file": "src/GxGDEM029T94/GxGDEM029T94.h",
+          "line": 5,
+          "declaration": "SSD1680"
+        },
+        {
+          "repository": "ZinggJM/GxEPD",
+          "file": "src/GxGDEY027T91/GxGDEY027T91.h",
+          "line": 5,
+          "declaration": "SSD1680"
+        },
+        {
+          "repository": "adafruit/Adafruit_EPD",
+          "file": "src/drivers/Adafruit_SSD1680.h",
+          "line": 45,
+          "declaration": "Driver class Adafruit_SSD1680"
+        }
+      ]
+    },
+    {
+      "label": "SSD1681",
+      "presentAtStart": true,
+      "profiles": [
+        "NGFX_GXEPD2_150_BN",
+        "NGFX_GXEPD2_154_D67",
+        "NGFX_GXEPD2_154_Z90C",
+        "NGFX_GXEPD2_154_GDEY0154D67"
+      ],
+      "evidence": [
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 70,
+          "declaration": "- DEPG0150BN     1.50\" b/w 200x200, SSD1681, e.g. LILYGO® TTGO T5 V2.4.1 1.50 inch"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 72,
+          "declaration": "- GDEH0154D67    1.54\" b/w 200x200, SSD1681, replacement for GDEP015OC1"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 76,
+          "declaration": "- GDEY0154D67    1.54\" b/w 200x200, SSD1681"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 78,
+          "declaration": "- GDEH0154Z90    1.54\" b/w/r 200x200, SSD1681, replacement for GDEW0154Z04"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/epd/GxEPD2_150_BN.h",
+          "line": 6,
+          "declaration": "SSD1681"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/epd/GxEPD2_154_D67.h",
+          "line": 6,
+          "declaration": "SSD1681"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/gdey/GxEPD2_154_GDEY0154D67.h",
+          "line": 6,
+          "declaration": "SSD1681"
+        },
+        {
+          "repository": "ZinggJM/GxEPD",
+          "file": "src/GxDEPG0150BN/GxDEPG0150BN.h",
+          "line": 5,
+          "declaration": "SSD1681"
+        },
+        {
+          "repository": "ZinggJM/GxEPD",
+          "file": "src/GxGDEH0154D67/GxGDEH0154D67.h",
+          "line": 4,
+          "declaration": "SSD1681"
+        },
+        {
+          "repository": "ZinggJM/GxEPD",
+          "file": "src/GxGDEH0154Z90/GxGDEH0154Z90.h",
+          "line": 5,
+          "declaration": "SSD1681"
+        },
+        {
+          "repository": "adafruit/Adafruit_EPD",
+          "file": "src/drivers/Adafruit_SSD1681.h",
+          "line": 40,
+          "declaration": "Driver class Adafruit_SSD1681"
+        }
+      ]
+    },
+    {
+      "label": "SSD1682",
+      "presentAtStart": false,
+      "profiles": [
+        "NGFX_GXEPD2_154_Z90C"
+      ],
+      "evidence": [
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/epd3c/GxEPD2_154_Z90c.h",
+          "line": 5,
+          "declaration": "SSD1682"
+        }
+      ]
+    },
+    {
+      "label": "SSD1683",
+      "presentAtStart": false,
+      "profiles": [
+        "NGFX_GXEPD2_420_GDEY042T81",
+        "NGFX_GXEPD2_579_GDEY0579T93",
+        "NGFX_GXEPD2_420C_GDEY042Z98",
+        "NGFX_GXEPD2_579C_GDEY0579Z93",
+        "NGFX_GXEPD2_420_GYE042A87"
+      ],
+      "evidence": [
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 126,
+          "declaration": "- GDEY042Z98     4.2\" b/w/r 400x300, SSD1683"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 127,
+          "declaration": "- GDEY042T81     4.2\" b/w 400x300, SSD1683"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 134,
+          "declaration": "- GDEY0579T93    5.79\" b/w 792x272, SSD1683"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 135,
+          "declaration": "- GDEY0579Z93    5.79\" b/w/r 792x272, SSD1683"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 164,
+          "declaration": "- GYE042A87     4.2\" b/w 400x300, SSD1683 (HINK-E042-A07-FPC-A1)"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/gdey/GxEPD2_420_GDEY042T81.h",
+          "line": 6,
+          "declaration": "SSD1683"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/gdey/GxEPD2_579_GDEY0579T93.h",
+          "line": 6,
+          "declaration": "SSD1683"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/gdey3c/GxEPD2_420c_GDEY042Z98.h",
+          "line": 6,
+          "declaration": "SSD1683"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/gdey3c/GxEPD2_579c_GDEY0579Z93.h",
+          "line": 6,
+          "declaration": "SSD1683"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/other/GxEPD2_420_GYE042A87.h",
+          "line": 7,
+          "declaration": "SSD1683"
+        },
+        {
+          "repository": "adafruit/Adafruit_EPD",
+          "file": "src/drivers/Adafruit_SSD1683.h",
+          "line": 52,
+          "declaration": "Driver class Adafruit_SSD1683"
+        }
+      ]
+    },
+    {
+      "label": "SSD1685",
+      "presentAtStart": false,
+      "profiles": [
+        "NGFX_GXEPD2_290_GDEY029T71H"
+      ],
+      "evidence": [
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 112,
+          "declaration": "- GDEY029T71H    2.9\" b/w 168x384, SSD1685"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/gdey/GxEPD2_290_GDEY029T71H.h",
+          "line": 6,
+          "declaration": "SSD1685"
+        }
+      ]
+    },
+    {
+      "label": "SSD2677",
+      "presentAtStart": false,
+      "profiles": [
+        "NGFX_GXEPD2_1160C_GDEY116F51",
+        "NGFX_GXEPD2_397C_GDEM0397F81",
+        "NGFX_GXEPD2_576_GDEH0576T81"
+      ],
+      "evidence": [
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 121,
+          "declaration": "- GDEM0397F81    3.97\" 4-color, 800x480, SSD2677"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 133,
+          "declaration": "- GDEH0576T81    5.76\" b/w 920x680, SSD2677"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 157,
+          "declaration": "- GDEY116F51    11.6\" 4-color 960x640, SSD2677"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/epd4c/GxEPD2_1160c_GDEY116F51.h",
+          "line": 6,
+          "declaration": "SSD2677"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/epd4c/GxEPD2_397c_GDEM0397F81.h",
+          "line": 6,
+          "declaration": "SSD2677"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/gdeh/GxEPD2_576_GDEH0576T81.h",
+          "line": 6,
+          "declaration": "SSD2677"
+        }
+      ]
+    },
+    {
+      "label": "SSD2683",
+      "presentAtStart": false,
+      "profiles": [
+        "NGFX_EPD_SSD2683_ZECTRIX_420"
+      ],
+      "evidence": [
+        {
+          "repository": "bitbank2/bb_epaper",
+          "file": "src/bb_ep.inl",
+          "line": 5318,
+          "declaration": "// The new SSD2683 controller has a single plane of 2-bit memory, so even 1-bit"
+        },
+        {
+          "repository": "bitbank2/bb_epaper",
+          "file": "src/bb_ep.inl",
+          "line": 6116,
+          "declaration": "if (pBBEP->iFlags & BBEP_2BIT_BW) { // special case for SSD2683 2-bit b/w"
+        }
+      ]
+    },
+    {
+      "label": "UC8151",
+      "presentAtStart": false,
+      "profiles": [
+        "NGFX_GXEPD2_154_T8",
+        "NGFX_GXEPD2_213_M21",
+        "NGFX_GXEPD2_213_T5D",
+        "NGFX_GXEPD2_213_FLEX",
+        "NGFX_GXEPD2_260",
+        "NGFX_GXEPD2_260_M01",
+        "NGFX_GXEPD2_290_T5",
+        "NGFX_GXEPD2_213C",
+        "NGFX_GXEPD2_290C"
+      ],
+      "evidence": [
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 73,
+          "declaration": "- GDEW0154T8     1.54\" b/w 152x152, UC8151 (IL0373)"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 84,
+          "declaration": "- GDEW0213I5F    2.13\" b/w 104x212, UC8151 (IL0373), flexible"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 85,
+          "declaration": "- GDEW0213T5D    2.13\" b/w 104x212, UC8151 (IL0373)"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 86,
+          "declaration": "- GDEW0213M21    2.13\" b/w 104x212, UC8151 (IL0373), DES"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 87,
+          "declaration": "- GDEW0213Z16    2.13\" b/w/r 104x212, UC8151 (IL0373)"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 93,
+          "declaration": "- GDEW026T0      2.6\" b/w 152x296, UC8151 (IL0373)"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 94,
+          "declaration": "- GDEW026M01     2.6\" b/w 152x296, UC8151 (IL0373), DES"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 102,
+          "declaration": "- GDEW029T5      2.9\" b/w 128x296, UC8151 (IL0373)"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 107,
+          "declaration": "- GDEW029Z10     2.9\" b/w/r 128x296, UC8151 (IL0373)"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/epd/GxEPD2_213_M21.h",
+          "line": 5,
+          "declaration": "UC8151 (IL0373)"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/epd/GxEPD2_213_M21.h",
+          "line": 6,
+          "declaration": "IL0373 (UC8151)"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/epd/GxEPD2_260_M01.h",
+          "line": 5,
+          "declaration": "UC8151 (IL0373)"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/epd/GxEPD2_260_M01.h",
+          "line": 6,
+          "declaration": "IL0373 (UC8151)"
+        }
+      ]
+    },
+    {
+      "label": "UC8151D",
+      "presentAtStart": false,
+      "profiles": [
+        "NGFX_GXEPD2_154_M10",
+        "NGFX_GXEPD2_213_T5D",
+        "NGFX_GXEPD2_290_I6FD",
+        "NGFX_GXEPD2_290_M06",
+        "NGFX_GXEPD2_290_T5D",
+        "NGFX_GXEPD2_213_Z19C",
+        "NGFX_GXEPD2_290_Z13C",
+        "NGFX_EPD_UC8151D_GDEH0213Z19"
+      ],
+      "evidence": [
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 75,
+          "declaration": "- GDEW0154M10    1.54\" b/w 152x152, UC8151D, DES"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 88,
+          "declaration": "- GDEW0213Z19    2.13\" b/w/r 104x212, UC8151D"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 103,
+          "declaration": "- GDEW029T5D     2.9\" b/w 128x296, UC8151D"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 104,
+          "declaration": "- GDEW029I6FD    2.9\" b/w 128x296, UC8151D, flexible"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 106,
+          "declaration": "- GDEW029M06     2.9\" b/w 128x296, UC8151D, DES"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 108,
+          "declaration": "- GDEH029Z13     2.9\" b/w/r 128x296, UC8151D"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/epd/GxEPD2_154_M10.h",
+          "line": 6,
+          "declaration": "UC8151D"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/epd/GxEPD2_213_T5D.h",
+          "line": 5,
+          "declaration": "UC8151D"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/epd/GxEPD2_290_I6FD.h",
+          "line": 6,
+          "declaration": "UC8151D"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/epd/GxEPD2_290_M06.h",
+          "line": 5,
+          "declaration": "UC8151D"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/epd/GxEPD2_290_T5D.h",
+          "line": 5,
+          "declaration": "UC8151D"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/epd3c/GxEPD2_213_Z19c.h",
+          "line": 5,
+          "declaration": "UC8151D"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/epd3c/GxEPD2_290_Z13c.h",
+          "line": 5,
+          "declaration": "UC8151D"
+        },
+        {
+          "repository": "ZinggJM/GxEPD",
+          "file": "src/GxGDEH0213Z19/GxGDEH0213Z19.h",
+          "line": 5,
+          "declaration": "UC8151D"
+        },
+        {
+          "repository": "ZinggJM/GxEPD",
+          "file": "src/GxGDEH029Z13/GxGDEH029Z13.h",
+          "line": 4,
+          "declaration": "UC8151D"
+        },
+        {
+          "repository": "ZinggJM/GxEPD",
+          "file": "src/GxGDEW0154M10/GxGDEW0154M10.h",
+          "line": 5,
+          "declaration": "UC8151D"
+        },
+        {
+          "repository": "ZinggJM/GxEPD",
+          "file": "src/GxGDEW0213T5D/GxGDEW0213T5D.h",
+          "line": 4,
+          "declaration": "UC8151D"
+        },
+        {
+          "repository": "ZinggJM/GxEPD",
+          "file": "src/GxGDEW029T5D/GxGDEW029T5D.h",
+          "line": 4,
+          "declaration": "UC8151D"
+        },
+        {
+          "repository": "adafruit/Adafruit_EPD",
+          "file": "src/drivers/Adafruit_UC8151D.h",
+          "line": 137,
+          "declaration": "Driver class Adafruit_UC8151D"
+        }
+      ]
+    },
+    {
+      "label": "UC8159c",
+      "presentAtStart": false,
+      "profiles": [
+        "NGFX_GXEPD2_583",
+        "NGFX_GXEPD2_750",
+        "NGFX_GXEPD2_750C"
+      ],
+      "evidence": [
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 137,
+          "declaration": "- GDEW0583T7     5.83\" b/w 600x448, UC8159c (IL0371)"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 145,
+          "declaration": "- GDEW075T8      7.5\" b/w 640x384, UC8159c (IL0371)"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 148,
+          "declaration": "- GDEW075Z09     7.5\" b/w/r 640x384, UC8159c (IL0371)"
+        }
+      ]
+    },
+    {
+      "label": "UC8171",
+      "presentAtStart": false,
+      "profiles": [
+        "NGFX_GXEPD2_371"
+      ],
+      "evidence": [
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 119,
+          "declaration": "- GDEW0371W7     3.7\" b/w 240x416, UC8171 (IL0324)"
+        }
+      ]
+    },
+    {
+      "label": "UC8175",
+      "presentAtStart": false,
+      "profiles": [
+        "NGFX_GXEPD2_102"
+      ],
+      "evidence": [
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 69,
+          "declaration": "- GDEW0102T4     1.02\" b/w 80x128, UC8175"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/epd/GxEPD2_102.h",
+          "line": 6,
+          "declaration": "UC8175"
+        }
+      ]
+    },
+    {
+      "label": "UC8176",
+      "presentAtStart": false,
+      "profiles": [
+        "NGFX_GXEPD2_420",
+        "NGFX_GXEPD2_420_M01",
+        "NGFX_GXEPD2_420C"
+      ],
+      "evidence": [
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 122,
+          "declaration": "- GDEW042T2      4.2\" b/w 400x300, UC8176 (IL0398)"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 123,
+          "declaration": "- GDEW042M01     4.2\" b/w 400x300, UC8176 (IL0398), DES"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 124,
+          "declaration": "- GDEW042Z15     4.2\" b/w/r 400x300, UC8176 (IL0398)"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/epd/GxEPD2_420_M01.h",
+          "line": 5,
+          "declaration": "UC8176 (IL0398)"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/epd/GxEPD2_420_M01.h",
+          "line": 6,
+          "declaration": "IL0398 (UC8176)"
+        }
+      ]
+    },
+    {
+      "label": "UC8179",
+      "presentAtStart": false,
+      "profiles": [
+        "NGFX_GXEPD2_1248",
+        "NGFX_GXEPD2_1248C",
+        "NGFX_GXEPD2_583_GDEQ0583T31",
+        "NGFX_GXEPD2_583C_GDEQ0583Z31",
+        "NGFX_GXEPD2_750_GDEY075T7",
+        "NGFX_GXEPD2_750C_GDEY075Z08"
+      ],
+      "evidence": [
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 140,
+          "declaration": "- GDEQ0583T31    5.83\" b/w 648x480, UC8179"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 147,
+          "declaration": "- GDEY075T7      7.5\" b/w 800x480, UC8179 (GD7965)"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 150,
+          "declaration": "- GDEY075Z08     7.5\" b/w/r 800x480, UC8179"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 158,
+          "declaration": "- GDEW1248T3    12.48\" b/w 1304x984, UC8179"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 159,
+          "declaration": "- GDEY1248Z51   12.48\" b/w/r 1304x984, UC8179"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/epd3c/GxEPD2_1248c.h",
+          "line": 6,
+          "declaration": "UC8179"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/gdeq/GxEPD2_583_GDEQ0583T31.h",
+          "line": 6,
+          "declaration": "UC8179"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/gdeq3c/GxEPD2_583c_GDEQ0583Z31.h",
+          "line": 6,
+          "declaration": "UC8179"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/gdey/GxEPD2_750_GDEY075T7.h",
+          "line": 6,
+          "declaration": "UC8179"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/gdey3c/GxEPD2_750c_GDEY075Z08.h",
+          "line": 6,
+          "declaration": "UC8179"
+        },
+        {
+          "repository": "adafruit/Adafruit_EPD",
+          "file": "src/drivers/Adafruit_UC8179.h",
+          "line": 29,
+          "declaration": "Driver class Adafruit_UC8179"
+        }
+      ]
+    },
+    {
+      "label": "UC8179C",
+      "presentAtStart": false,
+      "profiles": [
+        "NGFX_GXEPD2_583C_GDEQ0583Z31"
+      ],
+      "evidence": [
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 141,
+          "declaration": "- GDEQ0583Z31    5.83\" b/w/r 648x480, UC8179C"
+        }
+      ]
+    },
+    {
+      "label": "UC8253",
+      "presentAtStart": false,
+      "profiles": [
+        "NGFX_GXEPD2_310_GDEQ031T10",
+        "NGFX_GXEPD2_370_GDEY037T03"
+      ],
+      "evidence": [
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 115,
+          "declaration": "- GDEQ031T10     3.1\" b/w 240x320, UC8253"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 117,
+          "declaration": "- GDEY037T03     3.7\" b/w 240x416, UC8253"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/gdeq/GxEPD2_310_GDEQ031T10.h",
+          "line": 6,
+          "declaration": "UC8253"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/gdey/GxEPD2_370_GDEY037T03.h",
+          "line": 6,
+          "declaration": "UC8253"
+        },
+        {
+          "repository": "adafruit/Adafruit_EPD",
+          "file": "src/drivers/Adafruit_UC8253.h",
+          "line": 23,
+          "declaration": "Driver class Adafruit_UC8253"
+        }
+      ]
+    },
+    {
+      "label": "UC8276",
+      "presentAtStart": false,
+      "profiles": [
+        "NGFX_GXEPD2_420C_Z21"
+      ],
+      "evidence": [
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 125,
+          "declaration": "- GDEQ042Z21     4.2\" b/w/r 400x300, UC8276, (Waveshare V2)"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/epd3c/GxEPD2_420c_Z21.h",
+          "line": 6,
+          "declaration": "UC8276 : no link available currently, see https://www.good-display.com/companyfile/5/"
+        },
+        {
+          "repository": "adafruit/Adafruit_EPD",
+          "file": "src/drivers/Adafruit_UC8276.h",
+          "line": 23,
+          "declaration": "Driver class Adafruit_UC8276"
+        }
+      ]
+    },
+    {
+      "label": "UC8276C",
+      "presentAtStart": false,
+      "profiles": [
+        "NGFX_GXEPD2_420_SE0420NQ04"
+      ],
+      "evidence": [
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "README.md",
+          "line": 165,
+          "declaration": "- SE0420NQ04    4.2\" b/w 400x300, UC8276C (OPM042A2_V1.0)"
+        },
+        {
+          "repository": "ZinggJM/GxEPD2",
+          "file": "src/other/GxEPD2_420_SE0420NQ04.h",
+          "line": 6,
+          "declaration": "UC8276C : found here"
+        }
+      ]
+    }
+  ],
+  "aliases": [
+    {
+      "label": "SSD1608",
+      "alias": "IL3820",
+      "panel": "GDEH029A1",
+      "scope": "Controller name aliases for the explicitly listed panel; not permission to interchange panel initialization or waveforms.",
+      "evidence": {
+        "repository": "ZinggJM/GxEPD2",
+        "revision": "de82887e77a78528ea386e68bba2cb0291d2c319",
+        "file": "README.md",
+        "line": 101,
+        "declaration": "- GDEH029A1      2.9\" b/w 128x296, SSD1608 (IL3820)",
+        "url": "https://github.com/ZinggJM/GxEPD2/blob/de82887e77a78528ea386e68bba2cb0291d2c319/README.md#L101"
+      }
+    },
+    {
+      "label": "SSD1675A",
+      "alias": "IL3897",
+      "panel": "GDEH0213B72",
+      "scope": "Controller name aliases for the explicitly listed panel; not permission to interchange panel initialization or waveforms.",
+      "evidence": {
+        "repository": "ZinggJM/GxEPD2",
+        "revision": "de82887e77a78528ea386e68bba2cb0291d2c319",
+        "file": "README.md",
+        "line": 81,
+        "declaration": "- GDEH0213B72    2.13\" b/w 122x250, SSD1675A (IL3897), replacement for GDE0213B1",
+        "url": "https://github.com/ZinggJM/GxEPD2/blob/de82887e77a78528ea386e68bba2cb0291d2c319/README.md#L81"
+      }
+    },
+    {
+      "label": "UC8151",
+      "alias": "IL0373",
+      "panel": "GDEW0154T8",
+      "scope": "Controller name aliases for the explicitly listed panel; not permission to interchange panel initialization or waveforms.",
+      "evidence": {
+        "repository": "ZinggJM/GxEPD2",
+        "revision": "de82887e77a78528ea386e68bba2cb0291d2c319",
+        "file": "README.md",
+        "line": 73,
+        "declaration": "- GDEW0154T8     1.54\" b/w 152x152, UC8151 (IL0373)",
+        "url": "https://github.com/ZinggJM/GxEPD2/blob/de82887e77a78528ea386e68bba2cb0291d2c319/README.md#L73"
+      }
+    },
+    {
+      "label": "UC8176",
+      "alias": "IL0398",
+      "panel": "GDEW042T2",
+      "scope": "Controller name aliases for the explicitly listed panel; not permission to interchange panel initialization or waveforms.",
+      "evidence": {
+        "repository": "ZinggJM/GxEPD2",
+        "revision": "de82887e77a78528ea386e68bba2cb0291d2c319",
+        "file": "README.md",
+        "line": 122,
+        "declaration": "- GDEW042T2      4.2\" b/w 400x300, UC8176 (IL0398)",
+        "url": "https://github.com/ZinggJM/GxEPD2/blob/de82887e77a78528ea386e68bba2cb0291d2c319/README.md#L122"
+      }
+    },
+    {
+      "label": "UC8171",
+      "alias": "IL0324",
+      "panel": "GDEW0371W7",
+      "scope": "Controller name aliases for the explicitly listed panel; not permission to interchange panel initialization or waveforms.",
+      "evidence": {
+        "repository": "ZinggJM/GxEPD2",
+        "revision": "de82887e77a78528ea386e68bba2cb0291d2c319",
+        "file": "README.md",
+        "line": 119,
+        "declaration": "- GDEW0371W7     3.7\" b/w 240x416, UC8171 (IL0324)",
+        "url": "https://github.com/ZinggJM/GxEPD2/blob/de82887e77a78528ea386e68bba2cb0291d2c319/README.md#L119"
+      }
+    },
+    {
+      "label": "UC8159c",
+      "alias": "IL0371",
+      "panel": "GDEW0583T7",
+      "scope": "Controller name aliases for the explicitly listed panel; not permission to interchange panel initialization or waveforms.",
+      "evidence": {
+        "repository": "ZinggJM/GxEPD2",
+        "revision": "de82887e77a78528ea386e68bba2cb0291d2c319",
+        "file": "README.md",
+        "line": 137,
+        "declaration": "- GDEW0583T7     5.83\" b/w 600x448, UC8159c (IL0371)",
+        "url": "https://github.com/ZinggJM/GxEPD2/blob/de82887e77a78528ea386e68bba2cb0291d2c319/README.md#L137"
+      }
+    },
+    {
+      "label": "EK79652",
+      "alias": "IL91874",
+      "panel": "GDEW027W3",
+      "scope": "Controller name aliases for the explicitly listed panel; not permission to interchange panel initialization or waveforms.",
+      "evidence": {
+        "repository": "ZinggJM/GxEPD2",
+        "revision": "de82887e77a78528ea386e68bba2cb0291d2c319",
+        "file": "README.md",
+        "line": 99,
+        "declaration": "- GDEW027W3      2.7\" b/w 176x264, EK79652 (IL91874)",
+        "url": "https://github.com/ZinggJM/GxEPD2/blob/de82887e77a78528ea386e68bba2cb0291d2c319/README.md#L99"
+      }
+    },
+    {
+      "label": "UC8179C",
+      "alias": "UC8179",
+      "panel": "GDEQ0583Z31",
+      "scope": "The fixed upstream README labels this panel UC8179C; its own exact driver header labels it UC8179. Preserve both labels for this panel without assuming interchangeability across variants.",
+      "evidence": {
+        "repository": "ZinggJM/GxEPD2",
+        "revision": "de82887e77a78528ea386e68bba2cb0291d2c319",
+        "file": "README.md",
+        "line": 141,
+        "declaration": "- GDEQ0583Z31    5.83\" b/w/r 648x480, UC8179C",
+        "url": "https://github.com/ZinggJM/GxEPD2/blob/de82887e77a78528ea386e68bba2cb0291d2c319/README.md#L141"
+      },
+      "driverEvidence": {
+        "file": "src/gdeq3c/GxEPD2_583c_GDEQ0583Z31.h",
+        "line": 6,
+        "declaration": "Controller: UC8179"
+      }
+    }
+  ],
+  "limits": [
+    "Labels include documented aliases and controller revisions, not a count of independent IC designs.",
+    "Exact modules, initialization and waveforms remain separate even when controller labels match.",
+    "Unidentified Spectra/ACeP controllers are represented by their exact panel profiles, not invented IC names.",
+    "Coverage means implemented driver/profile paths; tests and SDK results are separately recorded. No physical qualification is implied.",
+    "Board-specific raw-parallel EPDiy/Inkplate ecosystems are outside this generic SPI comparison."
+  ]
+}

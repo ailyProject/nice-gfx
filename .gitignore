@@ -1,7 +1,6 @@
 # Windows image file caches
 Thumbs.db
 ehthumbs.db
-tests/
 # Folder config file
 Desktop.ini
 
@@ -52,6 +51,8 @@ Temporary Items
 .apdisk
 
 # Regression sources are versioned; only generated test output is local.
+tests/
+!/tests/
 tests/.build/
 
 # Build output and downloaded development dependencies

@@ -38,6 +38,7 @@ struct QspiConfig {
   bool quad = true;
   int dc = -1;
   bool paddedCommands = false;
+  bool byteOnly = false; // No RGB source borrowing or worker task.
   int writeStrobePin = -1; // Optional WR on a 16-bit RPI SPI bridge.
   bool threeWire = false;
   QspiProtocol protocol;
@@ -52,6 +53,7 @@ class Esp32Qspi : public Transport {
   Status begin() override;
   void end() override;
   Status command(uint8_t command, const uint8_t *data, size_t bytes) override;
+  Status commands(const uint8_t *data,size_t bytes) override;
   Status command16(uint16_t command, const uint8_t *data, size_t bytes) override;
   Status data(const uint8_t *data, size_t bytes) override;
   Status read(uint16_t command, uint8_t *data, size_t bytes, uint8_t dummy = 1, uint8_t bits = 8) override;
@@ -64,10 +66,10 @@ class Esp32Qspi : public Transport {
   Status dataFill(uint16_t color, size_t count) override;
   Status wait() override;
   bool busy() const override;
-  bool asynchronous() const override { return true; }
+  bool asynchronous() const override { return !config_.byteOnly; }
   // The worker retains arbitrary-sized surfaces and pipelines bounded DMA
   // staging for PSRAM/strided input; internal wire-order RAM is zero-copy.
-  bool supportsFrameBlit() const override { return true; }
+  bool supportsFrameBlit() const override { return !config_.byteOnly; }
   bool canFrameBlit(PixelView view) const override;
   bool validOutputPin(int pin) const override;
   TransportInfo info() const override;

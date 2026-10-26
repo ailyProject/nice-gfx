@@ -7,8 +7,11 @@
 #include "Components.h"
 #include "Navigation.h"
 #include "Interaction.h"
+#include "MediaPlayback.h"
+#define NICE_GFX_UI_MEDIA_PLAYBACK_VERSION 1
 #define NICE_GFX_UI_INTERACTION_VERSION 1
 #define NICE_GFX_UI_STATS_VERSION 5
+#define NICE_GFX_UI_RESOURCE_CACHE_VERSION 1
 #define NICE_GFX_UI_RENDER_CACHE_VERSION 3
 #define NICE_GFX_UI_CIRCULAR_CLIP_VERSION 1
 #define NICE_GFX_UI_ACTIONS_VERSION 1
@@ -64,6 +67,10 @@ struct RuntimeStats {
   uint64_t geometryReuses=0,textLayoutReuses=0,componentIndexBuilds=0;
   uint64_t tickMicros=0,budgetDeferrals=0;
   uint32_t maxTickMicros=0;
+  // Optional profiling only. Node-kind buckets are disjoint; capture/repair
+  // include their geometry and painting, so these phase totals overlap.
+  uint64_t geometryMicros=0,mediaPaintMicros=0,shapePaintMicros=0,textPaintMicros=0,otherPaintMicros=0;
+  uint64_t captureMicros=0,repairMicros=0;
 };
 struct RenderCacheStats {
   size_t capacityPages=0, readyPages=0;
@@ -122,6 +129,10 @@ class View {
   // A successful replacement cancels pointer/navigation notifications; user
   // callback exceptions propagate. Other mutators are not checked OOM APIs.
   Status mount(const ProjectDesc &project);
+  // Optional two-page immutable metadata cache. Configure before mount; zero
+  // disables it. Budget includes page descriptors; ESP32 preserves the stated
+  // free internal RAM floor and falls back to borrowed Flash resources on OOM.
+  bool configureResourceCache(size_t maxBytes, size_t reserveInternalBytes = 65536);
   bool on(Id id, EventType event, EventHandler handler, void *context = nullptr, bool capture = false);
   // Idempotent registration for generated declarative UI actions. on() remains additive.
   bool onOnce(Id id, EventType event, EventHandler handler, void *context = nullptr, bool capture = false);
@@ -225,6 +236,20 @@ class View {
   // states, snapshots and cache keys release them. Never use mutable RAM here;
   // use setImage/copy/adopt for decoded or downloaded buffers instead.
   Status setMediaResource(Id id, const MediaDesc &resource);
+  // Copied sparse node policies. Call after mount; null/zero restores automatic
+  // looping. A scrub source and its Media target must belong to the same page.
+  // Reconfiguration is rejected during pointer contact or event dispatch.
+  bool configureMediaPlayback(const MediaPlaybackDesc *policies, size_t count);
+  // Per-node playback, independent of other nodes sharing the same pixels.
+  // Frame numbers are zero-based. Invalid frames/durations leave state intact.
+  // Seek pauses; timed playback may run backwards and pauses at its target.
+  // Timers begin on the next tick; later commands replace earlier commands.
+  bool setMediaFrame(Id id, int32_t frame);
+  bool playMediaTo(Id id, int32_t frame, uint32_t durationMs = 500);
+  bool playMedia(Id id);
+  bool pauseMedia(Id id);
+  int32_t mediaFrame(Id id) const; // -1 for an empty/unknown/non-Media target.
+  bool mediaPlaying(Id id) const;
   Status clearImage(Id id); // Blank content; preserve layout and interactions.
   Status resetImage(Id id); // Restore the authored fallback (or empty content).
   // Clear RAM Image overrides on an inactive page without resetting its
@@ -337,7 +362,11 @@ class View {
   // can process full dirty regions; configureRenderBudget bounds raster work.
   // Busy is expected until a frame finishes. No hard real-time deadline.
   Status tick(uint32_t now = 0);
+  // Drains UI composition/source reads. E-paper optical refresh advances via
+  // tick(now) and may remain refreshing() after this call returns.
   Status finish();
+  // Logical UI composition/animation work; physical e-paper latency does not
+  // lock menus. refreshing() additionally reports a physical display update.
   bool busy() const;
   bool dirty() const;
   void invalidate();

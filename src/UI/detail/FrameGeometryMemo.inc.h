@@ -34,6 +34,7 @@ void retainFrameGeometry(const PageDesc &p,const RetainedVector<State> &values,c
   geometryMemoCache=cache;geometryMemoPage=&p;
 }
 void prepareFrameGeometry(const PageDesc &p,const RetainedVector<State> &values,FrameCache &cache,int32_t visibleHeight=-1) {
+  GeometryTimer geometryTimer(*this);
   if(geometryMemoPage==&p&&geometryMemoKey.size()==values.size()&&geometryMemoCache.nodes.size()==values.size()&&geometryMemoCache.visibleHeight==visibleHeight){
     bool same=true;for(size_t i=0;i<values.size();++i)if(!geometryMemoKey[i].matches(values[i])){same=false;break;}
     if(same){prepareVisualCache(p,values,geometryMemoKey,geometryMemoCache,cache);retainFrameGeometry(p,values,cache);return;}

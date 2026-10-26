@@ -122,7 +122,11 @@ Status Esp32ScanQspi::begin() {
       c.taskPriority >= configMAX_PRIORITIES || c.init.count > 1024 ||
       (c.init.count && !c.init.commands) || (c.init.commands && !c.init.count))
     return result_ = Status::InvalidArgument;
-  if (c.host != SPI2_HOST && c.host != SPI3_HOST) return result_ = Status::InvalidArgument;
+  if (c.host != SPI2_HOST
+#if SOC_SPI_PERIPH_NUM > 2
+      && c.host != SPI3_HOST
+#endif
+     ) return result_ = Status::InvalidArgument;
   // SPI interrupt and scanner are kept on the same core, including shutdown.
   if (c.taskCore != -1 && c.taskCore != xPortGetCoreID()) return result_ = Status::InvalidArgument;
   const int pins[] = {c.clock, c.data[0], c.data[1], c.data[2], c.data[3], c.cs, c.reset};

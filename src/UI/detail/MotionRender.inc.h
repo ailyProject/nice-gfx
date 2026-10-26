@@ -1,5 +1,62 @@
 // Included inside View::Impl. Local visual leaves sample their source directly
 // into the destination tile. No layer bitmap, mask buffer or frame allocation.
+#ifndef NICE_GFX_S31_MOTION_TEXTURE_BUDGET
+#define NICE_GFX_S31_MOTION_TEXTURE_BUDGET 0
+#endif
+#if defined(CONFIG_IDF_TARGET_ESP32S31) && NICE_GFX_S31_MOTION_TEXTURE_BUDGET > 0
+// Optional per-View immutable flash texture copies. Only synchronous motion
+// kernels borrow these pixels; neither State nor Refresh retains a cache pointer.
+struct MotionTextureCache {
+  struct Slot {
+    const uint8_t *source=nullptr;uint16_t *pixels=nullptr;
+    size_t sourceBytes=0,sourceStride=0,allocated=0;
+    uint16_t width=0,height=0;PixelOrder order=PixelOrder::Wire;
+    uint64_t used=0;
+  };
+  Slot slots[8];size_t resident=0;uint64_t clock=0;
+  MotionTextureCache()=default;
+  MotionTextureCache(const MotionTextureCache &)=delete;
+  MotionTextureCache &operator=(const MotionTextureCache &)=delete;
+  ~MotionTextureCache(){for(auto &slot:slots)if(slot.pixels)heap_caps_free(slot.pixels);}
+  size_t bytes() const {return resident;}
+  void discard(Slot &slot){if(slot.pixels){resident-=slot.allocated;heap_caps_free(slot.pixels);}slot=Slot{};}
+  const uint16_t *native(const uint8_t *frame,size_t sourceBytes,size_t stride,
+                         uint16_t width,uint16_t height,PixelOrder order){
+    const size_t budget=size_t(NICE_GFX_S31_MOTION_TEXTURE_BUDGET),rowBytes=size_t(width)*2;
+    if(!frame||!width||!height||stride<rowBytes||size_t(width)>SIZE_MAX/height/2||
+       size_t(height-1)>(SIZE_MAX-rowBytes)/stride)return nullptr;
+    const size_t needed=size_t(width)*height*2,extent=size_t(height-1)*stride+rowBytes;
+    const uintptr_t address=reinterpret_cast<uintptr_t>(frame);
+    if(needed>budget||sourceBytes<extent||sourceBytes>UINTPTR_MAX-address||
+       !esp_ptr_in_drom(frame)||!esp_ptr_in_drom(reinterpret_cast<const void *>(address+sourceBytes-1)))return nullptr;
+    for(auto &slot:slots)if(slot.pixels&&slot.source==frame&&slot.sourceBytes==sourceBytes&&
+       slot.sourceStride==stride&&slot.width==width&&slot.height==height&&slot.order==order){slot.used=++clock;return slot.pixels;}
+    Slot *destination=nullptr;
+    for(;;){
+      for(auto &slot:slots)if(!slot.pixels){destination=&slot;break;}
+      if(destination&&resident<=budget-needed)break;
+      Slot *oldest=nullptr;for(auto &slot:slots)if(slot.pixels&&(!oldest||slot.used<oldest->used))oldest=&slot;
+      if(!oldest)return nullptr;discard(*oldest);destination=nullptr;
+    }
+    uint16_t *pixels=static_cast<uint16_t *>(heap_caps_malloc(needed,MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT));
+    if(!pixels)return nullptr;
+    for(size_t y=0;y<height;++y)memcpy(pixels+y*width,frame+y*stride,rowBytes);
+    if(order==PixelOrder::Wire){
+      size_t i=0,count=size_t(width)*height;
+#if defined(__BYTE_ORDER__) && defined(__ORDER_LITTLE_ENDIAN__) && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+      typedef uint32_t TextureWord __attribute__((__may_alias__));auto *pairs=reinterpret_cast<TextureWord *>(pixels);
+      for(;i+1<count;i+=2,++pairs)*pairs=rgb565_blend::swapPairBytes(*pairs);
+#endif
+      for(;i<count;++i)pixels[i]=rgb565_blend::fromWire(pixels[i]);
+    }
+    destination->source=frame;destination->pixels=pixels;destination->sourceBytes=sourceBytes;
+    destination->sourceStride=stride;destination->allocated=needed;destination->width=width;
+    destination->height=height;destination->order=order;destination->used=++clock;resident+=needed;
+    return pixels;
+  }
+};
+MotionTextureCache motionTextureCache;
+#endif
 static bool motionRoundPixel(int32_t x,int32_t y,int32_t width,int32_t height,int32_t radius) {
   if(x<0||y<0||x>=width||y>=height)return false;
   if(!radius)return true;
@@ -81,12 +138,134 @@ static bool motionClipSpan(int32_t origin,int32_t step,uint32_t lower,uint32_t u
   return first<end;
 }
 
+template<int Format> static inline
+#if defined(__GNUC__)
+__attribute__((always_inline))
+#endif
+uint16_t motionMediaSample(const uint8_t *source) {
+  if(Format==1){uint16_t color;memcpy(&color,source,2);return color;}
+  if(Format==0)return uint16_t(uint16_t(pgm_read_byte(source))<<8|pgm_read_byte(source+1));
+  const uint8_t b=pgm_read_byte(source);return uint16_t((((b>>5)*31+3)/7)<<11|(((b>>2)&7)*9)<<5|((b&3)*31+1)/3);
+}
+// An opaque plain image replaces its background only where a texel exists.
+// Paint the local-box minus valid-texture spans separately, so edge rounding
+// retains the authored background without blending image pixels a second time.
+static void motionMediaBackdrop(const MotionMedia32Tile &p,uint16_t background) {
+  int32_t rowX=p.localX,rowY=p.localY,rowU=p.textureX,rowV=p.textureY;
+  for(int32_t y=0;y<p.clipped.height;++y){
+    int32_t first=0,end=p.clipped.width;
+    if(motionClipSpan(rowX,p.localXX,p.left,p.left+p.maskWidth,first,end)&&
+       motionClipSpan(rowY,p.localYX,p.top,p.top+p.maskHeight,first,end)){
+      int32_t imageFirst=first,imageEnd=end;
+      const bool image=motionClipSpan(rowU,p.textureXX,0,p.sourceWidth,imageFirst,imageEnd)&&
+        motionClipSpan(rowV,p.textureYX,0,p.sourceHeight,imageFirst,imageEnd);
+      const auto fill=[&](int32_t begin,int32_t stop){
+        uint16_t *target=p.pixels+size_t(p.clipped.y+y-p.area.y)*p.stride+size_t(p.clipped.x+begin-p.area.x);
+        for(int32_t x=begin;x<stop;++x,++target)*target=rgb565_blend::toWire(p.alpha==255?background:
+          rgb565_blend::color(background,rgb565_blend::fromWire(*target),p.alpha));
+      };
+      if(image){fill(first,imageFirst);fill(imageEnd,end);}else fill(first,end);
+    }
+    rowX+=p.localXY;rowY+=p.localYY;rowU+=p.textureXY;rowV+=p.textureYY;
+  }
+}
+// Keep the generic sampler available for AB builds and all other platforms.
+#ifndef NICE_GFX_S31_MOTION_STAGE
+#define NICE_GFX_S31_MOTION_STAGE 1
+#endif
+template<int Format,bool Opaque>
+static
+#if defined(__GNUC__)
+__attribute__((noinline))
+#if !defined(__clang__)
+__attribute__((optimize("O3")))
+#endif
+#endif
+void motionMediaSpanStaged(const MotionMedia32Tile &p) {
+  if(p.clipped.width<=0||p.clipped.height<=0)return;
+  // Task stacks are internal RAM on the S31 Arduino/IDF path. Isolate the
+  // bounded scratch here so ordinary draws do not inherit this stack frame.
+  alignas(16) uint16_t temporary[128];
+  const uint8_t *const frame=p.frame;const size_t sourceStride=p.sourceStride;
+  const int32_t textureXX=p.textureXX,textureYX=p.textureYX;const uint8_t alpha=p.alpha;
+  uint16_t storedBackground=0;bool usePalette=false;
+  if(!Opaque&&Format!=2){
+    uint16_t samples[16];unsigned at=0,votes=0;
+    for(int y=0;y<4;++y)for(int x=0;x<4;++x){
+      const int32_t sx=p.clipped.x+int32_t(int64_t(p.clipped.width-1)*x/3);
+      const int32_t sy=p.clipped.y+int32_t(int64_t(p.clipped.height-1)*y/3);
+      const uint16_t sample=p.pixels[size_t(sy-p.area.y)*p.stride+size_t(sx-p.area.x)];samples[at++]=sample;
+      if(!votes){storedBackground=sample;votes=1;}else if(sample==storedBackground)++votes;else --votes;
+    }
+    unsigned matches=0;for(unsigned i=0;i<16;++i)matches+=samples[i]==storedBackground;
+    usePalette=matches>=12;
+  }
+  const uint16_t nativeBackground=rgb565_blend::fromWire(storedBackground);
+  const uint32_t backgroundPair=uint32_t(nativeBackground)|(uint32_t(nativeBackground)<<16);
+  const rgb565_blend::SolidBackgroundLut palette(nativeBackground,alpha);
+  int32_t rowX=p.localX,rowY=p.localY,rowU=p.textureX,rowV=p.textureY;
+  for(int32_t y=0;y<p.clipped.height;++y){
+    int32_t first=0,end=p.clipped.width;
+    if(motionClipSpan(rowX,p.localXX,p.left,p.left+p.maskWidth,first,end)&&
+       motionClipSpan(rowY,p.localYX,p.top,p.top+p.maskHeight,first,end)&&
+       motionClipSpan(rowU,p.textureXX,0,p.sourceWidth,first,end)&&
+       motionClipSpan(rowV,p.textureYX,0,p.sourceHeight,first,end)){
+      int32_t u=int32_t(int64_t(rowU)+int64_t(textureXX)*first),v=int32_t(int64_t(rowV)+int64_t(textureYX)*first);
+      uint16_t *target=p.pixels+size_t(p.clipped.y+y-p.area.y)*p.stride+size_t(p.clipped.x+first-p.area.x);
+      if((reinterpret_cast<uintptr_t>(target)&3)&&first<end){
+        const uint8_t *source=frame+size_t(v>>16)*sourceStride+size_t(u>>16)*(Format==2?1:2);
+        const uint16_t color=motionMediaSample<Format>(source);
+        if(Opaque)*target=rgb565_blend::toWire(color);
+        else {const uint16_t under=rgb565_blend::fromWire(*target);if(color!=under)*target=rgb565_blend::toWire(
+          usePalette&&under==nativeBackground?palette.lookupNative(color):rgb565_blend::color(color,under,alpha));}
+        ++target;++first;u+=textureXX;v+=textureYX;
+      }
+      while(first<end){
+        const int32_t count=std::min<int32_t>(128,end-first);
+        if(!Opaque)memcpy(temporary,target,size_t(count)*2);
+        int32_t x=0;
+#if defined(__GNUC__) && defined(__BYTE_ORDER__) && defined(__ORDER_LITTLE_ENDIAN__) && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+        typedef uint32_t MotionBlendWord __attribute__((__may_alias__));
+        for(;x+1<count;x+=2){
+          const uint8_t *a=frame+size_t(v>>16)*sourceStride+size_t(u>>16)*(Format==2?1:2);
+          u+=textureXX;v+=textureYX;
+          const uint8_t *b=frame+size_t(v>>16)*sourceStride+size_t(u>>16)*(Format==2?1:2);
+          u+=textureXX;v+=textureYX;
+          const uint32_t colors=uint32_t(motionMediaSample<Format>(a))|(uint32_t(motionMediaSample<Format>(b))<<16);
+          auto *pair=reinterpret_cast<MotionBlendWord *>(temporary+x);
+          if(Opaque)*pair=rgb565_blend::swapPairBytes(colors);
+          else {const uint32_t under=rgb565_blend::swapPairBytes(*pair);
+            if(colors!=under){const uint32_t blended=usePalette&&under==backgroundPair?
+              uint32_t(palette.lookupNative(uint16_t(colors)))|(uint32_t(palette.lookupNative(uint16_t(colors>>16)))<<16):
+              rgb565_blend::colorPair(colors,under,alpha);
+              *pair=rgb565_blend::swapPairBytes(blended);}
+          }
+        }
+#endif
+        for(;x<count;++x,u+=textureXX,v+=textureYX){
+          const uint8_t *source=frame+size_t(v>>16)*sourceStride+size_t(u>>16)*(Format==2?1:2);
+          const uint16_t color=motionMediaSample<Format>(source);
+          if(Opaque)temporary[x]=rgb565_blend::toWire(color);
+          else {const uint16_t under=rgb565_blend::fromWire(temporary[x]);if(color!=under)temporary[x]=rgb565_blend::toWire(
+            usePalette&&under==nativeBackground?palette.lookupNative(color):rgb565_blend::color(color,under,alpha));}
+        }
+        memcpy(target,temporary,size_t(count)*2);target+=count;first+=count;
+      }
+    }
+    rowX+=p.localXY;rowY+=p.localYY;rowU+=p.textureXY;rowV+=p.textureYY;
+  }
+}
 template<int Format,bool Opaque,bool Keyed=false>
 static
 #if defined(__GNUC__)
 __attribute__((noinline))
 #endif
 void motionMediaSpanKernel(const MotionMedia32Tile &p) {
+#if defined(CONFIG_IDF_TARGET_ESP32S31) && NICE_GFX_S31_MOTION_STAGE
+  if(!Keyed&&p.clipped.width>=32&&uint64_t(p.clipped.width)*p.clipped.height>=4096){
+    motionMediaSpanStaged<Format,Opaque>(p);return;
+  }
+#endif
   int32_t rowX=p.localX,rowY=p.localY,rowU=p.textureX,rowV=p.textureY;
   for(int32_t y=0;y<p.clipped.height;++y){
     int32_t first=0,end=p.clipped.width;
@@ -98,14 +277,37 @@ void motionMediaSpanKernel(const MotionMedia32Tile &p) {
       // exceed int32, so form the sum in int64 before narrowing it.
       int32_t u=int32_t(int64_t(rowU)+int64_t(p.textureXX)*first),v=int32_t(int64_t(rowV)+int64_t(p.textureYX)*first);
       uint16_t *target=p.pixels+size_t(p.clipped.y+y-p.area.y)*p.stride+size_t(p.clipped.x+first-p.area.x);
-      for(int32_t x=first;x<end;++x,++target,u+=p.textureXX,v+=p.textureYX){
+      int32_t x=first;
+#if defined(__GNUC__) && defined(__BYTE_ORDER__) && defined(__ORDER_LITTLE_ENDIAN__) && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+      if(!Opaque&&!Keyed){
+        // Span clipping proved every sampled texel. Gather two independent
+        // affine samples, then share the exact /255 channel arithmetic. Keep
+        // keyed pixels scalar so a transparent texel never touches its underlay.
+        if((reinterpret_cast<uintptr_t>(target)&3)&&x<end){
+          const uint8_t *source=p.frame+size_t(v>>16)*p.sourceStride+size_t(u>>16)*(Format==2?1:2);
+          const uint16_t color=motionMediaSample<Format>(source),under=rgb565_blend::fromWire(*target);
+          if(color!=under)*target=rgb565_blend::toWire(rgb565_blend::color(color,under,p.alpha));
+          ++target;++x;u+=p.textureXX;v+=p.textureYX;
+        }
+        typedef uint32_t MotionBlendWord __attribute__((__may_alias__));
+        for(;x+1<end;x+=2,target+=2){
+          const uint8_t *a=p.frame+size_t(v>>16)*p.sourceStride+size_t(u>>16)*(Format==2?1:2);
+          u+=p.textureXX;v+=p.textureYX;
+          const uint8_t *b=p.frame+size_t(v>>16)*p.sourceStride+size_t(u>>16)*(Format==2?1:2);
+          u+=p.textureXX;v+=p.textureYX;
+          const uint32_t colors=uint32_t(motionMediaSample<Format>(a))|(uint32_t(motionMediaSample<Format>(b))<<16);
+          auto *pair=reinterpret_cast<MotionBlendWord *>(target);
+          const uint32_t under=rgb565_blend::swapPairBytes(*pair);
+          if(colors!=under)*pair=rgb565_blend::swapPairBytes(rgb565_blend::colorPair(colors,under,p.alpha));
+        }
+      }
+#endif
+      for(;x<end;++x,++target,u+=p.textureXX,v+=p.textureYX){
         const uint8_t *source=p.frame+size_t(v>>16)*p.sourceStride+size_t(u>>16)*(Format==2?1:2);
-        uint16_t color;
-        if(Format==1)memcpy(&color,source,2);
-        else if(Format==0)color=uint16_t(uint16_t(pgm_read_byte(source))<<8|pgm_read_byte(source+1));
-        else {const uint8_t b=pgm_read_byte(source);color=uint16_t((((b>>5)*31+3)/7)<<11|(((b>>2)&7)*9)<<5|((b&3)*31+1)/3);}
+        const uint16_t color=motionMediaSample<Format>(source);
         if(Keyed&&color==p.colorKey)continue;
-        *target=rgb565_blend::toWire(Opaque?color:rgb565_blend::color(color,rgb565_blend::fromWire(*target),p.alpha));
+        if(Opaque)*target=rgb565_blend::toWire(color);
+        else {const uint16_t under=rgb565_blend::fromWire(*target);if(color!=under)*target=rgb565_blend::toWire(rgb565_blend::color(color,under,p.alpha));}
       }
     }
     rowX+=p.localXY;rowY+=p.localYY;rowU+=p.textureXY;rowV+=p.textureYY;
@@ -212,7 +414,19 @@ void motionMediaRunsKernel(const MotionMedia32Tile &p) {
         else if(Format==0)color=uint16_t(uint16_t(pgm_read_byte(source))<<8|pgm_read_byte(source+1));
         else {const uint8_t b=pgm_read_byte(source);color=uint16_t((((b>>5)*31+3)/7)<<11|(((b>>2)&7)*9)<<5|((b&3)*31+1)/3);}
         if(Opaque){const uint16_t wireColor=rgb565_blend::toWire(color);for(uint32_t i=0;i<run;++i)*target++=wireColor;}
-        else {for(uint32_t i=0;i<run;++i,++target)*target=rgb565_blend::toWire(rgb565_blend::color(color,rgb565_blend::fromWire(*target),p.alpha));}
+        else {
+          uint32_t i=0;
+#if defined(__GNUC__) && defined(__BYTE_ORDER__) && defined(__ORDER_LITTLE_ENDIAN__) && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+          if((reinterpret_cast<uintptr_t>(target)&3)&&i<run){
+            *target=rgb565_blend::toWire(rgb565_blend::color(color,rgb565_blend::fromWire(*target),p.alpha));++target;++i;
+          }
+          typedef uint32_t MotionBlendWord __attribute__((__may_alias__));
+          const uint32_t colors=uint32_t(color)|(uint32_t(color)<<16);
+          for(;i+1<run;i+=2,target+=2){auto *pair=reinterpret_cast<MotionBlendWord *>(target);
+            *pair=rgb565_blend::swapPairBytes(rgb565_blend::colorPair(colors,rgb565_blend::swapPairBytes(*pair),p.alpha));}
+#endif
+          for(;i<run;++i,++target)*target=rgb565_blend::toWire(rgb565_blend::color(color,rgb565_blend::fromWire(*target),p.alpha));
+        }
         // The original closed-rectangle proof covers the run's one-past end.
         // Products/sums use int64: intermediate products need not fit int32.
         u=int32_t(int64_t(u)+int64_t(p.textureXX)*run);v=int32_t(int64_t(v)+int64_t(p.textureYX)*run);
@@ -264,14 +478,23 @@ void paintTransformedNode(int i,Rect clipped,const DirtyRect &area,uint16_t *pix
   const int32_t radius=std::min<int32_t>(style.radius,std::min(box.width,box.height)/2),border=style.borderWidth;
   const MediaDesc *source=n.kind==Kind::Media?media(n,v):nullptr;
   const Image::Impl *image=source&&v.imageOverride?v.image.impl_:nullptr;
-  const size_t sourceStride=source?(image?image->source.strideBytes:size_t(source->width)*mediaPixelBytes(*source)):0;
-  const uint8_t *frame=source?mediaPixels(*source)+size_t(v.mediaFrame)*sourceStride*source->height:nullptr;
+  size_t sourceStride=source?(image?image->source.strideBytes:mediaStrideBytes(*source)):0;
+  const uint8_t *frame=source?mediaPixels(*source)+size_t(v.mediaFrame)*mediaFrameBytes(*source,sourceStride):nullptr;
   const bool keyed=source&&mediaColorKeyed(*source);
   const uint16_t colorKey=keyed?(uint16_t(pgm_read_byte(source->pixels))<<8|pgm_read_byte(source->pixels+1)):0;
   const bool plainMedia=source&&content.x==0&&content.y==0&&content.width==box.width&&content.height==box.height;
   const MediaRoundClip mediaClip({0,0,box.width,box.height},style);
   const bool roundedMedia=source&&style.radius&&mediaClip.rounded();
-  const bool ram=image&&!image->flash;const PixelOrder order=image?image->source.order:PixelOrder::Wire;
+  bool ram=image&&!image->flash;PixelOrder order=image?image->source.order:PixelOrder::Wire;
+#if defined(CONFIG_IDF_TARGET_ESP32S31) && NICE_GFX_S31_MOTION_TEXTURE_BUDGET > 0
+  if(source&&!v.imageOverride&&source->bytesPerPixel==2){
+    if(const uint16_t *texture=motionTextureCache.native(frame,mediaFrameBytes(*source,sourceStride),sourceStride,
+        source->width,source->height,order)){
+      frame=reinterpret_cast<const uint8_t *>(texture);sourceStride=size_t(source->width)*2;
+      ram=true;order=PixelOrder::Native;
+    }
+  }
+#endif
   if(n.kind==Kind::Shape&&n.shape) {
     const Rect shapeBox{box.x+content.x,box.y+content.y,content.width,content.height};
     const shape_raster::TransformedShape shape(*n.shape,shapeBox,box,pose.scale,pose.rotation,style.radius,n.motion->pivotX,n.motion->pivotY);
@@ -346,7 +569,8 @@ void paintTransformedNode(int i,Rect clipped,const DirtyRect &area,uint16_t *pix
     u0=(pivotU-int64_t(content.x)*100)*65536*source->width/(int64_t(content.width)*100);
     v0=(pivotV-int64_t(content.y)*100)*65536*source->height/(int64_t(content.height)*100);
   }
-  if(plainMedia&&!roundedMedia&&transparent&&!border&&!gradient){
+  const bool opaquePlainMedia=plainMedia&&!transparent&&!keyed&&!mediaMasked(*source)&&!radius;
+  if(plainMedia&&!mediaPacked(*source)&&!roundedMedia&&(transparent||opaquePlainMedia)&&!border&&!gradient){
     if(mask.width<=0||mask.height<=0)return;
     int64_t localX,localY;inverse.point(box,clipped.x,clipped.y,localX,localY);
     int64_t dx,dy;inverse.offset100(box,clipped.x,clipped.y,dx,dy);
@@ -360,6 +584,7 @@ void paintTransformedNode(int i,Rect clipped,const DirtyRect &area,uint16_t *pix
       const MotionMedia32Tile tile{clipped,area,pixels,stride,int32_t(localX),int32_t(localY),int32_t(textureX),int32_t(textureY),
         inverse.xx,inverse.xy,inverse.yx,inverse.yy,ux,uy,vx,vy,uint32_t(left),uint32_t(top),uint32_t(right-left),uint32_t(bottom-top),
         uint32_t(source->width)*65536,uint32_t(source->height)*65536,frame,sourceStride,source->bytesPerPixel,alpha,ram,order,colorKey};
+      if(opaquePlainMedia)motionMediaBackdrop(tile,background);
       if(keyed){
         // Color-key leaves retain span clipping and 32-bit affine stepping.
         // A transparent texel skips both the read of the underlay and blending.
@@ -394,10 +619,9 @@ void paintTransformedNode(int i,Rect clipped,const DirtyRect &area,uint16_t *pix
          localX>=int64_t(mask.x+mask.width)*65536||localY>=int64_t(mask.y+mask.height)*65536)continue;
       const int32_t lx=int32_t(localX>>16),ly=int32_t(localY>>16);
       const bool insideMedia=!roundedMedia||mediaClip.containsFixed(localX,localY);
-      if(plainMedia&&insideMedia&&textureX>=0&&textureY>=0&&textureX<int64_t(source->width)*65536&&textureY<int64_t(source->height)*65536){
-        const uint8_t *p=frame+size_t(textureY>>16)*sourceStride+size_t(textureX>>16)*mediaPixelBytes(*source);
-        const uint16_t color=motionMediaColor(p,source->bytesPerPixel,ram,order);
-        if(keyed&&color==colorKey)continue;
+      if(plainMedia&&(transparent||(!mediaMasked(*source)&&!keyed))&&insideMedia&&textureX>=0&&textureY>=0&&textureX<int64_t(source->width)*65536&&textureY<int64_t(source->height)*65536){
+        uint16_t color;
+        if(!detail::sampleMediaPixel(*source,frame,sourceStride,size_t(textureX>>16),size_t(textureY>>16),ram,order,color))continue;
         *target=rgb565_blend::toWire(alpha==255?color:rgb565_blend::color(color,rgb565_blend::fromWire(*target),alpha));continue;
       }
       const uint16_t under=rgb565_blend::fromWire(*target);uint16_t color=under;bool painted=false;
@@ -410,9 +634,8 @@ void paintTransformedNode(int i,Rect clipped,const DirtyRect &area,uint16_t *pix
       if(outer&&border&&!motionRoundPixel(lx-border,ly-border,box.width-2*border,box.height-2*border,std::max<int32_t>(0,radius-border))){color=style.borderColor;painted=true;}
       if(source&&insideMedia&&content.width>0&&content.height>0&&lx>=content.x&&ly>=content.y&&lx<content.x+content.width&&ly<content.y+content.height&&
          textureX>=0&&textureY>=0&&textureX<int64_t(source->width)*65536&&textureY<int64_t(source->height)*65536){
-        const uint8_t *p=frame+size_t(textureY>>16)*sourceStride+size_t(textureX>>16)*mediaPixelBytes(*source);
-        const uint16_t sample=motionMediaColor(p,source->bytesPerPixel,ram,order);
-        if(!keyed||sample!=colorKey){color=sample;painted=true;}
+        uint16_t sample;
+        if(detail::sampleMediaPixel(*source,frame,sourceStride,size_t(textureX>>16),size_t(textureY>>16),ram,order,sample)){color=sample;painted=true;}
       }else if(n.kind==Kind::Icon&&n.icon){
         const int32_t ix=lx-content.x,iy=ly-content.y;const MonoIcon &icon=*n.icon;
         if(ix>=0&&iy>=0&&ix<icon.width&&iy<icon.height){const bool gray=icon.bitsPerPixel==4;const size_t row=gray?(icon.width+1)/2:(icon.width+7)/8;

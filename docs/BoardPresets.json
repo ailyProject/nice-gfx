@@ -509,7 +509,7 @@
     "schemaVersion": 1,
     "id": "esp32-s31-korvo-1",
     "label": "ESP32-S31-Korvo-1",
-    "description": "V1.1 / SUB3，ST7262 RGB565 800×480、18 MHz，GT1151 I²C 触摸；16 MB Flash / OPI PSRAM，Arduino-ESP32 4.x。",
+    "description": "V1.1 / SUB3，ST7262 RGB565 800×480、官方 26 MHz / 60.9 Hz 时序，GT1151 I²C 触摸；16 MB Flash / OPI PSRAM，Arduino-ESP32 4.x。",
     "kind": "device",
     "source": {
       "boardId": "esp32s31_korvo_1",
@@ -596,15 +596,15 @@
       "hsync": "44",
       "vsync": "45",
       "de": "43",
-      "pclkHz": 18000000,
+      "pclkHz": 26000000,
       "rgbDataWidth": 16,
       "rgbInitSpi": false,
-      "hsyncPulse": 40,
+      "hsyncPulse": 1,
       "hsyncBack": 40,
-      "hsyncFront": 48,
-      "vsyncPulse": 23,
-      "vsyncBack": 32,
-      "vsyncFront": 13,
+      "hsyncFront": 20,
+      "vsyncPulse": 1,
+      "vsyncBack": 10,
+      "vsyncFront": 5,
       "hsyncIdleLow": false,
       "vsyncIdleLow": false,
       "deIdleHigh": false,
@@ -5523,6 +5523,1635 @@
     },
     "library": {
       "displayClass": "SeeedGroveBeginnerKitDisplay"
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "seeed-ee02-spectra133",
+    "label": "Seeed EE02 + 13.3″ Spectra 6",
+    "description": "双片选 · 1200 × 1600 · 六色；官方固定接线及板级供电，当前全刷。",
+    "kind": "device",
+    "source": {
+      "manufacturer": "Seeed Studio",
+      "checkedAt": "2026-10-26",
+      "files": [
+        "https://github.com/Seeed-Studio/Seeed_GFX2/blob/a736f1726cedb89692ca9ebcedcc3d2468ef92f5/src/board/configs/XIAO_ePaper_Board_Configs.h",
+        "https://wiki.seeedstudio.com/seeed_epaper_displays/"
+      ],
+      "marketStatus": "listed",
+      "runtimeVerification": "compiled; hardware not tested"
+    },
+    "card": {
+      "name": "EE02 + 13.3″ Spectra 6",
+      "subtitle": "双片选 · 1200 × 1600 · 六色",
+      "brand": "Seeed Studio",
+      "mcu": "ESP32-S3",
+      "controller": "T133A01",
+      "interface": "SPI",
+      "width": 1200,
+      "height": 1600,
+      "shape": "square",
+      "touch": "无触摸",
+      "buttonCount": 0,
+      "tags": [
+        "1200 × 1600",
+        "六色",
+        "全刷"
+      ],
+      "note": "按屏幕实际色板设计；刷新过程中继续处理按键。"
+    },
+    "hardware": {
+      "board": "esp32:esp32:esp32s3:PSRAM=opi,FlashSize=32M",
+      "display": "NGFX_SEEED_1330_SPECTRA6",
+      "cs": "44",
+      "dc": "10",
+      "reset": "38",
+      "te": "-1",
+      "sck": "7",
+      "mosi": "9",
+      "miso": "-1",
+      "backlight": "-1",
+      "disp": "-1",
+      "frequency": 4000000,
+      "rotation": 0,
+      "bufferLines": 4,
+      "edgeBack": false,
+      "swipeHome": false,
+      "wr": "7",
+      "rd": "-1",
+      "dataPins": [
+        "8",
+        "16",
+        "15",
+        "18",
+        "4",
+        "5",
+        "6",
+        "7",
+        "19",
+        "20",
+        "21",
+        "22",
+        "23",
+        "24",
+        "25",
+        "26"
+      ],
+      "touch": "none",
+      "touchCs": "4",
+      "touchIrq": "-1",
+      "touchClock": "5",
+      "touchMosi": "6",
+      "touchMiso": "7",
+      "touchSda": "4",
+      "touchScl": "5",
+      "touchReset": "-1",
+      "touchAddress": 46,
+      "calibration": [
+        300,
+        3600,
+        300,
+        3600,
+        3
+      ],
+      "busy": "4",
+      "extraCs0": "41",
+      "buttons": [],
+      "vcomMillivolts": -1,
+      "resetDurationMs": 10,
+      "pulldownReset": false,
+      "seeedBoard": "EE02"
+    },
+    "input": {
+      "keys": [],
+      "focusColor": "#000000",
+      "focusWidth": 2,
+      "bindings": []
+    },
+    "support": {
+      "status": "ready",
+      "notes": []
+    },
+    "order": 17,
+    "library": {
+      "displayClass": "SeeedEe02Spectra133Display"
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "seeed-ee03-103",
+    "label": "Seeed EE03 + 10.3″ 灰阶屏",
+    "description": "16 级灰阶 · MISO 读回；官方固定接线及板级供电，当前全刷。",
+    "kind": "device",
+    "source": {
+      "manufacturer": "Seeed Studio",
+      "checkedAt": "2026-10-26",
+      "files": [
+        "https://github.com/Seeed-Studio/Seeed_GFX2/blob/a736f1726cedb89692ca9ebcedcc3d2468ef92f5/src/board/configs/XIAO_ePaper_Board_Configs.h",
+        "https://wiki.seeedstudio.com/seeed_epaper_displays/"
+      ],
+      "marketStatus": "listed",
+      "runtimeVerification": "compiled; hardware not tested"
+    },
+    "card": {
+      "name": "EE03 + 10.3″ 灰阶屏",
+      "subtitle": "16 级灰阶 · MISO 读回",
+      "brand": "Seeed Studio",
+      "mcu": "ESP32-S3",
+      "controller": "IT8951",
+      "interface": "SPI",
+      "width": 1872,
+      "height": 1404,
+      "shape": "square",
+      "touch": "无触摸",
+      "buttonCount": 0,
+      "tags": [
+        "1872 × 1404",
+        "16 级灰阶",
+        "全刷"
+      ],
+      "note": "按屏幕实际色板设计；刷新过程中继续处理按键。"
+    },
+    "hardware": {
+      "board": "esp32:esp32:esp32s3:PSRAM=opi,FlashSize=32M",
+      "display": "NGFX_SEEED_1030_GRAY16",
+      "cs": "44",
+      "dc": "-1",
+      "reset": "38",
+      "te": "-1",
+      "sck": "7",
+      "mosi": "9",
+      "miso": "8",
+      "backlight": "-1",
+      "disp": "-1",
+      "frequency": 4000000,
+      "rotation": 0,
+      "bufferLines": 4,
+      "edgeBack": false,
+      "swipeHome": false,
+      "wr": "7",
+      "rd": "-1",
+      "dataPins": [
+        "8",
+        "16",
+        "15",
+        "18",
+        "4",
+        "5",
+        "6",
+        "7",
+        "19",
+        "20",
+        "21",
+        "22",
+        "23",
+        "24",
+        "25",
+        "26"
+      ],
+      "touch": "none",
+      "touchCs": "4",
+      "touchIrq": "-1",
+      "touchClock": "5",
+      "touchMosi": "6",
+      "touchMiso": "7",
+      "touchSda": "4",
+      "touchScl": "5",
+      "touchReset": "-1",
+      "touchAddress": 46,
+      "calibration": [
+        300,
+        3600,
+        300,
+        3600,
+        3
+      ],
+      "busy": "4",
+      "extraCs0": "-1",
+      "buttons": [],
+      "vcomMillivolts": -1,
+      "resetDurationMs": 10,
+      "pulldownReset": false,
+      "seeedBoard": "EE03"
+    },
+    "input": {
+      "keys": [],
+      "focusColor": "#000000",
+      "focusWidth": 2,
+      "bindings": []
+    },
+    "support": {
+      "status": "ready",
+      "notes": []
+    },
+    "order": 18,
+    "library": {
+      "displayClass": "SeeedEe03103Display"
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "seeed-ee04-75",
+    "label": "Seeed EE04 + 7.5″ 黑白屏",
+    "description": "24-pin 接口 · 黑白；官方固定接线及板级供电，当前全刷。",
+    "kind": "device",
+    "source": {
+      "manufacturer": "Seeed Studio",
+      "checkedAt": "2026-10-26",
+      "files": [
+        "https://github.com/Seeed-Studio/Seeed_GFX2/blob/a736f1726cedb89692ca9ebcedcc3d2468ef92f5/src/board/configs/XIAO_ePaper_Board_Configs.h",
+        "https://wiki.seeedstudio.com/seeed_epaper_displays/"
+      ],
+      "marketStatus": "listed",
+      "runtimeVerification": "compiled; hardware not tested"
+    },
+    "card": {
+      "name": "EE04 + 7.5″ 黑白屏",
+      "subtitle": "24-pin 接口 · 黑白",
+      "brand": "Seeed Studio",
+      "mcu": "ESP32-S3",
+      "controller": "UC8179",
+      "interface": "SPI",
+      "width": 800,
+      "height": 480,
+      "shape": "square",
+      "touch": "无触摸",
+      "buttonCount": 0,
+      "tags": [
+        "800 × 480",
+        "黑白",
+        "全刷"
+      ],
+      "note": "按屏幕实际色板设计；刷新过程中继续处理按键。"
+    },
+    "hardware": {
+      "board": "esp32:esp32:esp32s3:PSRAM=opi,FlashSize=32M",
+      "display": "NGFX_SEEED_750_BW",
+      "cs": "44",
+      "dc": "10",
+      "reset": "38",
+      "te": "-1",
+      "sck": "7",
+      "mosi": "9",
+      "miso": "-1",
+      "backlight": "-1",
+      "disp": "-1",
+      "frequency": 4000000,
+      "rotation": 0,
+      "bufferLines": 4,
+      "edgeBack": false,
+      "swipeHome": false,
+      "wr": "7",
+      "rd": "-1",
+      "dataPins": [
+        "8",
+        "16",
+        "15",
+        "18",
+        "4",
+        "5",
+        "6",
+        "7",
+        "19",
+        "20",
+        "21",
+        "22",
+        "23",
+        "24",
+        "25",
+        "26"
+      ],
+      "touch": "none",
+      "touchCs": "4",
+      "touchIrq": "-1",
+      "touchClock": "5",
+      "touchMosi": "6",
+      "touchMiso": "7",
+      "touchSda": "4",
+      "touchScl": "5",
+      "touchReset": "-1",
+      "touchAddress": 46,
+      "calibration": [
+        300,
+        3600,
+        300,
+        3600,
+        3
+      ],
+      "busy": "4",
+      "extraCs0": "-1",
+      "buttons": [],
+      "vcomMillivolts": -1,
+      "resetDurationMs": 10,
+      "pulldownReset": false,
+      "seeedBoard": "EE04"
+    },
+    "input": {
+      "keys": [],
+      "focusColor": "#000000",
+      "focusWidth": 2,
+      "bindings": []
+    },
+    "support": {
+      "status": "ready",
+      "notes": []
+    },
+    "order": 19,
+    "library": {
+      "displayClass": "SeeedEe0475Display"
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "seeed-ee05-75",
+    "label": "Seeed EE05 + 7.5″ 黑白屏",
+    "description": "24-pin 接口 · 黑白；官方固定接线及板级供电，当前全刷。",
+    "kind": "device",
+    "source": {
+      "manufacturer": "Seeed Studio",
+      "checkedAt": "2026-10-26",
+      "files": [
+        "https://github.com/Seeed-Studio/Seeed_GFX2/blob/a736f1726cedb89692ca9ebcedcc3d2468ef92f5/src/board/configs/XIAO_ePaper_Board_Configs.h",
+        "https://wiki.seeedstudio.com/seeed_epaper_displays/"
+      ],
+      "marketStatus": "listed",
+      "runtimeVerification": "compiled; hardware not tested"
+    },
+    "card": {
+      "name": "EE05 + 7.5″ 黑白屏",
+      "subtitle": "24-pin 接口 · 黑白",
+      "brand": "Seeed Studio",
+      "mcu": "ESP32-S3",
+      "controller": "UC8179",
+      "interface": "SPI",
+      "width": 800,
+      "height": 480,
+      "shape": "square",
+      "touch": "无触摸",
+      "buttonCount": 0,
+      "tags": [
+        "800 × 480",
+        "黑白",
+        "全刷"
+      ],
+      "note": "按屏幕实际色板设计；刷新过程中继续处理按键。"
+    },
+    "hardware": {
+      "board": "esp32:esp32:esp32s3:PSRAM=opi,FlashSize=32M",
+      "display": "NGFX_SEEED_750_BW",
+      "cs": "44",
+      "dc": "10",
+      "reset": "38",
+      "te": "-1",
+      "sck": "7",
+      "mosi": "9",
+      "miso": "-1",
+      "backlight": "-1",
+      "disp": "-1",
+      "frequency": 4000000,
+      "rotation": 0,
+      "bufferLines": 4,
+      "edgeBack": false,
+      "swipeHome": false,
+      "wr": "7",
+      "rd": "-1",
+      "dataPins": [
+        "8",
+        "16",
+        "15",
+        "18",
+        "4",
+        "5",
+        "6",
+        "7",
+        "19",
+        "20",
+        "21",
+        "22",
+        "23",
+        "24",
+        "25",
+        "26"
+      ],
+      "touch": "none",
+      "touchCs": "4",
+      "touchIrq": "-1",
+      "touchClock": "5",
+      "touchMosi": "6",
+      "touchMiso": "7",
+      "touchSda": "4",
+      "touchScl": "5",
+      "touchReset": "-1",
+      "touchAddress": 46,
+      "calibration": [
+        300,
+        3600,
+        300,
+        3600,
+        3
+      ],
+      "busy": "4",
+      "extraCs0": "-1",
+      "buttons": [],
+      "vcomMillivolts": -1,
+      "resetDurationMs": 10,
+      "pulldownReset": false,
+      "seeedBoard": "EE05"
+    },
+    "input": {
+      "keys": [],
+      "focusColor": "#000000",
+      "focusWidth": 2,
+      "bindings": []
+    },
+    "support": {
+      "status": "ready",
+      "notes": []
+    },
+    "order": 20,
+    "library": {
+      "displayClass": "SeeedEe0575Display"
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "seeed-reterminal-e1001",
+    "label": "Seeed reTerminal E1001",
+    "description": "黑白 · 3 个按键；官方固定接线及板级供电，当前全刷。",
+    "kind": "device",
+    "source": {
+      "manufacturer": "Seeed Studio",
+      "checkedAt": "2026-10-26",
+      "files": [
+        "https://github.com/Seeed-Studio/Seeed_GFX2/blob/a736f1726cedb89692ca9ebcedcc3d2468ef92f5/src/board/configs/reTerminal_ePaper_Board_Configs.h",
+        "https://wiki.seeedstudio.com/seeed_epaper_displays/",
+        "https://wiki.seeedstudio.com/reterminal_e10xx_with_arduino_peripherals/"
+      ],
+      "marketStatus": "listed",
+      "runtimeVerification": "compiled; hardware not tested",
+      "image": {
+        "url": "https://files.seeedstudio.com/wiki/reterminal_e10xx/img/24.jpg",
+        "page": "https://wiki.seeedstudio.com/getting_started_with_reterminal_e1001/",
+        "downloadedAt": "2026-10-26",
+        "credit": "Seeed Studio; product identification image, original unmodified"
+      }
+    },
+    "card": {
+      "name": "reTerminal E1001",
+      "subtitle": "黑白 · 3 个按键",
+      "brand": "Seeed Studio",
+      "mcu": "ESP32-S3",
+      "controller": "UC8179",
+      "interface": "SPI",
+      "width": 800,
+      "height": 480,
+      "shape": "square",
+      "touch": "无触摸",
+      "buttonCount": 3,
+      "tags": [
+        "800 × 480",
+        "黑白",
+        "全刷"
+      ],
+      "note": "按屏幕实际色板设计；刷新过程中继续处理按键。",
+      "image": "/project-new/hardware/seeed-reterminal-e1001.jpg",
+      "imageCaption": "Seeed Studio 官方产品图",
+      "documentUrl": "https://wiki.seeedstudio.com/getting_started_with_reterminal_e1001/"
+    },
+    "hardware": {
+      "board": "esp32:esp32:esp32s3:PSRAM=opi,FlashSize=32M",
+      "display": "NGFX_SEEED_RETERMINAL_E1001",
+      "cs": "10",
+      "dc": "11",
+      "reset": "12",
+      "te": "-1",
+      "sck": "7",
+      "mosi": "9",
+      "miso": "8",
+      "backlight": "-1",
+      "disp": "-1",
+      "frequency": 4000000,
+      "rotation": 0,
+      "bufferLines": 4,
+      "edgeBack": false,
+      "swipeHome": false,
+      "wr": "7",
+      "rd": "-1",
+      "dataPins": [
+        "8",
+        "16",
+        "15",
+        "18",
+        "4",
+        "5",
+        "6",
+        "7",
+        "19",
+        "20",
+        "21",
+        "22",
+        "23",
+        "24",
+        "25",
+        "26"
+      ],
+      "touch": "none",
+      "touchCs": "4",
+      "touchIrq": "-1",
+      "touchClock": "5",
+      "touchMosi": "6",
+      "touchMiso": "7",
+      "touchSda": "4",
+      "touchScl": "5",
+      "touchReset": "-1",
+      "touchAddress": 46,
+      "calibration": [
+        300,
+        3600,
+        300,
+        3600,
+        3
+      ],
+      "busy": "13",
+      "extraCs0": "-1",
+      "buttons": [
+        {
+          "id": "confirm",
+          "name": "绿色 / 确认",
+          "pin": "3",
+          "activeLow": true,
+          "pull": "none",
+          "debounceMs": 30,
+          "longPressMs": 800,
+          "repeatDelayMs": 500,
+          "repeatIntervalMs": 200
+        },
+        {
+          "id": "next",
+          "name": "中键 / 下一项",
+          "pin": "4",
+          "activeLow": true,
+          "pull": "none",
+          "debounceMs": 30,
+          "longPressMs": 800,
+          "repeatDelayMs": 500,
+          "repeatIntervalMs": 200
+        },
+        {
+          "id": "previous",
+          "name": "左键 / 上一项",
+          "pin": "5",
+          "activeLow": true,
+          "pull": "none",
+          "debounceMs": 30,
+          "longPressMs": 800,
+          "repeatDelayMs": 500,
+          "repeatIntervalMs": 200
+        }
+      ],
+      "vcomMillivolts": -1,
+      "resetDurationMs": 10,
+      "pulldownReset": false,
+      "seeedBoard": "E1001"
+    },
+    "input": {
+      "keys": [
+        "confirm",
+        "next",
+        "previous"
+      ],
+      "focusColor": "#000000",
+      "focusWidth": 2,
+      "bindings": [
+        {
+          "key": "confirm",
+          "gesture": "short",
+          "action": "confirm"
+        },
+        {
+          "key": "next",
+          "gesture": "short",
+          "action": "next"
+        },
+        {
+          "key": "previous",
+          "gesture": "short",
+          "action": "previous"
+        }
+      ]
+    },
+    "support": {
+      "status": "ready",
+      "notes": []
+    },
+    "order": 10,
+    "library": {
+      "displayClass": "SeeedReterminalE1001Display"
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "seeed-reterminal-e1002",
+    "label": "Seeed reTerminal E1002",
+    "description": "Spectra 6 六色 · 3 个按键；官方固定接线及板级供电，当前全刷。",
+    "kind": "device",
+    "source": {
+      "manufacturer": "Seeed Studio",
+      "checkedAt": "2026-10-26",
+      "files": [
+        "https://github.com/Seeed-Studio/Seeed_GFX2/blob/a736f1726cedb89692ca9ebcedcc3d2468ef92f5/src/board/configs/reTerminal_ePaper_Board_Configs.h",
+        "https://wiki.seeedstudio.com/seeed_epaper_displays/",
+        "https://wiki.seeedstudio.com/reterminal_e10xx_with_arduino_peripherals/"
+      ],
+      "marketStatus": "listed",
+      "runtimeVerification": "compiled; hardware not tested",
+      "image": {
+        "url": "https://files.seeedstudio.com/wiki/reterminal_e10xx/img/25.jpg",
+        "page": "https://wiki.seeedstudio.com/getting_started_with_reterminal_e1002/",
+        "downloadedAt": "2026-10-26",
+        "credit": "Seeed Studio; product identification image, original unmodified"
+      }
+    },
+    "card": {
+      "name": "reTerminal E1002",
+      "subtitle": "Spectra 6 六色 · 3 个按键",
+      "brand": "Seeed Studio",
+      "mcu": "ESP32-S3",
+      "controller": "ED2208",
+      "interface": "SPI",
+      "width": 800,
+      "height": 480,
+      "shape": "square",
+      "touch": "无触摸",
+      "buttonCount": 3,
+      "tags": [
+        "800 × 480",
+        "六色",
+        "全刷"
+      ],
+      "note": "按屏幕实际色板设计；刷新过程中继续处理按键。",
+      "image": "/project-new/hardware/seeed-reterminal-e1002.jpg",
+      "imageCaption": "Seeed Studio 官方产品图",
+      "documentUrl": "https://wiki.seeedstudio.com/getting_started_with_reterminal_e1002/"
+    },
+    "hardware": {
+      "board": "esp32:esp32:esp32s3:PSRAM=opi,FlashSize=32M",
+      "display": "NGFX_SEEED_RETERMINAL_E1002",
+      "cs": "10",
+      "dc": "11",
+      "reset": "12",
+      "te": "-1",
+      "sck": "7",
+      "mosi": "9",
+      "miso": "8",
+      "backlight": "-1",
+      "disp": "-1",
+      "frequency": 4000000,
+      "rotation": 0,
+      "bufferLines": 4,
+      "edgeBack": false,
+      "swipeHome": false,
+      "wr": "7",
+      "rd": "-1",
+      "dataPins": [
+        "8",
+        "16",
+        "15",
+        "18",
+        "4",
+        "5",
+        "6",
+        "7",
+        "19",
+        "20",
+        "21",
+        "22",
+        "23",
+        "24",
+        "25",
+        "26"
+      ],
+      "touch": "none",
+      "touchCs": "4",
+      "touchIrq": "-1",
+      "touchClock": "5",
+      "touchMosi": "6",
+      "touchMiso": "7",
+      "touchSda": "4",
+      "touchScl": "5",
+      "touchReset": "-1",
+      "touchAddress": 46,
+      "calibration": [
+        300,
+        3600,
+        300,
+        3600,
+        3
+      ],
+      "busy": "13",
+      "extraCs0": "-1",
+      "buttons": [
+        {
+          "id": "confirm",
+          "name": "绿色 / 确认",
+          "pin": "3",
+          "activeLow": true,
+          "pull": "none",
+          "debounceMs": 30,
+          "longPressMs": 800,
+          "repeatDelayMs": 500,
+          "repeatIntervalMs": 200
+        },
+        {
+          "id": "next",
+          "name": "中键 / 下一项",
+          "pin": "4",
+          "activeLow": true,
+          "pull": "none",
+          "debounceMs": 30,
+          "longPressMs": 800,
+          "repeatDelayMs": 500,
+          "repeatIntervalMs": 200
+        },
+        {
+          "id": "previous",
+          "name": "左键 / 上一项",
+          "pin": "5",
+          "activeLow": true,
+          "pull": "none",
+          "debounceMs": 30,
+          "longPressMs": 800,
+          "repeatDelayMs": 500,
+          "repeatIntervalMs": 200
+        }
+      ],
+      "vcomMillivolts": -1,
+      "resetDurationMs": 10,
+      "pulldownReset": false,
+      "seeedBoard": "E1002"
+    },
+    "input": {
+      "keys": [
+        "confirm",
+        "next",
+        "previous"
+      ],
+      "focusColor": "#000000",
+      "focusWidth": 2,
+      "bindings": [
+        {
+          "key": "confirm",
+          "gesture": "short",
+          "action": "confirm"
+        },
+        {
+          "key": "next",
+          "gesture": "short",
+          "action": "next"
+        },
+        {
+          "key": "previous",
+          "gesture": "short",
+          "action": "previous"
+        }
+      ]
+    },
+    "support": {
+      "status": "ready",
+      "notes": []
+    },
+    "order": 11,
+    "library": {
+      "displayClass": "SeeedReterminalE1002Display"
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "seeed-reterminal-e1003",
+    "label": "Seeed reTerminal E1003",
+    "description": "16 级灰阶 · 竖屏 · 按键导出；官方固定接线及板级供电，当前全刷。",
+    "kind": "device",
+    "source": {
+      "manufacturer": "Seeed Studio",
+      "checkedAt": "2026-10-26",
+      "files": [
+        "https://github.com/Seeed-Studio/Seeed_GFX2/blob/a736f1726cedb89692ca9ebcedcc3d2468ef92f5/src/board/configs/reTerminal_ePaper_Board_Configs.h",
+        "https://wiki.seeedstudio.com/seeed_epaper_displays/",
+        "https://wiki.seeedstudio.com/reterminal_e10xx_with_arduino_peripherals/"
+      ],
+      "marketStatus": "listed",
+      "runtimeVerification": "compiled; hardware not tested",
+      "image": {
+        "url": "https://files.seeedstudio.com/wiki/reterminal_e10xx/img/e1003/2-reTerminal-E1003-Epaper-Display.jpg",
+        "page": "https://wiki.seeedstudio.com/getting_started_with_reterminal_e1003/",
+        "downloadedAt": "2026-10-26",
+        "credit": "Seeed Studio; product identification image, original unmodified"
+      }
+    },
+    "card": {
+      "name": "reTerminal E1003",
+      "subtitle": "16 级灰阶 · 竖屏 · 按键导出",
+      "brand": "Seeed Studio",
+      "mcu": "ESP32-S3",
+      "controller": "IT8951",
+      "interface": "SPI",
+      "width": 1404,
+      "height": 1872,
+      "shape": "square",
+      "touch": "硬件有触摸；当前按键导出",
+      "buttonCount": 3,
+      "tags": [
+        "1404 × 1872",
+        "16 级灰阶",
+        "全刷"
+      ],
+      "note": "硬件具有电容触摸；当前 NICE_GFX 导出使用实体按键，未接入该机型触摸协议。",
+      "image": "/project-new/hardware/seeed-reterminal-e1003.jpg",
+      "imageCaption": "Seeed Studio 官方产品图",
+      "documentUrl": "https://wiki.seeedstudio.com/getting_started_with_reterminal_e1003/"
+    },
+    "hardware": {
+      "board": "esp32:esp32:esp32s3:PSRAM=opi,FlashSize=32M",
+      "display": "NGFX_SEEED_RETERMINAL_E1003",
+      "cs": "10",
+      "dc": "-1",
+      "reset": "12",
+      "te": "-1",
+      "sck": "7",
+      "mosi": "9",
+      "miso": "8",
+      "backlight": "-1",
+      "disp": "-1",
+      "frequency": 4000000,
+      "rotation": 1,
+      "bufferLines": 4,
+      "edgeBack": false,
+      "swipeHome": false,
+      "wr": "7",
+      "rd": "-1",
+      "dataPins": [
+        "8",
+        "16",
+        "15",
+        "18",
+        "4",
+        "5",
+        "6",
+        "7",
+        "19",
+        "20",
+        "21",
+        "22",
+        "23",
+        "24",
+        "25",
+        "26"
+      ],
+      "touch": "none",
+      "touchCs": "4",
+      "touchIrq": "-1",
+      "touchClock": "5",
+      "touchMosi": "6",
+      "touchMiso": "7",
+      "touchSda": "4",
+      "touchScl": "5",
+      "touchReset": "-1",
+      "touchAddress": 46,
+      "calibration": [
+        300,
+        3600,
+        300,
+        3600,
+        3
+      ],
+      "busy": "13",
+      "extraCs0": "-1",
+      "buttons": [
+        {
+          "id": "confirm",
+          "name": "绿色 / 确认",
+          "pin": "3",
+          "activeLow": true,
+          "pull": "none",
+          "debounceMs": 30,
+          "longPressMs": 800,
+          "repeatDelayMs": 500,
+          "repeatIntervalMs": 200
+        },
+        {
+          "id": "next",
+          "name": "中键 / 下一项",
+          "pin": "4",
+          "activeLow": true,
+          "pull": "none",
+          "debounceMs": 30,
+          "longPressMs": 800,
+          "repeatDelayMs": 500,
+          "repeatIntervalMs": 200
+        },
+        {
+          "id": "previous",
+          "name": "左键 / 上一项",
+          "pin": "5",
+          "activeLow": true,
+          "pull": "none",
+          "debounceMs": 30,
+          "longPressMs": 800,
+          "repeatDelayMs": 500,
+          "repeatIntervalMs": 200
+        }
+      ],
+      "vcomMillivolts": -1,
+      "resetDurationMs": 10,
+      "pulldownReset": false,
+      "seeedBoard": "E1003"
+    },
+    "input": {
+      "keys": [
+        "confirm",
+        "next",
+        "previous"
+      ],
+      "focusColor": "#000000",
+      "focusWidth": 2,
+      "bindings": [
+        {
+          "key": "confirm",
+          "gesture": "short",
+          "action": "confirm"
+        },
+        {
+          "key": "next",
+          "gesture": "short",
+          "action": "next"
+        },
+        {
+          "key": "previous",
+          "gesture": "short",
+          "action": "previous"
+        }
+      ]
+    },
+    "support": {
+      "status": "ready",
+      "notes": [
+        "硬件具有电容触摸；当前 NICE_GFX 导出使用实体按键，未接入该机型触摸协议。"
+      ]
+    },
+    "order": 12,
+    "library": {
+      "displayClass": "SeeedReterminalE1003Display"
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "seeed-reterminal-e1004",
+    "label": "Seeed reTerminal E1004",
+    "description": "Spectra 6 六色 · 双控制器；官方固定接线及板级供电，当前全刷。",
+    "kind": "device",
+    "source": {
+      "manufacturer": "Seeed Studio",
+      "checkedAt": "2026-10-26",
+      "files": [
+        "https://github.com/Seeed-Studio/Seeed_GFX2/blob/a736f1726cedb89692ca9ebcedcc3d2468ef92f5/src/board/configs/reTerminal_ePaper_Board_Configs.h",
+        "https://wiki.seeedstudio.com/seeed_epaper_displays/",
+        "https://wiki.seeedstudio.com/reterminal_e10xx_with_arduino_peripherals/"
+      ],
+      "marketStatus": "listed",
+      "runtimeVerification": "compiled; hardware not tested",
+      "image": {
+        "url": "https://files.seeedstudio.com/wiki/reterminal_e10xx/img/e1004/2-reterminal-e1004-epaper-display.jpg",
+        "page": "https://wiki.seeedstudio.com/getting_started_with_reterminal_e1004/",
+        "downloadedAt": "2026-10-26",
+        "credit": "Seeed Studio; product identification image, original unmodified"
+      }
+    },
+    "card": {
+      "name": "reTerminal E1004",
+      "subtitle": "Spectra 6 六色 · 双控制器",
+      "brand": "Seeed Studio",
+      "mcu": "ESP32-S3",
+      "controller": "T133A01",
+      "interface": "SPI",
+      "width": 1200,
+      "height": 1600,
+      "shape": "square",
+      "touch": "无触摸",
+      "buttonCount": 3,
+      "tags": [
+        "1200 × 1600",
+        "六色",
+        "全刷"
+      ],
+      "note": "按屏幕实际色板设计；刷新过程中继续处理按键。",
+      "image": "/project-new/hardware/seeed-reterminal-e1004.jpg",
+      "imageCaption": "Seeed Studio 官方产品图",
+      "documentUrl": "https://wiki.seeedstudio.com/getting_started_with_reterminal_e1004/"
+    },
+    "hardware": {
+      "board": "esp32:esp32:esp32s3:PSRAM=opi,FlashSize=32M",
+      "display": "NGFX_SEEED_RETERMINAL_E1004",
+      "cs": "10",
+      "dc": "11",
+      "reset": "38",
+      "te": "-1",
+      "sck": "7",
+      "mosi": "9",
+      "miso": "8",
+      "backlight": "-1",
+      "disp": "-1",
+      "frequency": 4000000,
+      "rotation": 0,
+      "bufferLines": 4,
+      "edgeBack": false,
+      "swipeHome": false,
+      "wr": "7",
+      "rd": "-1",
+      "dataPins": [
+        "8",
+        "16",
+        "15",
+        "18",
+        "4",
+        "5",
+        "6",
+        "7",
+        "19",
+        "20",
+        "21",
+        "22",
+        "23",
+        "24",
+        "25",
+        "26"
+      ],
+      "touch": "none",
+      "touchCs": "4",
+      "touchIrq": "-1",
+      "touchClock": "5",
+      "touchMosi": "6",
+      "touchMiso": "7",
+      "touchSda": "4",
+      "touchScl": "5",
+      "touchReset": "-1",
+      "touchAddress": 46,
+      "calibration": [
+        300,
+        3600,
+        300,
+        3600,
+        3
+      ],
+      "busy": "13",
+      "extraCs0": "2",
+      "buttons": [
+        {
+          "id": "next",
+          "name": "右键 / 下一项",
+          "pin": "3",
+          "activeLow": true,
+          "pull": "none",
+          "debounceMs": 30,
+          "longPressMs": 800,
+          "repeatDelayMs": 500,
+          "repeatIntervalMs": 200
+        },
+        {
+          "id": "previous",
+          "name": "左键 / 上一项",
+          "pin": "4",
+          "activeLow": true,
+          "pull": "none",
+          "debounceMs": 30,
+          "longPressMs": 800,
+          "repeatDelayMs": 500,
+          "repeatIntervalMs": 200
+        },
+        {
+          "id": "confirm",
+          "name": "刷新 / 确认",
+          "pin": "5",
+          "activeLow": true,
+          "pull": "none",
+          "debounceMs": 30,
+          "longPressMs": 800,
+          "repeatDelayMs": 500,
+          "repeatIntervalMs": 200
+        }
+      ],
+      "vcomMillivolts": -1,
+      "resetDurationMs": 10,
+      "pulldownReset": false,
+      "seeedBoard": "E1004"
+    },
+    "input": {
+      "keys": [
+        "next",
+        "previous",
+        "confirm"
+      ],
+      "focusColor": "#000000",
+      "focusWidth": 2,
+      "bindings": [
+        {
+          "key": "next",
+          "gesture": "short",
+          "action": "next"
+        },
+        {
+          "key": "previous",
+          "gesture": "short",
+          "action": "previous"
+        },
+        {
+          "key": "confirm",
+          "gesture": "short",
+          "action": "confirm"
+        }
+      ]
+    },
+    "support": {
+      "status": "ready",
+      "notes": []
+    },
+    "order": 13,
+    "library": {
+      "displayClass": "SeeedReterminalE1004Display"
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "seeed-reterminal-sticky",
+    "label": "Seeed reTerminal Sticky",
+    "description": "黑白 · 自动识别芯片 · 3 个按键；官方固定接线及板级供电，当前全刷。",
+    "kind": "device",
+    "source": {
+      "manufacturer": "Seeed Studio",
+      "checkedAt": "2026-10-26",
+      "files": [
+        "https://github.com/Seeed-Studio/Seeed_GFX2/blob/a736f1726cedb89692ca9ebcedcc3d2468ef92f5/src/board/configs/reTerminal_ePaper_Board_Configs.h",
+        "https://wiki.seeedstudio.com/seeed_epaper_displays/",
+        "https://wiki.seeedstudio.com/reterminal_e10xx_with_arduino_peripherals/"
+      ],
+      "marketStatus": "listed",
+      "runtimeVerification": "compiled; hardware not tested",
+      "image": {
+        "url": "https://media-cdn.seeedstudio.com/media/catalog/product/2/0/20260728-174156.jpg",
+        "page": "https://www.seeedstudio.com/reTerminal-Sticky-p-6861.html",
+        "downloadedAt": "2026-10-26",
+        "credit": "Seeed Studio; product identification image, original unmodified"
+      }
+    },
+    "card": {
+      "name": "reTerminal Sticky",
+      "subtitle": "黑白 · 自动识别芯片 · 3 个按键",
+      "brand": "Seeed Studio",
+      "mcu": "ESP32-S3",
+      "controller": "SSD1677 / SSD2677",
+      "interface": "SPI",
+      "width": 800,
+      "height": 480,
+      "shape": "square",
+      "touch": "硬件有触摸；当前按键导出",
+      "buttonCount": 3,
+      "tags": [
+        "800 × 480",
+        "黑白",
+        "全刷"
+      ],
+      "note": "硬件具有电容触摸；当前 NICE_GFX 导出使用实体按键，未接入该机型触摸协议。",
+      "image": "/project-new/hardware/seeed-reterminal-sticky.jpg",
+      "imageCaption": "Seeed Studio 官方产品图",
+      "documentUrl": "https://www.seeedstudio.com/reTerminal-Sticky-p-6861.html"
+    },
+    "hardware": {
+      "board": "esp32:esp32:esp32s3:PSRAM=opi,FlashSize=32M",
+      "display": "NGFX_SEEED_RETERMINAL_STICKY",
+      "cs": "15",
+      "dc": "16",
+      "reset": "17",
+      "te": "-1",
+      "sck": "13",
+      "mosi": "14",
+      "miso": "12",
+      "backlight": "-1",
+      "disp": "-1",
+      "frequency": 4000000,
+      "rotation": 2,
+      "bufferLines": 4,
+      "edgeBack": false,
+      "swipeHome": false,
+      "wr": "7",
+      "rd": "-1",
+      "dataPins": [
+        "8",
+        "16",
+        "15",
+        "18",
+        "4",
+        "5",
+        "6",
+        "7",
+        "19",
+        "20",
+        "21",
+        "22",
+        "23",
+        "24",
+        "25",
+        "26"
+      ],
+      "touch": "none",
+      "touchCs": "4",
+      "touchIrq": "-1",
+      "touchClock": "5",
+      "touchMosi": "6",
+      "touchMiso": "7",
+      "touchSda": "4",
+      "touchScl": "5",
+      "touchReset": "-1",
+      "touchAddress": 46,
+      "calibration": [
+        300,
+        3600,
+        300,
+        3600,
+        3
+      ],
+      "busy": "18",
+      "extraCs0": "-1",
+      "buttons": [
+        {
+          "id": "confirm",
+          "name": "AI / 确认",
+          "pin": "4",
+          "activeLow": true,
+          "pull": "none",
+          "debounceMs": 30,
+          "longPressMs": 800,
+          "repeatDelayMs": 500,
+          "repeatIntervalMs": 200
+        },
+        {
+          "id": "previous",
+          "name": "上键",
+          "pin": "5",
+          "activeLow": true,
+          "pull": "none",
+          "debounceMs": 30,
+          "longPressMs": 800,
+          "repeatDelayMs": 500,
+          "repeatIntervalMs": 200
+        },
+        {
+          "id": "next",
+          "name": "下键",
+          "pin": "6",
+          "activeLow": true,
+          "pull": "none",
+          "debounceMs": 30,
+          "longPressMs": 800,
+          "repeatDelayMs": 500,
+          "repeatIntervalMs": 200
+        }
+      ],
+      "vcomMillivolts": -1,
+      "resetDurationMs": 10,
+      "pulldownReset": false,
+      "seeedBoard": "Sticky"
+    },
+    "input": {
+      "keys": [
+        "confirm",
+        "previous",
+        "next"
+      ],
+      "focusColor": "#000000",
+      "focusWidth": 2,
+      "bindings": [
+        {
+          "key": "confirm",
+          "gesture": "short",
+          "action": "confirm"
+        },
+        {
+          "key": "previous",
+          "gesture": "short",
+          "action": "previous"
+        },
+        {
+          "key": "next",
+          "gesture": "short",
+          "action": "next"
+        }
+      ]
+    },
+    "support": {
+      "status": "ready",
+      "notes": [
+        "硬件具有电容触摸；当前 NICE_GFX 导出使用实体按键，未接入该机型触摸协议。"
+      ]
+    },
+    "order": 14,
+    "library": {
+      "displayClass": "SeeedReterminalStickyDisplay"
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "seeed-trmnl-75-diy",
+    "label": "Seeed TRMNL 7.5″ (OG) DIY Kit",
+    "description": "黑白 · XIAO ESP32-S3 Plus；官方固定接线及板级供电，当前全刷。",
+    "kind": "device",
+    "source": {
+      "manufacturer": "Seeed Studio",
+      "checkedAt": "2026-10-26",
+      "files": [
+        "https://github.com/Seeed-Studio/Seeed_GFX2/blob/a736f1726cedb89692ca9ebcedcc3d2468ef92f5/src/board/configs/XIAO_ePaper_Board_Configs.h",
+        "https://wiki.seeedstudio.com/seeed_epaper_displays/",
+        "https://wiki.seeedstudio.com/reterminal_e10xx_with_arduino_peripherals/"
+      ],
+      "marketStatus": "listed",
+      "runtimeVerification": "compiled; hardware not tested",
+      "image": {
+        "url": "https://files.seeedstudio.com/wiki/XIAO_Gadget/TRMNL_Kit_Pic/head.jpg",
+        "page": "https://wiki.seeedstudio.com/trmnl_7inch5_diy_kit_main_page/",
+        "downloadedAt": "2026-10-26",
+        "credit": "Seeed Studio; product identification image, original unmodified"
+      }
+    },
+    "card": {
+      "name": "TRMNL 7.5″ (OG) DIY Kit",
+      "subtitle": "黑白 · XIAO ESP32-S3 Plus",
+      "brand": "Seeed Studio",
+      "mcu": "ESP32-S3",
+      "controller": "UC8179",
+      "interface": "SPI",
+      "width": 800,
+      "height": 480,
+      "shape": "square",
+      "touch": "无触摸",
+      "buttonCount": 3,
+      "tags": [
+        "800 × 480",
+        "黑白",
+        "全刷"
+      ],
+      "note": "按屏幕实际色板设计；刷新过程中继续处理按键。",
+      "image": "/project-new/hardware/seeed-trmnl-75-diy.jpg",
+      "imageCaption": "Seeed Studio 官方产品图",
+      "documentUrl": "https://wiki.seeedstudio.com/trmnl_7inch5_diy_kit_main_page/"
+    },
+    "hardware": {
+      "board": "esp32:esp32:XIAO_ESP32S3:PSRAM=opi,FlashSize=16M",
+      "display": "NGFX_SEEED_750_BW",
+      "cs": "44",
+      "dc": "10",
+      "reset": "38",
+      "te": "-1",
+      "sck": "7",
+      "mosi": "9",
+      "miso": "-1",
+      "backlight": "-1",
+      "disp": "-1",
+      "frequency": 4000000,
+      "rotation": 0,
+      "bufferLines": 4,
+      "edgeBack": false,
+      "swipeHome": false,
+      "wr": "7",
+      "rd": "-1",
+      "dataPins": [
+        "8",
+        "16",
+        "15",
+        "18",
+        "4",
+        "5",
+        "6",
+        "7",
+        "19",
+        "20",
+        "21",
+        "22",
+        "23",
+        "24",
+        "25",
+        "26"
+      ],
+      "touch": "none",
+      "touchCs": "4",
+      "touchIrq": "-1",
+      "touchClock": "5",
+      "touchMosi": "6",
+      "touchMiso": "7",
+      "touchSda": "4",
+      "touchScl": "5",
+      "touchReset": "-1",
+      "touchAddress": 46,
+      "calibration": [
+        300,
+        3600,
+        300,
+        3600,
+        3
+      ],
+      "busy": "4",
+      "extraCs0": "-1",
+      "buttons": [
+        {
+          "id": "previous",
+          "name": "D1 / 上一项",
+          "pin": "2",
+          "activeLow": true,
+          "pull": "none",
+          "debounceMs": 30,
+          "longPressMs": 800,
+          "repeatDelayMs": 500,
+          "repeatIntervalMs": 200
+        },
+        {
+          "id": "confirm",
+          "name": "D2 / 确认",
+          "pin": "3",
+          "activeLow": true,
+          "pull": "none",
+          "debounceMs": 30,
+          "longPressMs": 800,
+          "repeatDelayMs": 500,
+          "repeatIntervalMs": 200
+        },
+        {
+          "id": "next",
+          "name": "D4 / 下一项",
+          "pin": "5",
+          "activeLow": true,
+          "pull": "none",
+          "debounceMs": 30,
+          "longPressMs": 800,
+          "repeatDelayMs": 500,
+          "repeatIntervalMs": 200
+        }
+      ],
+      "vcomMillivolts": -1,
+      "resetDurationMs": 10,
+      "pulldownReset": false,
+      "seeedBoard": "EE04"
+    },
+    "input": {
+      "keys": [
+        "previous",
+        "confirm",
+        "next"
+      ],
+      "focusColor": "#000000",
+      "focusWidth": 2,
+      "bindings": [
+        {
+          "key": "previous",
+          "gesture": "short",
+          "action": "previous"
+        },
+        {
+          "key": "confirm",
+          "gesture": "short",
+          "action": "confirm"
+        },
+        {
+          "key": "next",
+          "gesture": "short",
+          "action": "next"
+        }
+      ]
+    },
+    "support": {
+      "status": "ready",
+      "notes": []
+    },
+    "order": 15,
+    "library": {
+      "displayClass": "SeeedTrmnl75DiyDisplay"
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "seeed-xiao-75-panel",
+    "label": "Seeed XIAO 7.5″ ePaper Panel",
+    "description": "黑白 · XIAO ESP32-C3 · 无用户按键；官方固定接线及板级供电，当前全刷。",
+    "kind": "device",
+    "source": {
+      "manufacturer": "Seeed Studio",
+      "checkedAt": "2026-10-26",
+      "files": [
+        "https://github.com/Seeed-Studio/Seeed_GFX2/blob/a736f1726cedb89692ca9ebcedcc3d2468ef92f5/src/board/configs/XIAO_ePaper_Board_Configs.h",
+        "https://wiki.seeedstudio.com/seeed_epaper_displays/"
+      ],
+      "marketStatus": "listed",
+      "runtimeVerification": "compiled; hardware not tested",
+      "image": {
+        "url": "https://files.seeedstudio.com/wiki/xiao_075inch_epaper_panel/100.jpg",
+        "page": "https://wiki.seeedstudio.com/xiao_075inch_epaper_panel/",
+        "downloadedAt": "2026-10-26",
+        "credit": "Seeed Studio; product identification image, original unmodified"
+      }
+    },
+    "card": {
+      "name": "XIAO 7.5″ ePaper Panel",
+      "subtitle": "黑白 · XIAO ESP32-C3 · 无用户按键",
+      "brand": "Seeed Studio",
+      "mcu": "ESP32-C3",
+      "controller": "UC8179",
+      "interface": "SPI",
+      "width": 800,
+      "height": 480,
+      "shape": "square",
+      "touch": "无触摸",
+      "buttonCount": 0,
+      "tags": [
+        "800 × 480",
+        "黑白",
+        "全刷"
+      ],
+      "note": "按屏幕实际色板设计；刷新过程中继续处理按键。",
+      "image": "/project-new/hardware/seeed-xiao-75-panel.jpg",
+      "imageCaption": "Seeed Studio 官方产品图",
+      "documentUrl": "https://wiki.seeedstudio.com/xiao_075inch_epaper_panel/"
+    },
+    "hardware": {
+      "board": "esp32:esp32:XIAO_ESP32C3",
+      "display": "NGFX_SEEED_750_BW",
+      "cs": "3",
+      "dc": "5",
+      "reset": "2",
+      "te": "-1",
+      "sck": "8",
+      "mosi": "10",
+      "miso": "9",
+      "backlight": "-1",
+      "disp": "-1",
+      "frequency": 4000000,
+      "rotation": 0,
+      "bufferLines": 4,
+      "edgeBack": false,
+      "swipeHome": false,
+      "wr": "7",
+      "rd": "-1",
+      "dataPins": [
+        "8",
+        "16",
+        "15",
+        "18",
+        "4",
+        "5",
+        "6",
+        "7",
+        "19",
+        "20",
+        "21",
+        "22",
+        "23",
+        "24",
+        "25",
+        "26"
+      ],
+      "touch": "none",
+      "touchCs": "4",
+      "touchIrq": "-1",
+      "touchClock": "5",
+      "touchMosi": "6",
+      "touchMiso": "7",
+      "touchSda": "4",
+      "touchScl": "5",
+      "touchReset": "-1",
+      "touchAddress": 46,
+      "calibration": [
+        300,
+        3600,
+        300,
+        3600,
+        3
+      ],
+      "busy": "4",
+      "extraCs0": "-1",
+      "buttons": [],
+      "vcomMillivolts": -1,
+      "resetDurationMs": 10,
+      "pulldownReset": false,
+      "seeedBoard": ""
+    },
+    "input": {
+      "keys": [],
+      "focusColor": "#000000",
+      "focusWidth": 2,
+      "bindings": []
+    },
+    "support": {
+      "status": "ready",
+      "notes": []
+    },
+    "order": 16,
+    "library": {
+      "displayClass": "SeeedXiao75PanelDisplay"
     }
   },
   {

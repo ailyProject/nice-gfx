@@ -12,6 +12,9 @@ struct SpiConfig {
   uint32_t frequency = 40000000, readFrequency = 10000000;
   uint8_t mode = 0;
   bool paddedCommands = false;
+  // Buffered monochrome controllers consume only command/data bytes. Platforms
+  // may omit RGB DMA workers/staging for this transport preference.
+  bool byteOnly = false;
   int writeStrobePin = -1;
   explicit SpiConfig(SpiPins p) : pins(p) {}
 };

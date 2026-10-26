@@ -42,6 +42,16 @@ class Transport {
   virtual Status begin() = 0;
   virtual void end() = 0;
   virtual Status command(uint8_t command, const uint8_t *data, size_t bytes) = 0;
+  // OLED command arguments remain D/C=command, unlike TFT register arguments.
+  // Implementations can batch this entire stream in one bus transaction.
+  virtual Status commands(const uint8_t *bytes, size_t count) {
+    if (count && !bytes) return Status::InvalidArgument;
+    for (size_t i=0;i<count;++i) {
+      const Status result=command(bytes[i],nullptr,0);
+      if(result!=Status::Ok)return result;
+    }
+    return Status::Ok;
+  }
   virtual Status command16(uint16_t, const uint8_t *, size_t) { return Status::Unsupported; }
   virtual Status register16(uint16_t c, uint16_t value, uint8_t commandBits = 8) {
     const uint8_t bytes[] = {uint8_t(value >> 8), uint8_t(value)};

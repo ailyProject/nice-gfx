@@ -91,7 +91,7 @@ class RefreshScheduler {
  public:
   using Renderer = Status (*)(void *context, const DirtyRect &area,
                               uint16_t *pixels, size_t stridePixels);
-  RefreshScheduler(Panel &panel, uint16_t *first, uint16_t *second,
+  RefreshScheduler(Backend &panel, uint16_t *first, uint16_t *second,
                    size_t bufferPixels, uint32_t mergeSlack = 32)
       : panel_(&panel), capacity_(bufferPixels), pending_(mergeSlack), work_(mergeSlack) {
     buffers_[0] = first; buffers_[1] = second;
@@ -410,7 +410,7 @@ class RefreshScheduler {
     if(s!=Status::Ok)return fail(s);
     active_=false;prepared_=inFlight_=-1;clearDirect();work_.clear();return status_=Status::Ok;
   }
-  Panel *panel_;
+  Backend *panel_;
   uint16_t *buffers_[2];
   size_t capacity_;
   size_t pixelBudget_=0;

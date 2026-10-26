@@ -71,6 +71,7 @@ struct VideoCopyStats {
   uint64_t inheritedPixels=0,inheritMicros=0,linkWaitMicros=0;
   uint32_t frameCommits=0,frameSwitches=0,frameAborts=0,linkTimeouts=0;
   uint64_t ppaCopyDriverMicros=0,ppaCopySyncMicros=0;
+  uint64_t framebufferSyncMicros=0;
 };
 struct RgbConfig {
   VideoController controller = VideoController::ST7262;

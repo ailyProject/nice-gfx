@@ -1,0 +1,51 @@
+[
+  {
+    "name": "ssd1619",
+    "source": "Adafruit_EPD/src/drivers/Adafruit_SSD1619.cpp",
+    "array": "ssd1619_default_init_code",
+    "bytes": 27,
+    "sha256": "fa8b07d52aba00e01c431d0583cd0fd228e4e8b6bd71c3e7b867489e55db3839"
+  },
+  {
+    "name": "ek79686",
+    "source": "Adafruit_EPD/src/drivers/Adafruit_EK79686.cpp",
+    "array": "ek79686_default_init_code",
+    "bytes": 48,
+    "sha256": "88043fc532bd9c3f378a2e6b6e98c2324bf7f8dda4dc9aff6f5c91f51bd9fdfc"
+  },
+  {
+    "name": "ssd1675lut",
+    "source": "Adafruit_EPD/src/drivers/Adafruit_SSD1675.cpp",
+    "array": "LUT_DATA",
+    "bytes": 76,
+    "sha256": "3f6427335e52a53507e0da688f329805942eec1a7c1dd74dcbe346b967a91554"
+  },
+  {
+    "name": "ssd2683",
+    "source": "bb_epaper/src/bb_ep.inl",
+    "array": "zectrix_init_full",
+    "bytes": 35,
+    "sha256": "e482c4d9abed5f994d87c5b14dadbc5673d095ed8ae06993948898059fcd6f4e"
+  },
+  {
+    "name": "spectra400",
+    "source": "bb_epaper/src/bb_ep.inl",
+    "array": "epd40_init_full",
+    "bytes": 71,
+    "sha256": "50616955a0f47ea3d24a653a6e093a9693b829649ac1920ab638c0c706a91dfc"
+  },
+  {
+    "name": "spectra1024",
+    "source": "bb_epaper/src/bb_ep.inl",
+    "array": "epd81c_init_full",
+    "bytes": 77,
+    "sha256": "c68da7f8af331f3ee9ce80e7913df89450aa0b6856b231b0e3abe59549ed37d4"
+  },
+  {
+    "name": "spectra1200",
+    "source": "bb_epaper/src/bb_ep.inl",
+    "array": "epd133_spectra_init",
+    "bytes": 122,
+    "sha256": "fd00b3e14cc360b05117fe184f4a8d6adc763c7d2556cafd51ee279b59c747cb"
+  }
+]

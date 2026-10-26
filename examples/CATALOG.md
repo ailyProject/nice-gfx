@@ -126,6 +126,7 @@
 - [AnimationGallery](07_UI/AnimationGallery/AnimationGallery.ino)
 - [DynamicImageDemo](07_UI/DynamicImageDemo/DynamicImageDemo.ino)
 - [GfxTouchDemo](07_UI/GfxTouchDemo/GfxTouchDemo.ino)
+- [MonochromeMenu](07_UI/MonochromeMenu/MonochromeMenu.ino)
 - [Waveshare4B](07_UI/Waveshare4B/Waveshare4B.ino)
 
 ## 08_Applications
@@ -165,10 +166,12 @@
 - [Colour_Test](09_Diagnostics/Colour_Test/Colour_Test.ino)
 - [Display_Color_Bars](09_Diagnostics/Display_Color_Bars/Display_Color_Bars.ino)
 - [Display_Info](09_Diagnostics/Display_Info/Display_Info.ino)
+- [EpaperRefresh](09_Diagnostics/EpaperRefresh/EpaperRefresh.ino)
 - [GFX_ReadWrite_Test](09_Diagnostics/GFX_ReadWrite_Test/GFX_ReadWrite_Test.ino)
 - [GFX_Read_Reg](09_Diagnostics/GFX_Read_Reg/GFX_Read_Reg.ino)
 - [GFX_Screen_Capture](09_Diagnostics/GFX_Screen_Capture/GFX_Screen_Capture.ino)
 - [Read_ID_bitbash](09_Diagnostics/Read_ID_bitbash/Read_ID_bitbash.ino)
+- [SeeedEpaper](09_Diagnostics/SeeedEpaper/SeeedEpaper.ino)
 - [Test_Touch_Controller](09_Diagnostics/Test_Touch_Controller/Test_Touch_Controller.ino)
 
 ## 10_Performance

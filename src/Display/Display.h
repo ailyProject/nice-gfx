@@ -19,6 +19,9 @@
 
 namespace nice_gfx {
 namespace detail {
+template<class Controller> inline auto configureByteTransport(SpiConfig &config,int)
+    -> decltype(Controller::byteOnly,void()) { config.byteOnly=Controller::byteOnly; }
+template<class Controller> inline void configureByteTransport(SpiConfig &,long) {}
 // The hardware base is constructed before the graphics base and destroyed
 // after it. This gives the renderer a live panel throughout its lifetime.
 template<class Bus, class Controller> struct DisplayStorage {
@@ -36,6 +39,7 @@ template<class Controller> inline SpiConfig spiConfig(int cs,int dc,int clock,in
   c.readFrequency=options.spiReadFrequency;
   c.paddedCommands=Controller::paddedCommands;
   c.writeStrobePin=options.writeStrobePin;
+  configureByteTransport<Controller>(c,0);
   return c;
 }
 inline ParallelConfig parallelConfig(ParallelPins pins, const PanelOptions &options) {
