@@ -1,0 +1,6 @@
+GfxCircuit40: renamed 4-bpp bitmap derivative of ChakraPetch-Bold.ttf.
+Source SHA256: 65fbf76d95651697275e19db4d717c0e95a789ddd3476478b05292104db278a0
+Cell 28x54, baseline 44, 96 BMP glyphs.
+Narrow period/comma/colon/space advances; degree glyph included.
+Rasterizer: scripts/rasterize-industrial-fonts.ps1 (4x coverage).
+Original font remains under SIL OFL 1.1. Preserve ChakraPetch-OFL.txt.

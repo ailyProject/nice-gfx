@@ -1,0 +1,5 @@
+GfxSmoothBoldCN24: renamed 4-bpp bitmap derivative of SourceHanSansCN-Bold.otf.
+Source SHA256: 62383707c086a32f3afd5e293f34c7eff64c7fea31f579fdc6cbe34d920519a6
+Cell 24x32, baseline 24, 7540 BMP glyphs.
+Rasterizer: scripts/rasterize-industrial-fonts.ps1 (4x coverage).
+Original font remains under SIL OFL 1.1. Preserve SourceHanSans-OFL-1.1.txt.

@@ -1,4 +1,6 @@
-# NICE_GFX 1.0.0
+<p align="center">
+  <img src="logo.png" alt="NICE_GFX logo" width="480">
+</p>
 
 NICE_GFX is an Arduino / ESP-IDF graphics library for color displays, monochrome displays, and e-paper. It also supports all public physical-display configurations from a pinned version of u8g2. Display objects receive pins and configuration through their constructors and provide drawing primitives, UTF-8 text, off-screen Sprites, touch input, and partial updates. Selected platforms use DMA or PIO to accelerate transfers. Native ESP-IDF integration uses IDF drivers, GPIO, timing, and memory interfaces directly, without an Arduino component.
 

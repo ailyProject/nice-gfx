@@ -5539,7 +5539,17 @@
         "https://wiki.seeedstudio.com/seeed_epaper_displays/"
       ],
       "marketStatus": "listed",
-      "runtimeVerification": "compiled; hardware not tested"
+      "runtimeVerification": "compiled; hardware not tested",
+      "image": {
+        "url": "https://media-cdn.seeedstudio.com/media/catalog/product/cache/bb49d3ec4ee05b6f018e93f896b8a25d/1/-/1-100088646-13.3-elnk-spectra-6-color-display.jpg",
+        "page": "https://wiki.seeedstudio.com/getting_started_with_ee02/",
+        "downloadedAt": "2026-10-26",
+        "credit": "Seeed Studio reference photo; processed front-view transparent thumbnail",
+        "modified": true,
+        "view": "front",
+        "processing": "Built-in imagegen front-view correction and background extraction from the official reference photo; remove detached alpha flecks, trim to connected product silhouette, fit without stretching into a 256 x 256 transparent canvas with 90% longest-edge occupancy, encode WebP at quality 0.92.",
+        "asset": "/project-new/hardware/seeed-ee02-spectra133.webp"
+      }
     },
     "card": {
       "name": "EE02 + 13.3″ Spectra 6",
@@ -5558,7 +5568,8 @@
         "六色",
         "全刷"
       ],
-      "note": "按屏幕实际色板设计；刷新过程中继续处理按键。"
+      "note": "按屏幕实际色板设计；刷新过程中继续处理按键。",
+      "image": "/project-new/hardware/seeed-ee02-spectra133.webp"
     },
     "hardware": {
       "board": "esp32:esp32:esp32s3:PSRAM=opi,FlashSize=32M",
@@ -5651,7 +5662,17 @@
         "https://wiki.seeedstudio.com/seeed_epaper_displays/"
       ],
       "marketStatus": "listed",
-      "runtimeVerification": "compiled; hardware not tested"
+      "runtimeVerification": "compiled; hardware not tested",
+      "image": {
+        "url": "https://media-cdn.seeedstudio.com/media/catalog/product/_/2/_218_1x_1.png",
+        "page": "https://wiki.seeedstudio.com/getting_started_with_ee03/",
+        "downloadedAt": "2026-10-26",
+        "credit": "Seeed Studio reference photo; processed front-view transparent thumbnail",
+        "modified": true,
+        "view": "front",
+        "processing": "Built-in imagegen front-view correction and background extraction from the official reference photo; remove detached alpha flecks, trim to connected product silhouette, fit without stretching into a 256 x 256 transparent canvas with 90% longest-edge occupancy, encode WebP at quality 0.92.",
+        "asset": "/project-new/hardware/seeed-ee03-103.webp"
+      }
     },
     "card": {
       "name": "EE03 + 10.3″ 灰阶屏",
@@ -5670,7 +5691,8 @@
         "16 级灰阶",
         "全刷"
       ],
-      "note": "按屏幕实际色板设计；刷新过程中继续处理按键。"
+      "note": "按屏幕实际色板设计；刷新过程中继续处理按键。",
+      "image": "/project-new/hardware/seeed-ee03-103.webp"
     },
     "hardware": {
       "board": "esp32:esp32:esp32s3:PSRAM=opi,FlashSize=32M",
@@ -5763,7 +5785,17 @@
         "https://wiki.seeedstudio.com/seeed_epaper_displays/"
       ],
       "marketStatus": "listed",
-      "runtimeVerification": "compiled; hardware not tested"
+      "runtimeVerification": "compiled; hardware not tested",
+      "image": {
+        "url": "https://media-cdn.seeedstudio.com/media/catalog/product/3/-/3-104990861-7.5-monochrome-eink.jpg",
+        "page": "https://wiki.seeedstudio.com/epaper_ee04/",
+        "downloadedAt": "2026-10-26",
+        "credit": "Seeed Studio reference photo; processed front-view transparent thumbnail",
+        "modified": true,
+        "view": "front",
+        "processing": "Built-in imagegen front-view correction and background extraction from the official reference photo; remove detached alpha flecks, trim to connected product silhouette, fit without stretching into a 256 x 256 transparent canvas with 90% longest-edge occupancy, encode WebP at quality 0.92.",
+        "asset": "/project-new/hardware/seeed-ee04-75.webp"
+      }
     },
     "card": {
       "name": "EE04 + 7.5″ 黑白屏",
@@ -5782,7 +5814,8 @@
         "黑白",
         "全刷"
       ],
-      "note": "按屏幕实际色板设计；刷新过程中继续处理按键。"
+      "note": "按屏幕实际色板设计；刷新过程中继续处理按键。",
+      "image": "/project-new/hardware/seeed-ee04-75.webp"
     },
     "hardware": {
       "board": "esp32:esp32:esp32s3:PSRAM=opi,FlashSize=32M",
@@ -5875,7 +5908,17 @@
         "https://wiki.seeedstudio.com/seeed_epaper_displays/"
       ],
       "marketStatus": "listed",
-      "runtimeVerification": "compiled; hardware not tested"
+      "runtimeVerification": "compiled; hardware not tested",
+      "image": {
+        "url": "https://media-cdn.seeedstudio.com/media/catalog/product/3/-/3-104990861-7.5-monochrome-eink.jpg",
+        "page": "https://wiki.seeedstudio.com/epaper_ee05/",
+        "downloadedAt": "2026-10-26",
+        "credit": "Seeed Studio reference photo; processed front-view transparent thumbnail",
+        "modified": true,
+        "view": "front",
+        "processing": "Built-in imagegen front-view correction and background extraction from the official reference photo; remove detached alpha flecks, trim to connected product silhouette, fit without stretching into a 256 x 256 transparent canvas with 90% longest-edge occupancy, encode WebP at quality 0.92.",
+        "asset": "/project-new/hardware/seeed-ee05-75.webp"
+      }
     },
     "card": {
       "name": "EE05 + 7.5″ 黑白屏",
@@ -5894,7 +5937,8 @@
         "黑白",
         "全刷"
       ],
-      "note": "按屏幕实际色板设计；刷新过程中继续处理按键。"
+      "note": "按屏幕实际色板设计；刷新过程中继续处理按键。",
+      "image": "/project-new/hardware/seeed-ee05-75.webp"
     },
     "hardware": {
       "board": "esp32:esp32:esp32s3:PSRAM=opi,FlashSize=32M",
@@ -5993,7 +6037,11 @@
         "url": "https://files.seeedstudio.com/wiki/reterminal_e10xx/img/24.jpg",
         "page": "https://wiki.seeedstudio.com/getting_started_with_reterminal_e1001/",
         "downloadedAt": "2026-10-26",
-        "credit": "Seeed Studio; product identification image, original unmodified"
+        "credit": "Seeed Studio reference photo; processed front-view transparent thumbnail",
+        "modified": true,
+        "view": "front",
+        "processing": "Built-in imagegen front-view correction and background extraction from the official reference photo; remove detached alpha flecks, trim to connected product silhouette, fit without stretching into a 256 x 256 transparent canvas with 90% longest-edge occupancy, encode WebP at quality 0.92.",
+        "asset": "/project-new/hardware/seeed-reterminal-e1001.webp"
       }
     },
     "card": {
@@ -6014,8 +6062,7 @@
         "全刷"
       ],
       "note": "按屏幕实际色板设计；刷新过程中继续处理按键。",
-      "image": "/project-new/hardware/seeed-reterminal-e1001.jpg",
-      "imageCaption": "Seeed Studio 官方产品图",
+      "image": "/project-new/hardware/seeed-reterminal-e1001.webp",
       "documentUrl": "https://wiki.seeedstudio.com/getting_started_with_reterminal_e1001/"
     },
     "hardware": {
@@ -6169,7 +6216,11 @@
         "url": "https://files.seeedstudio.com/wiki/reterminal_e10xx/img/25.jpg",
         "page": "https://wiki.seeedstudio.com/getting_started_with_reterminal_e1002/",
         "downloadedAt": "2026-10-26",
-        "credit": "Seeed Studio; product identification image, original unmodified"
+        "credit": "Seeed Studio reference photo; processed front-view transparent thumbnail",
+        "modified": true,
+        "view": "front",
+        "processing": "Built-in imagegen front-view correction and background extraction from the official reference photo; remove detached alpha flecks, trim to connected product silhouette, fit without stretching into a 256 x 256 transparent canvas with 90% longest-edge occupancy, encode WebP at quality 0.92.",
+        "asset": "/project-new/hardware/seeed-reterminal-e1002.webp"
       }
     },
     "card": {
@@ -6190,8 +6241,7 @@
         "全刷"
       ],
       "note": "按屏幕实际色板设计；刷新过程中继续处理按键。",
-      "image": "/project-new/hardware/seeed-reterminal-e1002.jpg",
-      "imageCaption": "Seeed Studio 官方产品图",
+      "image": "/project-new/hardware/seeed-reterminal-e1002.webp",
       "documentUrl": "https://wiki.seeedstudio.com/getting_started_with_reterminal_e1002/"
     },
     "hardware": {
@@ -6345,7 +6395,11 @@
         "url": "https://files.seeedstudio.com/wiki/reterminal_e10xx/img/e1003/2-reTerminal-E1003-Epaper-Display.jpg",
         "page": "https://wiki.seeedstudio.com/getting_started_with_reterminal_e1003/",
         "downloadedAt": "2026-10-26",
-        "credit": "Seeed Studio; product identification image, original unmodified"
+        "credit": "Seeed Studio reference photo; processed front-view transparent thumbnail",
+        "modified": true,
+        "view": "front",
+        "processing": "Built-in imagegen front-view correction and background extraction from the official reference photo; remove detached alpha flecks, trim to connected product silhouette, fit without stretching into a 256 x 256 transparent canvas with 90% longest-edge occupancy, encode WebP at quality 0.92.",
+        "asset": "/project-new/hardware/seeed-reterminal-e1003.webp"
       }
     },
     "card": {
@@ -6366,8 +6420,7 @@
         "全刷"
       ],
       "note": "硬件具有电容触摸；当前 NICE_GFX 导出使用实体按键，未接入该机型触摸协议。",
-      "image": "/project-new/hardware/seeed-reterminal-e1003.jpg",
-      "imageCaption": "Seeed Studio 官方产品图",
+      "image": "/project-new/hardware/seeed-reterminal-e1003.webp",
       "documentUrl": "https://wiki.seeedstudio.com/getting_started_with_reterminal_e1003/"
     },
     "hardware": {
@@ -6523,7 +6576,11 @@
         "url": "https://files.seeedstudio.com/wiki/reterminal_e10xx/img/e1004/2-reterminal-e1004-epaper-display.jpg",
         "page": "https://wiki.seeedstudio.com/getting_started_with_reterminal_e1004/",
         "downloadedAt": "2026-10-26",
-        "credit": "Seeed Studio; product identification image, original unmodified"
+        "credit": "Seeed Studio reference photo; processed front-view transparent thumbnail",
+        "modified": true,
+        "view": "front",
+        "processing": "Built-in imagegen front-view correction and background extraction from the official reference photo; remove detached alpha flecks, trim to connected product silhouette, fit without stretching into a 256 x 256 transparent canvas with 90% longest-edge occupancy, encode WebP at quality 0.92.",
+        "asset": "/project-new/hardware/seeed-reterminal-e1004.webp"
       }
     },
     "card": {
@@ -6544,8 +6601,7 @@
         "全刷"
       ],
       "note": "按屏幕实际色板设计；刷新过程中继续处理按键。",
-      "image": "/project-new/hardware/seeed-reterminal-e1004.jpg",
-      "imageCaption": "Seeed Studio 官方产品图",
+      "image": "/project-new/hardware/seeed-reterminal-e1004.webp",
       "documentUrl": "https://wiki.seeedstudio.com/getting_started_with_reterminal_e1004/"
     },
     "hardware": {
@@ -6699,7 +6755,11 @@
         "url": "https://media-cdn.seeedstudio.com/media/catalog/product/2/0/20260728-174156.jpg",
         "page": "https://www.seeedstudio.com/reTerminal-Sticky-p-6861.html",
         "downloadedAt": "2026-10-26",
-        "credit": "Seeed Studio; product identification image, original unmodified"
+        "credit": "Seeed Studio reference photo; processed front-view transparent thumbnail",
+        "modified": true,
+        "view": "front",
+        "processing": "Built-in imagegen front-view correction and background extraction from the official reference photo; remove detached alpha flecks, trim to connected product silhouette, fit without stretching into a 256 x 256 transparent canvas with 90% longest-edge occupancy, encode WebP at quality 0.92.",
+        "asset": "/project-new/hardware/seeed-reterminal-sticky.webp"
       }
     },
     "card": {
@@ -6720,8 +6780,7 @@
         "全刷"
       ],
       "note": "硬件具有电容触摸；当前 NICE_GFX 导出使用实体按键，未接入该机型触摸协议。",
-      "image": "/project-new/hardware/seeed-reterminal-sticky.jpg",
-      "imageCaption": "Seeed Studio 官方产品图",
+      "image": "/project-new/hardware/seeed-reterminal-sticky.webp",
       "documentUrl": "https://www.seeedstudio.com/reTerminal-Sticky-p-6861.html"
     },
     "hardware": {
@@ -6877,7 +6936,11 @@
         "url": "https://files.seeedstudio.com/wiki/XIAO_Gadget/TRMNL_Kit_Pic/head.jpg",
         "page": "https://wiki.seeedstudio.com/trmnl_7inch5_diy_kit_main_page/",
         "downloadedAt": "2026-10-26",
-        "credit": "Seeed Studio; product identification image, original unmodified"
+        "credit": "Seeed Studio reference photo; processed front-view transparent thumbnail",
+        "modified": true,
+        "view": "front",
+        "processing": "Built-in imagegen front-view correction and background extraction from the official reference photo; remove detached alpha flecks, trim to connected product silhouette, fit without stretching into a 256 x 256 transparent canvas with 90% longest-edge occupancy, encode WebP at quality 0.92.",
+        "asset": "/project-new/hardware/seeed-trmnl-75-diy.webp"
       }
     },
     "card": {
@@ -6898,8 +6961,7 @@
         "全刷"
       ],
       "note": "按屏幕实际色板设计；刷新过程中继续处理按键。",
-      "image": "/project-new/hardware/seeed-trmnl-75-diy.jpg",
-      "imageCaption": "Seeed Studio 官方产品图",
+      "image": "/project-new/hardware/seeed-trmnl-75-diy.webp",
       "documentUrl": "https://wiki.seeedstudio.com/trmnl_7inch5_diy_kit_main_page/"
     },
     "hardware": {
@@ -7052,7 +7114,11 @@
         "url": "https://files.seeedstudio.com/wiki/xiao_075inch_epaper_panel/100.jpg",
         "page": "https://wiki.seeedstudio.com/xiao_075inch_epaper_panel/",
         "downloadedAt": "2026-10-26",
-        "credit": "Seeed Studio; product identification image, original unmodified"
+        "credit": "Seeed Studio reference photo; processed front-view transparent thumbnail",
+        "modified": true,
+        "view": "front",
+        "processing": "Built-in imagegen front-view correction and background extraction from the official reference photo; remove detached alpha flecks, trim to connected product silhouette, fit without stretching into a 256 x 256 transparent canvas with 90% longest-edge occupancy, encode WebP at quality 0.92.",
+        "asset": "/project-new/hardware/seeed-xiao-75-panel.webp"
       }
     },
     "card": {
@@ -7073,8 +7139,7 @@
         "全刷"
       ],
       "note": "按屏幕实际色板设计；刷新过程中继续处理按键。",
-      "image": "/project-new/hardware/seeed-xiao-75-panel.jpg",
-      "imageCaption": "Seeed Studio 官方产品图",
+      "image": "/project-new/hardware/seeed-xiao-75-panel.webp",
       "documentUrl": "https://wiki.seeedstudio.com/xiao_075inch_epaper_panel/"
     },
     "hardware": {

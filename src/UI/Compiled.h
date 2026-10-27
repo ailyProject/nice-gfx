@@ -15,7 +15,7 @@ namespace nice_gfx { namespace htmlui {
 // Versioned, generated C++ resource ABI. Geometry is page-relative, in physical
 // pixels at PageDesc's target size. Parents precede children. Resource pointers
 // remain valid for the lifetime of the mounted project.
-constexpr uint32_t ResourceVersion = 17;
+constexpr uint32_t ResourceVersion = 18;
 constexpr uint16_t NoParent = 0xffff;
 using Id = uint32_t;
 enum class Kind : uint8_t { Container, Text, Button, Range, Checkbox, Switch, Progress, Scroll, Pager, Label, Icon, Media, Gauge, Ring, LineChart, BarChart, Spinbox, Shape, InputField };
@@ -42,6 +42,7 @@ struct Style {
   uint16_t trackSize, thumbWidth, thumbHeight, thumbRadius;
   const nice_gfx::MonoFont *font;
   const GradientDesc *gradient;
+  uint16_t trackRadius = 65535; // auto pill unless ::part(track) overrides it
 };
 enum class AnimationEffect : uint8_t { None, FadeIn, FadeOut, SlideLeft, SlideRight, SlideUp, SlideDown, Float, Bounce, Shake, Pulse, Blink, SlideOutLeft, SlideOutRight, SlideOutUp, SlideOutDown };
 enum class AnimationEasing : uint8_t { Linear, EaseIn, EaseOut, EaseInOut, BackOut, BounceOut };
@@ -125,6 +126,7 @@ struct InstrumentDesc {
   uint16_t capacity; uint8_t seriesCount; const ChartSeriesDesc *series;
   uint16_t labelCount; const char *const *labels; uint8_t grid; bool horizontal;
   const ChartStyleDesc *chartStyle;
+  uint8_t buttonLayout = 0, formatFlags = 0, minDigits = 0;
 };
 enum class InputFieldType : uint8_t { Text, Number, Password, Pin, Tel };
 enum class InputEnterAction : uint8_t { Auto, Done, Next, Search };

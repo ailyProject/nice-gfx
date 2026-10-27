@@ -65,6 +65,21 @@ class Context {
              const uint16_t *background,size_t backgroundStride,size_t width,size_t height,uint8_t alpha){
     return borrowSources(foreground,foregroundStride,background,backgroundStride,width,height,alpha,false);
   }
+  // Blend a shared viewport of two complete, aligned Wire565 pictures. Keep
+  // the picture bases aligned even when sourceX is not a cache-line boundary;
+  // PPA block offsets select the region without exposing an unaligned DMA base.
+  // Output is packed native RGB565 with the same lifetime as other borrowed blends.
+  const uint16_t *blendSourceRegionsToNative(const uint16_t *foreground,size_t foregroundStride,
+             const uint16_t *background,size_t backgroundStride,size_t pictureHeight,
+             size_t sourceX,size_t sourceY,size_t width,size_t height,uint8_t alpha){
+    if(!processRegionNative(foreground,foregroundStride,background,backgroundStride,
+        pictureHeight,sourceX,sourceY,width,height,alpha))return nullptr;
+#if NICE_GFX_S31_PPA_BLEND_AVAILABLE
+    stats_.lastError=ESP_OK;++stats_.completed;return scratch_;
+#else
+    return nullptr;
+#endif
+  }
   // A mapped native display target avoids a scratch surface and the subsequent
   // full-frame copy. Inputs remain immutable; target is exclusively writable
   // until this blocking call returns, then it may be submitted to the display.
@@ -220,15 +235,27 @@ class Context {
   }
   bool processNative(const uint16_t *foreground,size_t foregroundStride,const uint16_t *background,
              size_t backgroundStride,size_t width,size_t height,uint8_t alpha){
+    return processRegionNative(foreground,foregroundStride,background,backgroundStride,
+      height,0,0,width,height,alpha);
+  }
+  bool processRegionNative(const uint16_t *foreground,size_t foregroundStride,const uint16_t *background,
+             size_t backgroundStride,size_t pictureHeight,size_t sourceX,size_t sourceY,
+             size_t width,size_t height,uint8_t alpha){
 #if NICE_GFX_S31_PPA_BLEND_AVAILABLE
-    // Prototype deliberately restricts inputs to complete aligned RGB565 rows.
+    // DMA picture bases and rows stay aligned. Region offsets are expressed in
+    // the PPA descriptor, never by shifting the DMA base into a cache line.
     // Rejection is side-effect free and lets the caller keep its CPU fallback.
-    if(!foreground||!background||!width||!height||width>=0x4000||height>=0x4000||
+    if(!foreground||!background||!width||!height||!pictureHeight||width>=0x4000||height>=0x4000||pictureHeight>=0x4000||
        foregroundStride<width||backgroundStride<width||foregroundStride>=0x4000||backgroundStride>=0x4000||
+       sourceX>foregroundStride||width>foregroundStride-sourceX||sourceX>backgroundStride||width>backgroundStride-sourceX||
+       sourceY>pictureHeight||height>pictureHeight-sourceY||
        (reinterpret_cast<uintptr_t>(foreground)&63)||(reinterpret_cast<uintptr_t>(background)&63)||
        (foregroundStride*2)%64||(backgroundStride*2)%64||
-       width>SIZE_MAX/height/2||(height-1)>(SIZE_MAX/2-width)/foregroundStride||
-       (height-1)>(SIZE_MAX/2-width)/backgroundStride){++stats_.rejected;return false;}
+       width>SIZE_MAX/height/2||pictureHeight>SIZE_MAX/foregroundStride/2||
+       pictureHeight>SIZE_MAX/backgroundStride/2){++stats_.rejected;return false;}
+    const size_t frontBytes=foregroundStride*pictureHeight*2,backBytes=backgroundStride*pictureHeight*2;
+    if(reinterpret_cast<uintptr_t>(foreground)>UINTPTR_MAX-frontBytes||
+       reinterpret_cast<uintptr_t>(background)>UINTPTR_MAX-backBytes){++stats_.rejected;return false;}
     const size_t bytes=width*height*2;
     if(bytes%64||bytes>UINT32_MAX){++stats_.rejected;return false;}
     if(!client_){
@@ -248,10 +275,12 @@ class Context {
       stats_.scratchBytes=capacity_;
     }
     ppa_blend_oper_config_t operation={};
-    operation.in_fg.buffer=foreground;operation.in_fg.pic_w=foregroundStride;operation.in_fg.pic_h=height;
+    operation.in_fg.buffer=foreground;operation.in_fg.pic_w=foregroundStride;operation.in_fg.pic_h=pictureHeight;
     operation.in_fg.block_w=width;operation.in_fg.block_h=height;operation.in_fg.blend_cm=PPA_BLEND_COLOR_MODE_RGB565;
-    operation.in_bg.buffer=background;operation.in_bg.pic_w=backgroundStride;operation.in_bg.pic_h=height;
+    operation.in_bg.buffer=background;operation.in_bg.pic_w=backgroundStride;operation.in_bg.pic_h=pictureHeight;
     operation.in_bg.block_w=width;operation.in_bg.block_h=height;operation.in_bg.blend_cm=PPA_BLEND_COLOR_MODE_RGB565;
+    operation.in_fg.block_offset_x=operation.in_bg.block_offset_x=sourceX;
+    operation.in_fg.block_offset_y=operation.in_bg.block_offset_y=sourceY;
     operation.out.buffer=scratch_;operation.out.buffer_size=capacity_;
     operation.out.pic_w=width;operation.out.pic_h=height;operation.out.blend_cm=PPA_BLEND_COLOR_MODE_RGB565;
     operation.fg_byte_swap=operation.bg_byte_swap=true;
@@ -270,6 +299,7 @@ class Context {
     return true;
 #else
     (void)foreground;(void)foregroundStride;(void)background;(void)backgroundStride;(void)width;(void)height;(void)alpha;
+    (void)pictureHeight;(void)sourceX;(void)sourceY;
     ++stats_.rejected;return false;
 #endif
   }

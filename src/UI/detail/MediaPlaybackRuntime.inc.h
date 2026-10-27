@@ -10,8 +10,12 @@ void removeMediaTween(int i) {
 bool hasMediaTween(int i) const {
   return std::find_if(mediaTweens.begin(),mediaTweens.end(),[&](const MediaTween &t){return t.page==&page()&&t.node==i;})!=mediaTweens.end();
 }
+uint16_t initialMediaFrame(const NodeDesc &node,const State &value) const {
+  const auto *m=node.kind==Kind::Media?media(node,value):nullptr;
+  return m&&m->frames?std::min<uint16_t>(mediaPlayback(node.id).initialFrame,uint16_t(m->frames-1)):0;
+}
 void resetMediaPlayback(int i) {
-  auto &v=state()[i];v.mediaFrame=0;v.mediaAt=0;v.mediaPending=true;
+  auto &v=state()[i];v.mediaFrame=initialMediaFrame(page().nodes[i],v);v.mediaAt=0;v.mediaPending=true;
   v.mediaPaused=!mediaPlayback(page().nodes[i].id).autoplay;removeMediaTween(i);
 }
 bool seekMedia(int i,int32_t frame) {
@@ -19,6 +23,14 @@ bool seekMedia(int i,int32_t frame) {
   if(!m||frame<0||frame>=m->frames)return false;
   removeMediaTween(i);auto &v=state()[i];v.mediaPaused=true;v.mediaPending=true;
   if(v.mediaFrame!=frame){v.mediaFrame=uint16_t(frame);invalidate(i);}return true;
+}
+bool beginMediaTween(int i,int32_t frame,uint32_t duration) {
+  const auto *m=media(page().nodes[i],state()[i]);if(!duration||!m||frame<0||frame>=m->frames)return false;
+  if(displayPolicy.slowRefresh||frame==state()[i].mediaFrame)return seekMedia(i,frame);
+  const MediaTween tween{&page(),uint16_t(i),state()[i].mediaFrame,uint16_t(frame),0,duration,true};
+  const auto at=std::find_if(mediaTweens.begin(),mediaTweens.end(),[&](const MediaTween &t){return t.page==&page()&&t.node==i;});
+  if(at==mediaTweens.end())mediaTweens.push_back(tween);else *at=tween;
+  state()[i].mediaPaused=true;state()[i].mediaPending=true;return true;
 }
 void advanceMediaTweens(uint32_t now) {
   for(size_t at=0;at<mediaTweens.size();) {
@@ -58,7 +70,8 @@ void acquireMediaScrub(int source) {
   if(mediaDragTarget<0)return;
   mediaDragFrom=state()[mediaDragTarget].mediaFrame;
   mediaDragWidth=std::max<int32_t>(1,rect(source).width);
-  mediaDragLoop=mediaPlayback(page().nodes[source].id).loop;
+  const auto &binding=mediaPlayback(page().nodes[source].id);
+  mediaDragLoop=binding.loop;mediaDragReverse=binding.reverse;
   seekMedia(mediaDragTarget,mediaDragFrom);
   acquireOwner(source,Drag::Media);
 }
@@ -66,7 +79,9 @@ void updateMediaScrub(int32_t dx) {
   if(mediaDragTarget<0)return;
   const auto *m=media(page().nodes[mediaDragTarget],state()[mediaDragTarget]);
   if(!m||!m->frames)return;
-  const int64_t raw=int64_t(mediaDragFrom)+int64_t(dx)*m->frames/mediaDragWidth;
+  // Widen before negation so INT32_MIN remains a valid pointer displacement.
+  const int64_t travel=mediaDragReverse?-int64_t(dx):int64_t(dx);
+  const int64_t raw=int64_t(mediaDragFrom)+travel*m->frames/mediaDragWidth;
   const int32_t frame=mediaDragLoop?int32_t((raw%m->frames+m->frames)%m->frames):int32_t(std::max<int64_t>(0,std::min<int64_t>(m->frames-1,raw)));
   seekMedia(mediaDragTarget,frame);
 }

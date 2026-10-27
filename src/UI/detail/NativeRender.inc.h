@@ -57,8 +57,8 @@ bool prepareViewportFade(FrameSlice *pieces,size_t &count) {
              snapshotSurface->pixels+offset,w,previewSurface->pixels+offset,w,v.width,v.height,t.opacity))blended=target;
       }
     }
-    if(!blended)blended=ppaFade.blendSourcesToNative(snapshotSurface->pixels+offset,w,
-      previewSurface->pixels+offset,w,v.width,v.height,t.opacity);
+    if(!blended)blended=ppaFade.blendSourceRegionsToNative(snapshotSurface->pixels,w,
+      previewSurface->pixels,w,h,v.x,v.y,v.width,v.height,t.opacity);
     if(!blended){++stats.ppaBlendFailures;return false;}
     moving=PixelView(blended,v.width,v.height,v.width,PixelOrder::Native);
     ++stats.ppaBlendCalls;stats.ppaBlendPixels+=uint64_t(v.width)*v.height;

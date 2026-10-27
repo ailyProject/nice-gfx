@@ -1,6 +1,6 @@
-# NICE_GFX 1.0.0
-
-Seeed 墨水屏新增 23 个产品入口与板级供电配置，见 [Seeed 墨水屏支持](docs/SeeedEpaper.md)。
+<p align="center">
+  <img src="logo.png" alt="NICE_GFX logo" width="480">
+</p>
 
 NICE_GFX 是支持彩色屏、单色显示和电子纸的 Arduino / ESP-IDF 图形库，并兼容固定版本 u8g2 的全部实体屏公开配置。显示对象在构造时接收引脚与配置，提供图元、UTF-8 文字、离屏 Sprite、触摸和局部刷新；部分平台使用 DMA 或 PIO 加速传输。原生 ESP-IDF 接入直接使用 IDF 驱动、GPIO、计时和内存接口，无需 Arduino 组件。
 

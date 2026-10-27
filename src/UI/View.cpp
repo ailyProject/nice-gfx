@@ -230,7 +230,7 @@ struct View::Impl {
   int mediaDragTarget=-1;
   uint16_t mediaDragFrom=0;
   int32_t mediaDragWidth=1;
-  bool mediaDragLoop=true;
+  bool mediaDragLoop=true,mediaDragReverse=false;
   InteractionVersion interactionVersion=InteractionVersion::Legacy;
   std::vector<InteractionDesc> interactionPolicies;
   int pointerClaim=-1;
@@ -753,7 +753,7 @@ struct View::Impl {
   std::unique_ptr<Style[]> compiledStyles;
   size_t compiledStyleCount=0;uint16_t compiledStyleLimit=0;bool compiledStyleAttempted=false;
   static bool sameCompiledStyle(const Style &a,const Style &b) {
-    return a.background==b.background&&a.color==b.color&&a.borderColor==b.borderColor&&a.trackColor==b.trackColor&&a.fillColor==b.fillColor&&a.thumbColor==b.thumbColor&&a.pressedColor==b.pressedColor&&a.disabledColor==b.disabledColor&&a.borderWidth==b.borderWidth&&a.radius==b.radius&&a.fontSize==b.fontSize&&a.textAlign==b.textAlign&&a.paddingTop==b.paddingTop&&a.paddingRight==b.paddingRight&&a.paddingBottom==b.paddingBottom&&a.paddingLeft==b.paddingLeft&&a.trackSize==b.trackSize&&a.thumbWidth==b.thumbWidth&&a.thumbHeight==b.thumbHeight&&a.thumbRadius==b.thumbRadius&&a.font==b.font&&a.gradient==b.gradient;
+    return a.background==b.background&&a.color==b.color&&a.borderColor==b.borderColor&&a.trackColor==b.trackColor&&a.fillColor==b.fillColor&&a.thumbColor==b.thumbColor&&a.pressedColor==b.pressedColor&&a.disabledColor==b.disabledColor&&a.borderWidth==b.borderWidth&&a.radius==b.radius&&a.fontSize==b.fontSize&&a.textAlign==b.textAlign&&a.paddingTop==b.paddingTop&&a.paddingRight==b.paddingRight&&a.paddingBottom==b.paddingBottom&&a.paddingLeft==b.paddingLeft&&a.trackSize==b.trackSize&&a.thumbWidth==b.thumbWidth&&a.thumbHeight==b.thumbHeight&&a.thumbRadius==b.thumbRadius&&a.font==b.font&&a.gradient==b.gradient&&a.trackRadius==b.trackRadius;
   }
   uint16_t cacheCompiledStyle(const Style &style) {
     if(resourceCacheBudget||displayPolicy.monochrome||displayPolicy.slowRefresh)return NoParent;
@@ -1665,8 +1665,8 @@ struct View::Impl {
     down=false;target=activeControl=owner=interruptedPager=-1;drag=Drag::None;mediaDragTarget=-1;gesture=nullptr;navigationDot=-1;navigationFooterContact=false;invalidate(oldControl);endProcessing();
   }
   void spinbox(int i,int32_t px,bool pointer) {
-    const auto &n=page().nodes[i];const Rect r=contentBox(rect(i),styleFor(page(),state(),i));const int w=std::min(r.height,r.width/3);
-    const int direction=px<r.x+w?-1:px>=r.x+r.width-w?1:0;if(!direction)return;
+    const auto &n=page().nodes[i];const Rect r=contentBox(rect(i),styleFor(page(),state(),i));const auto g=spinboxGeometry(r,*n.instrument);
+    const int direction=px>=g.minusX&&px<g.minusX+g.button?-1:px>=g.plusX&&px<g.plusX+g.button?1:0;if(!direction)return;
     const int32_t before=state()[i].value;setValue(i,int32_t(std::max<int64_t>(n.minimum,std::min<int64_t>(n.maximum,int64_t(before)+int64_t(direction)*n.step))));
     if(before!=state()[i].value){dispatch(i,EventType::Input);if((!pointer||down)&&visible(page(),state(),i,true))dispatch(i,EventType::Change);}
   }
@@ -1691,7 +1691,7 @@ struct View::Impl {
     }
       const int activation=nearestControl(clickedIndex);
       if(activation>=0&&page().nodes[activation].kind==Kind::InputField){if(dispatch(clickedIndex,EventType::Click)&&(!pointer||down))softBegin(activation);return;}
-      if(activation>=0&&page().nodes[activation].kind==Kind::Spinbox){if(dispatch(clickedIndex,EventType::Click)&&(!pointer||down)&&visible(page(),state(),clickedIndex,true)&&visible(page(),state(),activation,true)){const Rect r=contentBox(rect(activation),styleFor(page(),state(),activation));const int32_t w=std::min(r.height,r.width/3);if(!pointer||(x>=r.x+w&&x<r.x+r.width-w))softBegin(activation);else spinbox(activation,x,pointer);}return;}
+      if(activation>=0&&page().nodes[activation].kind==Kind::Spinbox){if(dispatch(clickedIndex,EventType::Click)&&(!pointer||down)&&visible(page(),state(),clickedIndex,true)&&visible(page(),state(),activation,true)){const Rect r=contentBox(rect(activation),styleFor(page(),state(),activation));const auto g=spinboxGeometry(r,*page().nodes[activation].instrument);if(!pointer||(x>=g.textX&&x<g.textX+g.textWidth))softBegin(activation);else spinbox(activation,x,pointer);}return;}
       const bool toggle=activation>=0&&(page().nodes[activation].kind==Kind::Checkbox||page().nodes[activation].kind==Kind::Switch);
       const int32_t previous=toggle?state()[activation].value:0;
       if(toggle)state()[activation].value=!previous; // HTML checkbox pre-activation precedes click listeners.
@@ -2299,13 +2299,14 @@ struct View::Impl {
     } else if(v.kind==Kind::Range||v.kind==Kind::Progress) {
       const auto g=detail::rangeGeometry(r,s,(n.flags&VerticalRange)!=0,v.kind==Kind::Range,v.value,n.minimum,n.maximum);
       const int32_t track=g.vertical?g.track.width:g.track.height;
-      canvas.fillRoundRect(g.track.x,g.track.y,g.track.width,g.track.height,track/2,s.trackColor);
-      if(displayPolicy.monochrome)canvas.drawRoundRect(g.track.x,g.track.y,g.track.width,g.track.height,track/2,DisplayPolicy::foregroundOn(s.trackColor));
+      const int32_t radius=s.trackRadius==65535?track/2:std::min<int32_t>(s.trackRadius,track/2);
+      canvas.fillRoundRect(g.track.x,g.track.y,g.track.width,g.track.height,radius,s.trackColor);
+      if(displayPolicy.monochrome)canvas.drawRoundRect(g.track.x,g.track.y,g.track.width,g.track.height,radius,DisplayPolicy::foregroundOn(s.trackColor));
       if(g.position>0){
         if((n.flags&RangeFillGradient)&&s.gradient){const auto &fill=*s.gradient;const Rect origin=rect(i);
           const int32_t projection=int32_t(int64_t(fill.origin)+int64_t(g.fill.x-origin.x)*fill.stepX+int64_t(g.fill.y-origin.y)*fill.stepY);
-          canvas.fillLinearGradientRoundRect(g.fill.x,g.fill.y,g.fill.width,g.fill.height,uint8_t(track/2),fill.colors,projection,fill.stepX,fill.stepY,false);
-        }else canvas.fillRoundRect(g.fill.x,g.fill.y,g.fill.width,g.fill.height,track/2,s.fillColor);
+          canvas.fillLinearGradientRoundRect(g.fill.x,g.fill.y,g.fill.width,g.fill.height,uint8_t(radius),fill.colors,projection,fill.stepX,fill.stepY,false);
+        }else canvas.fillRoundRect(g.fill.x,g.fill.y,g.fill.width,g.fill.height,radius,s.fillColor);
       }
       if(v.kind==Kind::Range){const int32_t tw=g.thumb.width,th=g.thumb.height,x=g.thumb.x,y=g.thumb.y,radius=std::min<int32_t>(s.thumbRadius,std::min<int32_t>(tw,th)/2);
         canvas.fillRoundRect(x,y,tw,th,radius,s.trackColor);
@@ -3334,8 +3335,8 @@ bool View::configureMediaPlayback(const MediaPlaybackDesc *policies,size_t count
   s.mediaPolicies.swap(prepared);s.mediaTweens.clear();
   for(uint16_t p=0;p<s.project->count;++p)if(!s.pages[p].empty())for(uint16_t i=0;i<s.project->pages[p].count;++i){
     const auto &node=s.project->pages[p].nodes[i];if(node.kind!=Kind::Media)continue;
-    auto &v=s.pages[p][i];const bool changed=v.mediaFrame!=0;
-    v.mediaFrame=0;v.mediaAt=0;v.mediaPending=true;v.mediaPaused=!s.mediaPlayback(node.id).autoplay;
+    auto &v=s.pages[p][i];const uint16_t initial=s.initialMediaFrame(node,v);const bool changed=v.mediaFrame!=initial;
+    v.mediaFrame=initial;v.mediaAt=0;v.mediaPending=true;v.mediaPaused=!s.mediaPlayback(node.id).autoplay;
     if(changed&&p==s.history.back())s.invalidate(i);
   }
   return true;
@@ -3345,12 +3346,15 @@ bool View::setMediaFrame(Id id,int32_t frame) {
 }
 bool View::playMediaTo(Id id,int32_t frame,uint32_t duration) {
   auto &s=*impl_;int i=-1;if(duration<1||duration>60000||s.imageTarget(id,i)!=Status::Ok)return false;
+  return s.beginMediaTween(i,frame,duration);
+}
+bool View::playMediaToFps(Id id,int32_t frame,uint16_t fps) {
+  auto &s=*impl_;int i=-1;if(fps<1||fps>60||s.imageTarget(id,i)!=Status::Ok)return false;
   const auto *m=s.media(s.page().nodes[i],s.state()[i]);if(!m||frame<0||frame>=m->frames)return false;
-  if(s.displayPolicy.slowRefresh||frame==s.state()[i].mediaFrame)return s.seekMedia(i,frame);
-  const Impl::MediaTween tween{&s.page(),uint16_t(i),s.state()[i].mediaFrame,uint16_t(frame),0,duration,true};
-  const auto at=std::find_if(s.mediaTweens.begin(),s.mediaTweens.end(),[&](const Impl::MediaTween &t){return t.page==&s.page()&&t.node==i;});
-  if(at==s.mediaTweens.end())s.mediaTweens.push_back(tween);else *at=tween;
-  s.state()[i].mediaPaused=true;s.state()[i].mediaPending=true;return true;
+  const uint32_t from=s.state()[i].mediaFrame,distance=frame>=int32_t(from)?uint32_t(frame)-from:from-uint32_t(frame);
+  if(!distance)return s.seekMedia(i,frame);
+  const uint32_t duration=uint32_t((uint64_t(distance)*1000+fps-1)/fps);
+  return s.beginMediaTween(i,frame,duration);
 }
 bool View::playMedia(Id id) {
   auto &s=*impl_;int i=-1;if(s.imageTarget(id,i)!=Status::Ok||!s.media(s.page().nodes[i],s.state()[i]))return false;

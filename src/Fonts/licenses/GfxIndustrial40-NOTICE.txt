@@ -1,0 +1,6 @@
+GfxIndustrial40: renamed 4-bpp bitmap derivative of RussoOne-Regular.ttf.
+Source SHA256: bc0abcc660bd8b7ad3000ecb2898a27c58a29a50f7ec81652fa12e75148d09df
+Cell 32x52, baseline 42, 96 BMP glyphs.
+Narrow period/comma/colon/space advances; degree glyph included.
+Rasterizer: scripts/rasterize-industrial-fonts.ps1 (4x coverage).
+Original font remains under SIL OFL 1.1. Preserve RussoOne-OFL.txt.

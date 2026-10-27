@@ -9,6 +9,7 @@
 #include "Interaction.h"
 #include "MediaPlayback.h"
 #define NICE_GFX_UI_MEDIA_PLAYBACK_VERSION 1
+#define NICE_GFX_UI_MEDIA_PLAYBACK_CONFIG_VERSION 1
 #define NICE_GFX_UI_INTERACTION_VERSION 1
 #define NICE_GFX_UI_STATS_VERSION 5
 #define NICE_GFX_UI_RESOURCE_CACHE_VERSION 1
@@ -246,6 +247,8 @@ class View {
   // Timers begin on the next tick; later commands replace earlier commands.
   bool setMediaFrame(Id id, int32_t frame);
   bool playMediaTo(Id id, int32_t frame, uint32_t durationMs = 500);
+  // Constant frame cadence, including spans longer than the fixed-duration API limit.
+  bool playMediaToFps(Id id, int32_t frame, uint16_t fps);
   bool playMedia(Id id);
   bool pauseMedia(Id id);
   int32_t mediaFrame(Id id) const; // -1 for an empty/unknown/non-Media target.

@@ -17,6 +17,7 @@ struct MonoFont {
   // Zero (including omitted fields) and 1 retain the original 1bpp rows.
   // 4 stores row-aligned coverage, 0..15, with the left pixel in the high nibble.
   uint8_t bitsPerPixel;
+  uint8_t compactPunctuation = 0; // optional font-authored narrow . , : and space advances
 };
 namespace detail {
 const uint8_t *monoGlyph(const MonoFont &font, uint16_t codepoint);

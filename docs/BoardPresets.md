@@ -1,6 +1,6 @@
 # 开发板快捷预设
 
-提供 52 项开发板配置：24 项可用（含通用接线）、4 项待适配、24 项暂不支持。库可独立安装。请先确认目标板与屏幕修订，再选择快捷类型。
+目录包含编辑器的 52 项配置：24 项 ready（含通用接线）、4 项 pending、24 项 unsupported。库可独立安装，无需编辑器目录。
 
 ## 使用方法
 
@@ -23,7 +23,7 @@ void loop() {}
 - `nice_gfx::findBoardPreset(id)`：按 ID 查询；未知 ID 返回 nullptr。
 - `nice_gfx::boardPresetAt(index)`、`BoardPresetCount`：遍历完整目录。
 
-触摸采样、按键与业务外设由应用接入。完整接线与限制见 [BoardPresets.json](BoardPresets.json)，未知尺寸记为 0。Seeed 产品与供电说明见 [Seeed 墨水屏](SeeedEpaper.md)。
+触摸采样、按键与业务外设由应用接入。完整接线、来源和全部限制见 [BoardPresets.json](BoardPresets.json)，未知尺寸保留为 0。
 
 ## 编辑器如何复用
 
@@ -40,7 +40,7 @@ void loop() {}
 | Waveshare 4B | TCA9554 完成 LCD/触摸复位，背光低有效；GT911 通过 `gfx.i2cBus()` 共享总线 |
 | Korvo-1 | `gfx.copyStats()` / `gfx.scanStats()` 返回同一显示对象的统计 |
 
-## 预设目录
+## 完整目录
 
 ready 表示在匹配目标上可构造显示对象；pending 尚需板级适配；unsupported 缺少显示适配或关键信息。后两类及错误编译目标会给出构造诊断。表中只列主要限制，ready 不代表所有外设或真机验收已完成。
 
@@ -99,6 +99,15 @@ ready 表示在匹配目标上可构造显示对象；pending 尚需板级适配
 | `xiao-round` | `XiaoRoundDisplay` | ready | 见平台说明 |
 | `xueersi-esp32` | `XueersiEsp32Display` | ready | 见平台说明 |
 
-## 配置维护
+## 同步配置
 
-本页、JSON 目录和库预设头由编辑器 `configs/boards/*.json` 生成。修改源配置后统一生成并检查，见 [配置维护](Architecture.md#配置维护)。
+源文件：`nice_gfx_editor/configs/boards/*.json`。在编辑器目录运行：
+
+```powershell
+npm.cmd run boards:library:generate
+npm.cmd run boards:library:check
+npm.cmd run runtime:rebuild
+npm.cmd run runtime:check
+```
+
+本页、JSON 目录、库预设头和编辑器匹配记录一起生成，请修改源配置或生成器。

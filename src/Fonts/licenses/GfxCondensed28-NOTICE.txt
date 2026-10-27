@@ -1,0 +1,6 @@
+GfxCondensed28: renamed 4-bpp bitmap derivative of BarlowCondensed-ExtraBold.ttf.
+Source SHA256: 724c9c25952d5f4a2d87185d9767aa006144c5f0d944dc05bf7d5d603551c260
+Cell 17x38, baseline 30, 96 BMP glyphs.
+Narrow period/comma/colon/space advances; degree glyph included.
+Rasterizer: scripts/rasterize-industrial-fonts.ps1 (4x coverage).
+Original font remains under SIL OFL 1.1. Preserve BarlowCondensed-OFL.txt.

@@ -187,7 +187,7 @@ int16_t NICE_GFX::drawChar(uint16_t uniCode, int32_t x, int32_t y)
     nice_gfx::detail::monoStride(*mono), mono->bitsPerPixel == 4 ?
     nice_gfx::TextEncoding::Coverage4 : nice_gfx::TextEncoding::Rows};
   renderTextGlyph(image, x, y, textcolor, textbgcolor, textsize, textcolor != textbgcolor);
-  return mono->width * textsize;
+  return nice_gfx::detail::monoAdvance(*mono,uniCode) * textsize;
 }
 
 #if NICE_GFX_NATIVE_IDF

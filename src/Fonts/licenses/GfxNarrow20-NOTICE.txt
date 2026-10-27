@@ -1,0 +1,6 @@
+GfxNarrow20: renamed 4-bpp bitmap derivative of Rajdhani-Bold.ttf.
+Source SHA256: 691470dd3286a14e9677940d0bf75796179841ba5215cbda1a2c8910a3226afd
+Cell 12x28, baseline 22, 96 BMP glyphs.
+Narrow period/comma/colon/space advances; degree glyph included.
+Rasterizer: scripts/rasterize-industrial-fonts.ps1 (4x coverage).
+Original font remains under SIL OFL 1.1. Preserve Rajdhani-OFL.txt.

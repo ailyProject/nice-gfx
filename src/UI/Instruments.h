@@ -48,6 +48,8 @@ struct InstrumentState {
 inline bool validInstrument(const NodeDesc &n) {
   if(!instrumentKind(n.kind))return n.instrument==nullptr;
   const auto *a=n.instrument;if(!a||n.maximum<=n.minimum||n.step<=0||n.minimum==ChartNone||a->decimals>3||!a->unit||strlen(a->unit)>48||a->start < -360||a->start>360||!a->sweep||a->sweep>360||!a->thickness||a->thickness>64||a->ticks>21||a->duration>2000||a->zoneCount>4||(a->zoneCount&&!a->zones))return false;
+  if(a->buttonLayout>1||a->formatFlags>3||a->minDigits>8)return false;
+  if(n.kind!=Kind::Spinbox&&(a->buttonLayout||a->formatFlags||a->minDigits))return false;
   int32_t previous=n.minimum;for(int i=0;i<a->zoneCount;++i){if(a->zones[i].to<=previous||a->zones[i].to>n.maximum)return false;previous=a->zones[i].to;}
   if(chartKind(n.kind)) {
     if(a->capacity<2||a->capacity>512||!a->seriesCount||a->seriesCount>4||!a->series||a->labelCount>a->capacity||(a->labelCount&&!a->labels)||a->grid>10)return false;
@@ -61,11 +63,17 @@ inline bool validInstrument(const NodeDesc &n) {
   } else if(a->seriesCount||a->capacity||a->labelCount)return false;
   return true;
 }
-inline void instrumentFormat(char *out,size_t size,int32_t value,uint8_t decimals,const char *unit="") {
-  int32_t scale=1;for(int d=0;d<decimals;++d)scale*=10;
-  const int64_t positive=value<0?-int64_t(value):value;
-  if(decimals)snprintf(out,size,"%s%ld.%0*ld%s%s",value<0?"-":"",long(positive/scale),int(decimals),long(positive%scale),*unit?" ":"",unit);
-  else snprintf(out,size,"%ld%s%s",long(value),*unit?" ":"",unit);
+struct SpinboxGeometry {int32_t button,minusX,plusX,textX,textWidth;};
+inline SpinboxGeometry spinboxGeometry(Rect r,const InstrumentDesc &a) {
+ const int32_t button=std::min(r.height,r.width/3);const bool end=a.buttonLayout==1;
+ return {button,end?r.x+r.width-2*button:r.x,r.x+r.width-button,end?r.x:r.x+button,r.width-2*button};
+}
+inline void instrumentFormat(char *out,size_t size,int32_t value,uint8_t decimals,const char *unit="",uint8_t flags=0,uint8_t digits=0) {
+ int32_t scale=1;for(int d=0;d<decimals;++d)scale*=10;
+ const int64_t positive=value<0?-int64_t(value):value;const char *sign=value<0?"-":(flags&1)?"+":"";
+ const char *gap=*unit&&!(flags&2)?" ":"";
+ if(decimals)snprintf(out,size,"%s%0*ld.%0*ld%s%s",sign,std::max(1,int(digits)),long(positive/scale),int(decimals),long(positive%scale),gap,unit);
+ else snprintf(out,size,"%s%0*ld%s%s",sign,std::max(1,int(digits)),long(positive),gap,unit);
 }
 // Q15 lookup keeps trigonometry out of per-tile rendering.
 inline int32_t instrumentSin(int angle) { static const int16_t table[] = {0,572,1144,1715,2286,2856,3425,3993,4560,5126,5690,6252,6813,7371,7927,8481,9032,9580,10126,10668,11207,11743,12275,12803,13328,13848,14364,14876,15383,15886,16383,16876,17364,17846,18323,18794,19260,19720,20173,20621,21062,21497,21925,22347,22762,23170,23571,23964,24351,24730,25101,25465,25821,26169,26509,26841,27165,27481,27788,28087,28377,28659,28932,29196,29451,29697,29934,30162,30381,30591,30791,30982,31163,31335,31498,31650,31794,31927,32051,32165,32269,32364,32448,32523,32587,32642,32687,32722,32747,32762,32767,32762,32747,32722,32687,32642,32587,32523,32448,32364,32269,32165,32051,31927,31794,31650,31498,31335,31163,30982,30791,30591,30381,30162,29934,29697,29451,29196,28932,28659,28377,28087,27788,27481,27165,26841,26509,26169,25821,25465,25101,24730,24351,23964,23571,23170,22762,22347,21925,21497,21062,20621,20173,19720,19260,18794,18323,17846,17364,16876,16383,15886,15383,14876,14364,13848,13328,12803,12275,11743,11207,10668,10126,9580,9032,8481,7927,7371,6813,6252,5690,5126,4560,3993,3425,2856,2286,1715,1144,572,0,-572,-1144,-1715,-2286,-2856,-3425,-3993,-4560,-5126,-5690,-6252,-6813,-7371,-7927,-8481,-9032,-9580,-10126,-10668,-11207,-11743,-12275,-12803,-13328,-13848,-14364,-14876,-15383,-15886,-16384,-16876,-17364,-17846,-18323,-18794,-19260,-19720,-20173,-20621,-21062,-21497,-21925,-22347,-22762,-23170,-23571,-23964,-24351,-24730,-25101,-25465,-25821,-26169,-26509,-26841,-27165,-27481,-27788,-28087,-28377,-28659,-28932,-29196,-29451,-29697,-29934,-30162,-30381,-30591,-30791,-30982,-31163,-31335,-31498,-31650,-31794,-31927,-32051,-32165,-32269,-32364,-32448,-32523,-32587,-32642,-32687,-32722,-32747,-32762,-32767,-32762,-32747,-32722,-32687,-32642,-32587,-32523,-32448,-32364,-32269,-32165,-32051,-31927,-31794,-31650,-31498,-31335,-31163,-30982,-30791,-30591,-30381,-30162,-29934,-29697,-29451,-29196,-28932,-28659,-28377,-28087,-27788,-27481,-27165,-26841,-26509,-26169,-25821,-25465,-25101,-24730,-24351,-23964,-23571,-23170,-22762,-22347,-21925,-21497,-21062,-20621,-20173,-19720,-19260,-18794,-18323,-17846,-17364,-16876,-16384,-15886,-15383,-14876,-14364,-13848,-13328,-12803,-12275,-11743,-11207,-10668,-10126,-9580,-9032,-8481,-7927,-7371,-6813,-6252,-5690,-5126,-4560,-3993,-3425,-2856,-2286,-1715,-1144,-572}; angle%=360;if(angle<0)angle+=360;return table[angle]; }
@@ -92,13 +100,14 @@ template<class Canvas> void renderInstrument(Canvas &c,const NodeDesc &n,const I
   auto label=[&](const char *text,int x,int y,int width,int align){const int pixels=c.textWidth(text);
     if(pixels>width||y<r.y||y+fh>r.y+r.height)return;c.drawString(text,x+(align==1?(width-pixels)/2:align==2?width-pixels:0),y);};
   auto fraction=[&](int32_t v,int length){return int32_t((int64_t(std::max(n.minimum,std::min(n.maximum,v)))-n.minimum)*length/(int64_t(n.maximum)-n.minimum));};
-  char formatted[96];instrumentFormat(formatted,sizeof(formatted),value,a.decimals,a.unit);
+  char formatted[96];instrumentFormat(formatted,sizeof(formatted),value,a.decimals,a.unit,n.kind==Kind::Spinbox?a.formatFlags:0,n.kind==Kind::Spinbox?a.minDigits:0);
   if(n.kind==Kind::Spinbox) {
-    const int button=std::min(r.height,r.width/3),cy=r.y+r.height/2,half=std::max(2,std::min(6,button/5));
-    c.drawFastVLine(r.x+button,r.y+8,std::max<int32_t>(0,r.height-16),s.trackColor);c.drawFastVLine(r.x+r.width-button,r.y+8,std::max<int32_t>(0,r.height-16),s.trackColor);
-    c.fillRect(r.x+button/2-half,cy-1,half*2,2,value<=n.minimum?s.trackColor:s.fillColor);
-    const uint16_t plus=value>=n.maximum?s.trackColor:s.fillColor;c.fillRect(r.x+r.width-button/2-half,cy-1,half*2,2,plus);c.fillRect(r.x+r.width-button/2-1,cy-half,2,half*2,plus);
-    label(formatted,r.x+button,r.y+(r.height-fh)/2,r.width-button*2,1);return;
+    const auto g=spinboxGeometry(r,a);const int button=g.button,cy=r.y+r.height/2,half=std::max(2,std::min(6,button/5));
+    if(a.buttonLayout){c.drawRoundRect(g.minusX+4,r.y+4,button-8,r.height-8,2,s.trackColor);c.drawRoundRect(g.plusX+4,r.y+4,button-8,r.height-8,2,s.trackColor);}
+    else {c.drawFastVLine(g.minusX+button,r.y+8,std::max<int32_t>(0,r.height-16),s.trackColor);c.drawFastVLine(g.plusX,r.y+8,std::max<int32_t>(0,r.height-16),s.trackColor);}
+    c.fillRect(g.minusX+button/2-half,cy-1,half*2,2,value<=n.minimum?s.trackColor:s.fillColor);
+    const uint16_t plus=value>=n.maximum?s.trackColor:s.fillColor;c.fillRect(g.plusX+button/2-half,cy-1,half*2,2,plus);c.fillRect(g.plusX+button/2-1,cy-half,2,half*2,plus);
+    label(formatted,g.textX,r.y+(r.height-fh)/2,g.textWidth,a.buttonLayout?0:1);return;
   }
   if(n.kind==Kind::Gauge||n.kind==Kind::Ring) {
     const int cx=r.x+r.width/2,cy=r.y+r.height/2,radius=std::max<int32_t>(1,std::min(r.width,r.height)/2-3),width=std::min(radius,int(a.thickness));
