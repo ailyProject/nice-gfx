@@ -70,7 +70,7 @@ ESP-IDF 工程通过原生组件接入本库，使用 C++ `app_main()`；同级�
 | RP2040，Arduino mbed core | core SPI、软件 SPI、GPIO 并口 | 使用 mbed 的 SPI 映射与同步路径 |
 | AVR ATmega328P / ATmega2560 | core SPI、软件 SPI、GPIO 并口，直接 PORT 写入优化 | RAM、Flash 与引脚数较少；基础绘图、短文本和小 Sprite 按容量使用 |
 | SAMD / Renesas | core SPI、软件 SPI、GPIO 并口 | 通用同步路径；能力按具体 core 和板卡确认 |
-| CI13XX | core SPI、软件 SPI、GPIO 并口 | CI1302 core 的 SPI 接口使用软件实现 |
+| [CI13XX / CI130X](docs/CI130X.md) | I2C、core 软件 SPI、GPIO 并口 | arduino-ci130x 已支持板型均使用最高 4 MHz 的软件 SPI，无 DMA；I2C 使用 variant 固定引脚，最高 400 kHz |
 | 其他 Arduino core | 通用 Arduino SPI / GPIO 路径 | 需要兼容的 GPIO、SPI、Print 与计时接口，并单独编译验证 |
 
 DMA 能力与资源分配由实际对象决定，使用 `gfx.asynchronous()` 查询。STM32 的映射与回退逻辑见 [Stm32Spi.h](src/Platform/STM32/Stm32Spi.h)，RP2040/RP2350 后端见 [Rp2040Spi.h](src/Platform/RP2040/Rp2040Spi.h) 和 [Rp2040Pio.h](src/Platform/RP2040/Rp2040Pio.h)。

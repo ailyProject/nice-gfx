@@ -149,6 +149,10 @@ class NICE_GFX : public nice_gfx::PrintBase { friend class GFX_Sprite; // Sprite
   // accepting it; pollDisplay(nowMs) advances physical completion.
   nice_gfx::Status present() { return wait(); }
   bool asynchronous() const { return _panel && _panel->asynchronous(); }
+  // Optional device controls report Unsupported on backends without the feature.
+  // Call after View::finish(); an in-flight frame is never interrupted.
+  nice_gfx::Status setPowerSave(bool enabled) {if(!_panel)return _runtimeStatus=nice_gfx::Status::NotInitialized;if(_panel->busy()||_panel->frameOpen())return _runtimeStatus=nice_gfx::Status::Busy;return _runtimeStatus=_panel->powerSave(enabled);}
+  nice_gfx::Status setContrast(uint8_t value) {if(!_panel)return _runtimeStatus=nice_gfx::Status::NotInitialized;if(_panel->busy()||_panel->frameOpen())return _runtimeStatus=nice_gfx::Status::Busy;return _runtimeStatus=_panel->setContrast(value);}
   nice_gfx::DisplayCapabilities displayCapabilities() const {
     return _panel ? _panel->capabilities() : nice_gfx::DisplayCapabilities();
   }

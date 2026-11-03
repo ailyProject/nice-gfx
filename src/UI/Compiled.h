@@ -15,7 +15,7 @@ namespace nice_gfx { namespace htmlui {
 // Versioned, generated C++ resource ABI. Geometry is page-relative, in physical
 // pixels at PageDesc's target size. Parents precede children. Resource pointers
 // remain valid for the lifetime of the mounted project.
-constexpr uint32_t ResourceVersion = 18;
+constexpr uint32_t ResourceVersion = 19;
 constexpr uint16_t NoParent = 0xffff;
 using Id = uint32_t;
 enum class Kind : uint8_t { Container, Text, Button, Range, Checkbox, Switch, Progress, Scroll, Pager, Label, Icon, Media, Gauge, Ring, LineChart, BarChart, Spinbox, Shape, InputField };
@@ -46,8 +46,8 @@ struct Style {
 };
 enum class AnimationEffect : uint8_t { None, FadeIn, FadeOut, SlideLeft, SlideRight, SlideUp, SlideDown, Float, Bounce, Shake, Pulse, Blink, SlideOutLeft, SlideOutRight, SlideOutUp, SlideOutDown };
 enum class AnimationEasing : uint8_t { Linear, EaseIn, EaseOut, EaseInOut, BackOut, BounceOut };
-enum class TransitionEffect : uint8_t { None, SlideLeft, SlideRight, SlideUp, SlideDown, Fade };
-struct TransitionDesc { TransitionEffect effect; AnimationEasing easing; uint16_t duration; };
+enum class TransitionEffect : uint8_t { None, SlideLeft, SlideRight, SlideUp, SlideDown, Fade, Dissolve };
+struct TransitionDesc { TransitionEffect effect; AnimationEasing easing; uint16_t duration; uint32_t seed=0x6d2b79f5u;uint8_t grain=1; };
 enum class AnimationTrigger : uint8_t { Enter, Click, Manual, Show };
 struct AnimationDesc {
   AnimationEffect effect;
@@ -83,6 +83,10 @@ struct MotionDesc {
 };
 struct PagerDesc { uint16_t indicatorHeight; uint8_t dotSize, dotGap; };
 struct MediaDesc { const uint8_t *pixels; uint16_t width, height, frames; uint8_t fps, bytesPerPixel; };
+// Format3 keeps descriptor ABI: pixels points to this bounded NGJ1 resource.
+struct JpegMediaResource { const uint8_t *data; size_t bytes; };
+constexpr uint8_t MediaJpeg=3;
+inline bool mediaJpeg(const MediaDesc &m){return m.bytesPerPixel==MediaJpeg;}
 // Preserve descriptor ABI: 0x82 denotes wire RGB565 with a two-byte, MSB-first
 // transparent-color prefix. The prefix is shared by all frames, not per pixel.
 constexpr uint8_t MediaRgb565ColorKey = 0x82;

@@ -143,6 +143,9 @@ Status prepareCpuCachedFade(PixelView &surface) {
   surfaceStats.hits+=rasterFrame.preview.page?2:1;surface=candidate;return Status::Ok;
 }
 const nice_gfx::NativeFramebuffer *stagingNativeTarget=nullptr;
+// Non-owning destination available only while painting one mapped native
+// frame. Overlay helpers share this scope instead of mapping for every node.
+const nice_gfx::NativeFramebuffer *nativeOverlayTarget=nullptr;
 // A cold fade may sample the same immutable page many times. Borrow one raw
 // cache slot for its Native565 raster; never mark those pixels as a Wire565
 // retained page. Any slot writer advances pixelsRevision and rejects reuse.
@@ -157,7 +160,7 @@ void releaseColdFadeSurface(){
 }
 struct NativeRenderFrame {nice_gfx::NativeFramebuffer frame{};DirtyRect regions[16];uint8_t count=0;};
 bool nativeOpaquePage(const PageDesc &p,const RetainedVector<State> &values) const {
-  for(uint16_t i=0;i<p.count;++i)if(visible(p,values,i)){
+  for(uint16_t i=0;i<p.count;++i)if(p.nodes[i].motion&&visible(p,values,i)){
     // Only the sampled affine pose requires the Wire565 transform kernel.
     // Completed keyframes, translations, rectangular reveals and opacity use
     // ordinary native geometry/underlays even if a motion descriptor remains.
@@ -172,9 +175,15 @@ static bool nativeMemoryOverlap(uintptr_t destination,size_t destinationBytes,co
   return begin>UINTPTR_MAX-bytes||(begin<destination+destinationBytes&&destination<begin+bytes);
 }
 bool nativeSourceOverlap(const PageDesc &p,const RetainedVector<State> &values,uintptr_t output,size_t bytes,bool includeHidden=false) const {
-  for(uint16_t i=0;i<p.count;++i){if(!includeHidden&&!visible(p,values,i))continue;const auto &n=p.nodes[i];const auto &v=values[i];
+  for(uint16_t i=0;i<p.count;++i){const auto &n=p.nodes[i];if(n.kind!=Kind::Media&&n.kind!=Kind::Icon)continue;
+    if(!includeHidden&&!visible(p,values,i))continue;const auto &v=values[i];
     if(n.kind==Kind::Media){const MediaDesc *source=media(n,v);if(source){
       size_t sourceBytes=0;
+      if(mediaJpeg(*source)){
+        const auto *jpeg=detail::jpegResource(*source);
+        if(!jpeg||nativeMemoryOverlap(output,bytes,jpeg->data,jpeg->bytes)||jpegCache.overlaps(output,bytes)||jpegPrefetch.overlaps(output,bytes))return true;
+        continue;
+      }
       if(v.imageOverride&&v.image.impl_)sourceBytes=v.image.impl_->source.byteLength;
       else {
         const size_t frameBytes=mediaFrameBytes(*source),prefix=mediaColorKeyed(*source)?2:0;
@@ -272,11 +281,12 @@ void partitionNativeRegions(NativeRenderFrame &candidate,bool identity=false) {
 // image to scanout. Only the final blend writes the mapped display target.
 Status prepareColdFade(PixelView &output) {
   output=PixelView(nullptr,0);
+  if(directJpegCover>=0)return Status::Unsupported;
   const Rect viewport=snapshotMotionRect;
   const bool tail=!snapshotTransition&&!transition.active&&coldFadeSurface&&coldFadePage==rasterFrame.current.page&&coldFadeEpoch==transitionEpoch;
   const uint8_t alpha=tail?255:transitionFrame.opacity;
   if(!ppaBlendEnabled||!rgb565_ppa::Context::available()||buildingSurface||renderingViewport||rasterFrame.preview.page||(!snapshotTransition&&!tail)||
-     snapshotSurface||snapshotAnimationSurface||snapshotInput||snapshotKeyboard.visible||snapshotPressed>=0||down||
+     snapshotSurface||snapshotAnimationSurface||snapshotInput||styledFocus()||snapshotKeyboard.visible||snapshotPressed>=0||down||
       (snapshotGroupIndex>=0&&snapshotGroup.indicatorHeight)||transition.config.effect!=TransitionEffect::Fade||
      (!tail&&snapshotPhase!=TransitionPhase::Enter&&snapshotPhase!=TransitionPhase::Exit)||
       !alpha||viewport.x||viewport.y<0||viewport.height<=0||
@@ -380,11 +390,12 @@ Status prepareColdFade(PixelView &output) {
 }
 Status paintNativeRender(const NativeRenderFrame &candidate) {
   const bool savedFull=renderingFullFrameSurface;const PixelOrder savedOrder=renderOrder;
-  renderingFullFrameSurface=true;renderOrder=PixelOrder::Native;
+  const auto *savedOverlay=nativeOverlayTarget;
+  renderingFullFrameSurface=true;renderOrder=PixelOrder::Native;nativeOverlayTarget=&candidate.frame;
   Status status=Status::Ok;
   for(uint8_t i=0;i<candidate.count;++i){const auto &area=candidate.regions[i];
     status=render(this,area,candidate.frame.pixels+size_t(area.y)*candidate.frame.stride+area.x,candidate.frame.stride);
     if(status!=Status::Ok)break;
   }
-  renderOrder=savedOrder;renderingFullFrameSurface=savedFull;return status;
+  nativeOverlayTarget=savedOverlay;renderOrder=savedOrder;renderingFullFrameSurface=savedFull;return status;
 }

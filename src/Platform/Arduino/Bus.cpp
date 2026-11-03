@@ -1,5 +1,6 @@
 #include "Bus.h"
 #include <new>
+#include "../CI13XX/ArduinoSpiFast.h"
 
 namespace nice_gfx {
 // Amortize the Seeed core's synchronous ZeroDMA setup over more pixels. This
@@ -119,6 +120,12 @@ struct ArduinoSpiOwner { const void *key=nullptr,*object=nullptr; ArduinoSpi *ow
 static ArduinoSpiOwner arduinoSpiOwners[8];
 Status ArduinoSpi::begin() {
   if (begun_) return Status::Ok;
+#if defined(ARDUINO_ARCH_CI13XX)
+  // The core implements SPI in software and caps transactions at 4 MHz.
+  // Keep our settings and transport diagnostics at the effective rate too.
+  if (config_.frequency > 4000000U) config_.frequency = 4000000U;
+  if (config_.readFrequency > 4000000U) config_.readFrequency = 4000000U;
+#endif
   if (!spiPinsValid(config_,true)) return Status::InvalidArgument;
   const auto &p=config_.pins;
   const void *key=&spi_;
@@ -255,6 +262,9 @@ void ArduinoSpi::writeBlock(const uint8_t *p, size_t n, bool pixels) {
     return;
   }
 #if defined(ARDUINO_ARCH_ESP32) || defined(ESP8266) || defined(ARDUINO_ARCH_CI13XX)
+#if defined(ARDUINO_ARCH_CI13XX) && defined(__riscv) && NICE_GFX_CI13XX_FAST_SPI
+  if(detail::ci13xxFastWrite(config_,p,n))return;
+#endif
   spi_.writeBytes(p,n);
 #elif defined(ARDUINO_ARCH_STM32)
   // STM32's public size_t overload forwards to spi_transfer(uint16_t len).

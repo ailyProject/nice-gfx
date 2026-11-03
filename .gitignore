@@ -52,8 +52,6 @@ Temporary Items
 
 # Regression sources are versioned; only generated test output is local.
 tests/
-!/tests/
-tests/.build/
 
 # Build output and downloaded development dependencies
 build/

@@ -1,0 +1,11 @@
+Spleen5x8: printable ASCII subset, unchanged native 1-bpp glyph pixels.
+Copyright (c) 2018-2026, Frederic Cambus
+Source: https://raw.githubusercontent.com/fcambus/spleen/57f9219328c9f5873085320fe8bc8f7dd34b8791/spleen-5x8.bdf
+Source SHA-256: 40488184d075d0c752cdd239b441c5ece51e50b353156f2496c756c384ab01cb
+License: BSD-2-Clause; retain the complete Spleen-BSD-2-Clause.txt.
+Cell 5x8, baseline 7, descent 1, 95 glyphs U+0020-U+007E.
+The BDF advance and baseline coordinates are preserved. No outline rasterization, coverage threshold, resampling, horizontal fit, synthetic bold, or per-glyph redraw.
+Native size is 8px; optional larger previews replicate pixels by integer nearest-neighbor only.
+ASCII only: Chinese text requires a separate native CJK font and matching line metrics.
+Rebuild offline: node scripts/package-pixel-fonts.mjs
+Font-data license is independent of the application license.

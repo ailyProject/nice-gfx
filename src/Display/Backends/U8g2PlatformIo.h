@@ -75,8 +75,8 @@ class U8g2PlatformIo:public U8g2Io {
 };
 
 #if !NICE_GFX_NATIVE_IDF
-// A usable raw SPIClass bridge for hardware acceleration. On ESP32 the
-// configured pins are routed explicitly. Other Arduino cores use the SPIClass
+// A raw SPIClass bridge. On ESP32 and CI13XX
+// the configured pins are routed explicitly. Other Arduino cores use the SPIClass
 // instance's configured pins; select/remap them using that core's API first.
 class U8g2ArduinoSpiPort:public U8g2SpiPort {
  public:
@@ -84,7 +84,14 @@ class U8g2ArduinoSpiPort:public U8g2SpiPort {
   Status begin(int clock,int mosi,uint32_t hz,uint8_t mode)override{
     if(!hz||mode>3)return Status::InvalidArgument;
     hz_=hz;mode_=mode;
-#if defined(ARDUINO_ARCH_ESP32) || defined(ESP32)
+#if defined(ARDUINO_ARCH_CI13XX)
+    // All-negative core arguments select MISO/SS too; this port is write-only.
+    if(clock<0)clock=SCK;
+    if(mosi<0)mosi=MOSI;
+    // CI13XX's core provides software SPI and caps transfers at 4 MHz.
+    if(hz_>4000000UL)hz_=4000000UL;
+    if(!spi_.begin(clock,-1,mosi,-1))return Status::InvalidArgument;
+#elif defined(ARDUINO_ARCH_ESP32) || defined(ESP32)
     spi_.begin(clock,-1,mosi,-1);
 #else
     (void)clock;(void)mosi;spi_.begin();
@@ -97,7 +104,12 @@ class U8g2ArduinoSpiPort:public U8g2SpiPort {
     spi_.beginTransaction(SPISettings(hz_,MSBFIRST,modes[mode_]));active_=true;return Status::Ok;}
   Status send(const uint8_t *data,size_t bytes)override{
     if(!active_||(bytes&&!data))return Status::InvalidArgument;
-    for(size_t i=0;i<bytes;++i)spi_.transfer(data[i]);return Status::Ok;
+#if defined(ARDUINO_ARCH_CI13XX)
+    if(bytes)spi_.writeBytes(data,bytes);
+#else
+    for(size_t i=0;i<bytes;++i)spi_.transfer(data[i]);
+#endif
+    return Status::Ok;
   }
   Status stop()override{if(active_){spi_.endTransaction();active_=false;}return Status::Ok;}
  private:SPIClass &spi_;uint32_t hz_=0;uint8_t mode_=0;bool active_=false;

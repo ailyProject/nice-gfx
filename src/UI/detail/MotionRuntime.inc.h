@@ -130,6 +130,7 @@ void settleMotions() {
   if(!nested)endProcessing();
 }
 bool requestShow(int i,bool cancelPointer=true) {
+  if(behaviorShow(i))return true;
   if(i<0)return false;
   invalidateSubtree(i);auto *m=liveMotion(i);
   if(m)resetMotion(i);
@@ -144,6 +145,7 @@ bool requestShow(int i,bool cancelPointer=true) {
   return true;
 }
 bool requestHide(int i,bool cancelPointer=true) {
+  if(behaviorHide(i))return true;
   if(i<0)return false;
   if(state()[i].flags&Hidden)return true;
   const auto *a=page().nodes[i].exitAnimation;auto *m=liveMotion(i);
@@ -161,7 +163,9 @@ void commitVisibility(int i,bool shown,bool cancelPointer=true) {
   if(i<0||bool(!(state()[i].flags&Hidden))==shown)return;
   ++inputLayoutEpoch;invalidateSubtree(i);
   if(shown)state()[i].flags&=~Hidden;else {state()[i].flags|=Hidden;cancelVisibilityMotions(i,false);}
+  compactMenuRows();
   invalidateSubtree(i);
+  cancelUnavailableEditors();
   if(cancelPointer&&down&&!pointerAvailable()){releaseKeyboardPointer();cancel(true);}
   ensureInputAvailable();
   const auto *link=componentFor(i);if(link&&link->panel==i)expansionFocus(*link,shown);

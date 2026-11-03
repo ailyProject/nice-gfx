@@ -1060,6 +1060,199 @@
   },
   {
     "schemaVersion": 1,
+    "id": "linkbit-213-tricolor",
+    "label": "Linkbit 2.13 英寸三色墨水屏",
+    "description": "ESP32-C3，GDEY0213Z98 / SSD1680，122×250 黑白红电子纸，A / B / C 三键。",
+    "kind": "device",
+    "source": {
+      "url": "https://arduino.me/a/3363",
+      "manufacturer": "aily / OpenJumper",
+      "checkedAt": "2026-10-28",
+      "files": [
+        "https://github.com/ailyProject/aily-blockly-boards/blob/main/linkbit/board.json",
+        "https://github.com/ailyProject/aily-blockly-libraries/blob/main/linkbit_GxEPD2/generator.js",
+        "https://github.com/ZinggJM/GxEPD2/blob/master/src/epd3c/GxEPD2_213_Z98c.h"
+      ],
+      "display": {
+        "model": "GDEY0213Z98",
+        "controller": "SSD1680",
+        "interface": "spi",
+        "width": 122,
+        "height": 250,
+        "storageWidth": 128,
+        "palette": [
+          "black",
+          "white",
+          "red"
+        ],
+        "driver": "GxEPD2_213_Z98c",
+        "pins": {
+          "busy": 0,
+          "rst": 1,
+          "cs": 2,
+          "dc": 3,
+          "sclk": 6,
+          "mosi": 7
+        },
+        "notes": [
+          "The product article specifies 122×250 and defaults to the tricolor version. The companion generator explicitly fixes GDEY0213Z98 / GxEPD2_213_Z98c; controller alternatives in the article do not select a different panel profile.",
+          "This is distinct from the legacy 104×212 four-grey EPD-CZ04 preset (id: linkbit).",
+          "The companion generator defaults to a 2 ms reset pulse; the selected upstream panel profile uses 4 MHz SPI and a full refresh of approximately 15 seconds."
+        ]
+      },
+      "input": {
+        "buttons": [
+          {
+            "name": "A",
+            "pin": 10,
+            "activeLow": true
+          },
+          {
+            "name": "B",
+            "pin": 5,
+            "activeLow": true
+          },
+          {
+            "name": "C",
+            "pin": 8,
+            "activeLow": true
+          }
+        ],
+        "notes": [
+          "GPIO9 is BOOT / I²C channel selection and is not a user navigation key."
+        ]
+      },
+      "runtimeVerification": "Full standalone Arduino export compiled for ESP32-C3 with Arduino-ESP32 3.3.12 (687716 bytes flash, 16180 bytes static RAM); Arduino / IDF export validation passed; hardware not tested."
+    },
+    "card": {
+      "name": "Linkbit 2.13 三色",
+      "subtitle": "122×250 黑白红墨水屏胸牌",
+      "brand": "aily",
+      "mcu": "ESP32-C3",
+      "controller": "SSD1680",
+      "interface": "SPI",
+      "width": 122,
+      "height": 250,
+      "shape": "square",
+      "touch": "无触摸",
+      "buttonCount": 3,
+      "tags": [
+        "122 × 250",
+        "黑白红",
+        "三键",
+        "全刷"
+      ],
+      "note": "适用于 GDEY0213Z98 三色版本；全刷约 15 秒。A / B / C 默认为上一项 / 确认 / 下一项。",
+      "documentUrl": "https://arduino.me/a/3363"
+    },
+    "hardware": {
+      "board": "esp32:esp32:esp32c3:CDCOnBoot=cdc",
+      "display": "NGFX_GXEPD2_213_Z98C",
+      "cs": "2",
+      "dc": "3",
+      "reset": "1",
+      "te": "-1",
+      "sck": "6",
+      "mosi": "7",
+      "miso": "-1",
+      "backlight": "-1",
+      "disp": "-1",
+      "frequency": 4000000,
+      "rotation": 0,
+      "bufferLines": 4,
+      "edgeBack": false,
+      "swipeHome": false,
+      "wr": "-1",
+      "rd": "-1",
+      "dataPins": [],
+      "touch": "none",
+      "touchCs": "-1",
+      "touchIrq": "-1",
+      "touchClock": "-1",
+      "touchMosi": "-1",
+      "touchMiso": "-1",
+      "touchSda": "-1",
+      "touchScl": "-1",
+      "touchReset": "-1",
+      "touchAddress": 46,
+      "calibration": [],
+      "busy": "0",
+      "vcomMillivolts": -1,
+      "resetDurationMs": 2,
+      "pulldownReset": false,
+      "buttons": [
+        {
+          "id": "a",
+          "name": "A",
+          "pin": "10",
+          "activeLow": true,
+          "pull": "up",
+          "debounceMs": 30,
+          "longPressMs": 600,
+          "repeatDelayMs": 450,
+          "repeatIntervalMs": 120
+        },
+        {
+          "id": "b",
+          "name": "B",
+          "pin": "5",
+          "activeLow": true,
+          "pull": "up",
+          "debounceMs": 30,
+          "longPressMs": 600,
+          "repeatDelayMs": 450,
+          "repeatIntervalMs": 120
+        },
+        {
+          "id": "c",
+          "name": "C",
+          "pin": "8",
+          "activeLow": true,
+          "pull": "up",
+          "debounceMs": 30,
+          "longPressMs": 600,
+          "repeatDelayMs": 450,
+          "repeatIntervalMs": 120
+        }
+      ]
+    },
+    "input": {
+      "keys": [
+        "a",
+        "b",
+        "c"
+      ],
+      "focusColor": "#000000",
+      "focusWidth": 2,
+      "bindings": [
+        {
+          "key": "a",
+          "gesture": "short",
+          "action": "previous"
+        },
+        {
+          "key": "b",
+          "gesture": "short",
+          "action": "confirm"
+        },
+        {
+          "key": "c",
+          "gesture": "short",
+          "action": "next"
+        }
+      ]
+    },
+    "support": {
+      "status": "ready",
+      "notes": []
+    },
+    "order": 9,
+    "library": {
+      "displayClass": "Linkbit213TricolorDisplay"
+    }
+  },
+  {
+    "schemaVersion": 1,
     "id": "linkbit",
     "label": "linkbit",
     "description": "linkbit / EPD-CZ04 / SPI",

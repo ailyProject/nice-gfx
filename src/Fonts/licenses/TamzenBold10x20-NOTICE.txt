@@ -1,0 +1,11 @@
+TamzenBold10x20: printable ASCII subset, unchanged native 1-bpp glyph pixels.
+Copyright 2010/2015 Scott Fial; Copyright 2011 Suraj N. Kurapati
+Source: https://raw.githubusercontent.com/sunaku/tamzen-font/3255e8259bc9b880c60ab8b737ec8aa574e00d75/bdf/Tamzen10x20b.bdf
+Source SHA-256: 42ddbda34da5e56174087cb049ee141d94c73e996a3469315efe0ab5fb4618eb
+License: Tamzen/Tamsyn permissive license; retain the complete Tamzen.txt.
+Cell 10x20, baseline 14, descent 6, 95 glyphs U+0020-U+007E.
+The BDF advance and baseline coordinates are preserved. No outline rasterization, coverage threshold, resampling, horizontal fit, synthetic bold, or per-glyph redraw.
+Native size is 20px; optional larger previews replicate pixels by integer nearest-neighbor only.
+ASCII only: Chinese text requires a separate native CJK font and matching line metrics.
+Rebuild offline: node scripts/package-pixel-fonts.mjs
+Font-data license is independent of the application license.

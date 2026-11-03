@@ -47,6 +47,49 @@ void advanceMediaTweens(uint32_t now) {
     else ++at;
   }
 }
+const SharedMediaPolicy *sharedMediaPolicy(Id groupId,uint16_t pageIndex) const {
+  const auto at=std::lower_bound(sharedMediaPolicies.begin(),sharedMediaPolicies.end(),groupId,[](const SharedMediaPolicy &entry,Id group){return entry.desc.groupId<group;});
+  for(auto item=at;item!=sharedMediaPolicies.end()&&item->desc.groupId==groupId;++item)if(item->desc.pageIndex==pageIndex)return &*item;
+  return nullptr;
+}
+bool sharesMediaWith(uint16_t destination) const {
+  for(const auto &entry:sharedMediaPolicies)if(entry.desc.pageIndex==destination&&sharedMediaPolicy(entry.desc.groupId,history.back()))return true;
+  return false;
+}
+void captureSharedMedia(uint16_t destination) {
+  sharedMediaCarry.clear();
+  const uint16_t previous=history.back();
+  for(const auto &entry:sharedMediaPolicies)if(entry.desc.pageIndex==destination) {
+    const auto *source=sharedMediaPolicy(entry.desc.groupId,previous);
+    if(!source)continue;
+    const auto &value=state()[source->node];
+    sharedMediaCarry.push_back({entry.desc.groupId,value.mediaFrame,value.image,value.imageOverride});
+  }
+}
+void enterSharedMedia() {
+  const uint16_t current=history.back();
+  for(const auto &entry:sharedMediaPolicies)if(entry.desc.pageIndex==current) {
+    auto &value=state()[entry.node];
+    const auto carry=std::find_if(sharedMediaCarry.begin(),sharedMediaCarry.end(),[&](const SharedMediaCarry &item){return item.groupId==entry.desc.groupId;});
+    if(carry!=sharedMediaCarry.end()){value.image=carry->image;value.imageOverride=carry->imageOverride;}
+    const auto *resource=media(page().nodes[entry.node],value);
+    // Runtime image replacement may have a different frame count, or be blank.
+    // Keep its immutable handle without ever reading a frame outside its data.
+    if(!resource||!resource->frames){value.mediaFrame=0;value.mediaPaused=true;removeMediaTween(entry.node);continue;}
+    const uint16_t target=std::min<uint16_t>(entry.desc.targetFrame,uint16_t(resource->frames-1));
+    if(carry==sharedMediaCarry.end())seekMedia(entry.node,target);
+    else {
+      value.mediaFrame=std::min<uint16_t>(carry->frame,uint16_t(resource->frames-1));
+      value.mediaPaused=true;value.mediaPending=true;value.mediaAt=0;
+      const uint32_t distance=value.mediaFrame>target?value.mediaFrame-target:target-value.mediaFrame;
+      const uint16_t fps=entry.desc.fps?entry.desc.fps:resource->fps;
+      if(!distance||!fps)seekMedia(entry.node,target);
+      else beginMediaTween(entry.node,target,uint32_t((uint64_t(distance)*1000+fps-1)/fps));
+    }
+    invalidate(entry.node);
+  }
+  sharedMediaCarry.clear();
+}
 int mediaScrubTarget(int source) const {
   if(source<0)return -1;
   const auto &binding=mediaPlayback(page().nodes[source].id);

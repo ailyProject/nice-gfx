@@ -69,3 +69,7 @@ JPEG/PNG 解码、SD/文件系统、Wi-Fi 和传感器等依赖按各草图安�
 ## 维护
 
 `_shared` 只保存维护模板；可运行的草图均自带所需头文件，复制单个草图文件夹即可保留配置。修改模板后运行 `npm run examples:sync`。新增或迁移草图后运行 `node tools/check-examples.mjs --write` 更新索引，再运行 `npm run check`，验证功能分类、主文件同名、本地包含、模板和文档链接。
+
+## ChipIntelli CI130X
+
+[CI130X_SSD1306](01_Basics/CI130X_SSD1306/README.md) 使用固定 SDA/SCL 和 400 kHz I2C，每秒更新运行时间。板型差异、软件 SPI 与资源预算见 [CI130X 使用说明](../docs/CI130X.md)。

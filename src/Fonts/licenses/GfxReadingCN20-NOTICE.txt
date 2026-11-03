@@ -1,0 +1,9 @@
+GfxReadingCN20: renamed 4-bpp fixed-cell bitmap derivative of SourceHanSansHWSC-Regular.otf.
+Source: https://raw.githubusercontent.com/adobe-fonts/source-han-sans/a4f7cf94edfb9d7ffbdfc4841de276358bd7e0f2/OTF/SimplifiedChineseHW/SourceHanSansHWSC-Regular.otf
+Source SHA-256: 81ac5174028e1682fff3c43902b813dae3d30c4b0adf16d45b3ed9264623a147
+Source revision: a4f7cf94edfb9d7ffbdfc4841de276358bd7e0f2
+Source weight: 400; native em: 20px.
+Cell 23x25; baseline 19; 7540 BMP glyphs; GB2312 + ASCII (6763 Han).
+Native-size Edge canvas alpha coverage quantized to 16 levels. Natural source proportions and ink bounds are retained; no horizontal compression or bitmap resampling. Every codepoint was checked against the pinned source cmap; OS fallback is not used. Fixed-cell advance is 23px for every glyph, including punctuation.
+Rebuild: node scripts/reading-fonts/generate.mjs <optional Playwright module path>
+Font software, including these bitmap derivatives, remains under SIL OFL 1.1. Preserve SourceHanSansHW-OFL-1.1.txt. These renamed primary names do not use an upstream Reserved Font Name. Applications may use and embed the fonts commercially; the font software may not be sold by itself.

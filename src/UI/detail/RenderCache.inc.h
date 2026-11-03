@@ -333,10 +333,11 @@ void discardWarmSurface(Surface &surface) {
 void warmSurfaceTile(uint32_t now,bool allowDirty=false) {
   if(!surfaceWarmPending||surfaces.empty()||!project||refresh->busy()||(refresh->dirty()&&!allowDirty)||processing||updateDepth||
      down||groupMotion.active||transition.active||backAnimation.active||animation.active||inertia.active)return;
-  // A page fade can finish before its staggered controls. Their bounded
-  // Native565 repairs still own a raw slot; warming must not overwrite it
-  // with Wire565 tiles between two visible animation frames.
-  if(coldFadeSurface&&animationsRunning())return;
+  // Entry controls and shared media can keep producing frames after the route
+  // transition ends. Reserve their frame budget and shared JPEG output for
+  // live rendering; queued cache work resumes when these clocks are idle.
+  // This also keeps Wire565 warming away from an active Native565 fade slot.
+  if(animationsRunning()||!mediaTweens.empty())return;
   // Counting and encoding share at most 8192 input pixels per tick, reduced
   // further by a configured raster budget.
   // Completed keys are published only after both resumable passes finish.

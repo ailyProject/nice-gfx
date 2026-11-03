@@ -23,7 +23,7 @@ void recognizeCoordinated(int32_t dx,int32_t dy,uint32_t now) {
   if(edge&&edge->overrideControls){claimGesture(edge,now);return;}
   // The deepest declared local recognizer (e.g. map/canvas) and the native
   // control participate in the same ranking. Explicit claims are candidates.
-  for(int a=target;a>=0;a=parent(a)){
+  for(int a=target;a>=0;a=gestureParent(a)){
     if(horizontal&&allowX&&mediaScrubTarget(a)>=0){if(edge)claimGesture(edge,now);else acquireMediaScrub(a);return;}
     if(localCandidate(a,horizontal)){acquireOwner(a,page().nodes[a].kind==Kind::Range?Drag::Range:Drag::Custom);return;}
     if(a==pointerClaim&&detail::acceptsAxis(pointerClaimAxis,horizontal)&&policy(a).ownership!=GestureOwnership::Parent){acquireOwner(a,Drag::Custom);return;}
@@ -31,7 +31,7 @@ void recognizeCoordinated(int32_t dx,int32_t dy,uint32_t now) {
   // Label-associated controls can live outside the target's ancestor path.
   if(localCandidate(activeControl,horizontal)){acquireOwner(activeControl,page().nodes[activeControl].kind==Kind::Range?Drag::Range:Drag::Custom);return;}
   bool contained=false,chainAllowed=true;
-  if(axisAllowed)for(int a=target;a>=0;a=parent(a)){
+  if(axisAllowed)for(int a=target;a>=0;a=gestureParent(a)){
     if(!scrolling(page().nodes[a].kind))continue;
     const bool axis=page().nodes[a].kind==Kind::Pager||(state()[a].flags&Horizontal);
     if(axis!=horizontal)continue; // Containment blocks only its own axis.

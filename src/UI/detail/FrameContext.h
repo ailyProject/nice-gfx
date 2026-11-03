@@ -12,6 +12,7 @@ struct FrameGeometry {
   uint16_t lineCount=0,children=0;
   int32_t textY=0;
   uint8_t alpha=255;
+  uint8_t ellipsisCount=0;
   bool visible=true,inputVisible=true;
 };
 struct FrameGeometryCache {

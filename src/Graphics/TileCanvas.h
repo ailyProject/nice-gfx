@@ -36,6 +36,13 @@ class TileCanvas : public NICE_GFX {
   }
   void detach() { data_ = nullptr; stream_ = false; resetViewport(); }
   bool attached() const { return data_ != nullptr; }
+  // Actual attached-tile and viewport intersection (right/bottom exclusive),
+  // expressed in drawing coordinates even when a viewport datum is enabled.
+  bool rasterClip(int &left,int &top,int &right,int &bottom) const {
+    int32_t x0=0,y0=0,x1=0,y1=0;
+    if(!textRenderClip(x0,y0,x1,y1))return false;
+    left=int(x0-_xDatum);right=int(x1-_xDatum);top=int(y0-_yDatum);bottom=int(y1-_yDatum);return true;
+  }
   // RGB565 images in either byte order, cropped before row copies. Source
   // storage is borrowed for this call and must not overlap the attached tile.
   Status blit(int32_t x, int32_t y, PixelView image) {
@@ -118,8 +125,8 @@ class TileCanvas : public NICE_GFX {
 #if defined(__GNUC__) || defined(__clang__)
           __attribute__((always_inline))
 #endif
-          -> uint8_t {
-        if(sx<0||yy<0||sx>=glyph.width||yy>=glyph.height)return 0;
+          {
+        if(sx<0||yy<0||sx>=glyph.width||yy>=glyph.height)return uint8_t(0);
         const uint8_t p=uint8_t(pgm_read_byte(glyph.data+size_t(yy)*glyph.stride+uint32_t(sx)/2));
         return uint8_t((sx&1)?p&15:p>>4);
       };

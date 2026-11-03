@@ -2,10 +2,12 @@
 #include <stdint.h>
 #define NICE_GFX_MONO_FALLBACK_VERSION 1
 #define NICE_GFX_MONO_COVERAGE_VERSION 1
+#define NICE_GFX_MONO_ASCII_ADVANCE_VERSION 1
 
 namespace nice_gfx {
 // Constant descriptor; bitmap and sorted Unicode index are stored in Flash.
 // Descriptors supplied to setFont() must outlive the display's use of them.
+enum MonoAdvanceFlags : uint8_t { MonoCompactPunctuation = 1, MonoHalfAscii = 2 };
 struct MonoFont {
   const uint8_t *bitmap;
   const uint16_t *codepoints; // nullptr for contiguous printable ASCII
@@ -17,7 +19,7 @@ struct MonoFont {
   // Zero (including omitted fields) and 1 retain the original 1bpp rows.
   // 4 stores row-aligned coverage, 0..15, with the left pixel in the high nibble.
   uint8_t bitsPerPixel;
-  uint8_t compactPunctuation = 0; // optional font-authored narrow . , : and space advances
+  uint8_t compactPunctuation = 0; // MonoAdvanceFlags; field layout and legacy 0/1 values are unchanged
 };
 namespace detail {
 const uint8_t *monoGlyph(const MonoFont &font, uint16_t codepoint);

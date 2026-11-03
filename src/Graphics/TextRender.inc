@@ -186,7 +186,18 @@ int16_t NICE_GFX::drawChar(uint16_t uniCode, int32_t x, int32_t y)
   const nice_gfx::TextGlyph image = {data, mono->width, mono->height,
     nice_gfx::detail::monoStride(*mono), mono->bitsPerPixel == 4 ?
     nice_gfx::TextEncoding::Coverage4 : nice_gfx::TextEncoding::Rows};
-  renderTextGlyph(image, x, y, textcolor, textbgcolor, textsize, textcolor != textbgcolor);
+  if((mono->compactPunctuation&nice_gfx::MonoHalfAscii)&&uniCode>=32&&uniCode<=126){
+    // Reuse the centered original bitmap without copying, resampling or changing
+    // the generic raster descriptor. The temporary clip also protects opaque neighbors.
+    const int32_t cell=std::max<int32_t>(1,mono->width/2),offset=(mono->width-cell)/2;
+    const int64_t left=int64_t(x)+_xDatum,right=left+cell*textsize,glyphLeft=left-offset*textsize;
+    const int32_t savedLeft=_vpX,savedRight=_vpW,savedDatum=_xDatum;
+    if(left<_vpW&&right>_vpX&&glyphLeft>=INT32_MIN&&glyphLeft<=INT32_MAX){
+      _vpX=int32_t(std::max<int64_t>(_vpX,left));_vpW=int32_t(std::min<int64_t>(_vpW,right));_xDatum=0;
+      renderTextGlyph(image,int32_t(glyphLeft),y,textcolor,textbgcolor,textsize,textcolor!=textbgcolor);
+      _vpX=savedLeft;_vpW=savedRight;_xDatum=savedDatum;
+    }
+  }else renderTextGlyph(image, x, y, textcolor, textbgcolor, textsize, textcolor != textbgcolor);
   return nice_gfx::detail::monoAdvance(*mono,uniCode) * textsize;
 }
 

@@ -537,11 +537,15 @@
     const SoftInput &k=snapshotKeyboard;if(!k.visible||k.node<0)return;
     const Rect keyboardClip=intersect(k.rect,tile);if(keyboardClip.width<=0||keyboardClip.height<=0)return;++stats.keyboardPaints;
     const auto &d=k.descriptor;Style style=styleFor(*rasterFrame.current.page,rasterFrame.current.values,k.node);if(d.keyboardFont)style.font=d.keyboardFont;style.fontSize=1;style.radius=6;style.borderWidth=1;style.textAlign=1;
-    canvas.setAntialiasing(!(rasterFrame.current.values[k.node].flags&NoAntialias));
+    canvas.setAntialiasing(!displayPolicy.monochrome&&!(rasterFrame.current.values[k.node].flags&NoAntialias));
     // The complete theme belongs to the immutable keyboard frame snapshot.
     auto color=[](uint32_t rgb){return uint16_t(((rgb>>8)&0xf800)|((rgb>>5)&0x07e0)|((rgb>>3)&0x001f));};const bool dark=k.theme==KeyboardTheme::Dark;
     style.background=color(dark?0x303641:0xffffff);style.color=color(dark?0xf1f5f9:0x1f2937);style.borderColor=color(dark?0x414a5b:0xccd5e2);style.trackColor=color(dark?0x171a21:0xe8edf4);style.fillColor=color(dark?0x3b82f6:0x2563eb);style.pressedColor=color(dark?0x475569:0xbfdbfe);
-    const uint16_t auxiliary=color(dark?0x232934:0xd9e1ec),fieldBackground=color(dark?0x242a35:0xffffff),muted=color(dark?0xa3b1c6:0x64748b),placeholder=color(dark?0x8795aa:0x94a3b8);
+    uint16_t auxiliary=color(dark?0x232934:0xd9e1ec),fieldBackground=color(dark?0x242a35:0xffffff),muted=color(dark?0xa3b1c6:0x64748b),placeholder=color(dark?0x8795aa:0x94a3b8);
+    if(displayPolicy.monochrome){const uint16_t background=dark?0:0xffff,ink=background^0xffff;
+      style.background=style.trackColor=auxiliary=fieldBackground=background;
+      style.color=style.borderColor=style.fillColor=muted=placeholder=ink;style.pressedColor=ink;
+    }
     canvas.setViewport(tile.x,tile.y,tile.width,tile.height,false);canvas.fillRect(k.rect.x,k.rect.y,k.rect.width,k.rect.height,style.trackColor);canvas.drawFastHLine(k.rect.x,k.rect.y,k.rect.width,style.borderColor);
     const Rect labelClip=intersect(k.labelRect,tile);if(labelClip.width>0&&labelClip.height>0){
       canvas.setViewport(labelClip.x,labelClip.y,labelClip.width,labelClip.height,false);
@@ -555,7 +559,10 @@
     }
     if(k.keys)for(size_t i=0;i<k.keys->size();++i){if(k.picker&&i+2<k.keys->size()&&int(i)!=k.keyFocus)continue;const auto &key=(*k.keys)[i];Rect clip=intersect(key.rect,tile);if(clip.width<=0||clip.height<=0)continue;canvas.setViewport(clip.x,clip.y,clip.width,clip.height,false);
       const bool primary=key.action=="done",function=key.action!="insert";const uint16_t background=key.id==k.pressed?style.pressedColor:primary?style.fillColor:function?auxiliary:style.background;Style keyStyle=style;keyStyle.color=primary&&key.id!=k.pressed?0xffff:style.color;
-      rounded(key.rect,background,snapshotKeyInput&&int(i)==k.keyFocus?style.fillColor:style.borderColor,style);if(!paintKeyboardIcon(key,k,keyStyle.color,background))inputDrawLine(key.label,keyboardKeyTextStyle(key,keyStyle),key.rect,true,SIZE_MAX,true);
+      if(displayPolicy.monochrome)keyStyle.color=DisplayPolicy::foregroundOn(background);
+      rounded(key.rect,background,snapshotKeyInput&&int(i)==k.keyFocus?style.fillColor:style.borderColor,style);
+      if(displayPolicy.monochrome&&snapshotKeyInput&&int(i)==k.keyFocus&&key.rect.width>2&&key.rect.height>2)canvas.drawRoundRect(key.rect.x+1,key.rect.y+1,key.rect.width-2,key.rect.height-2,std::max<int32_t>(0,style.radius-1),DisplayPolicy::foregroundOn(background));
+      if(!paintKeyboardIcon(key,k,keyStyle.color,background))inputDrawLine(key.label,keyboardKeyTextStyle(key,keyStyle),key.rect,true,SIZE_MAX,true);
     }
     if(k.keys&&!k.pressed.empty())for(const auto &key:*k.keys)if(key.id==k.pressed){const Rect bubble=keyboardBubble(k,key),clip=intersect(bubble,tile);if(clip.width>0&&clip.height>0){canvas.setViewport(clip.x,clip.y,clip.width,clip.height,false);Style bubbleStyle=style;bubbleStyle.radius=6;if(style.font&&style.font->height<=16)bubbleStyle.fontSize=2;rounded(bubble,fieldBackground,style.fillColor,bubbleStyle);inputDrawLine(key.value,bubbleStyle,bubble,true);}break;}
   }

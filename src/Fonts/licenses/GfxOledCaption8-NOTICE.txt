@@ -1,0 +1,10 @@
+GfxOledCaption8: renamed 1-bpp fixed-cell bitmap derivative of RussoOne-Regular.ttf.
+Copyright (c) 2011-2012, Jovanny Lemonad (jovanny.ru).
+Source: https://github.com/google/fonts/blob/main/ofl/russoone/RussoOne-Regular.ttf
+Source SHA256: bc0abcc660bd8b7ad3000ecb2898a27c58a29a50f7ec81652fa12e75148d09df
+SIL OFL 1.1; retain RussoOne-OFL.txt. The derivative name does not use the Reserved Font Name Russo.
+Cell 6x9, baseline 7, cap height 7, 96 glyphs (ASCII + degree).
+Rasterization: source outlines at 4x coverage; area-average threshold 180/255, row-major MSB-first 1bpp. Wide outlines are width-constrained to fixed cells; tall ASCII descenders are fitted within the cell.
+Percent scale 1, degree scale 0.55; numeric symbols align at the baseline. Period/comma/colon ink is inside the compressed width/3 advance; space advances width/2 for numeric faces. The W glyph receives a native 5x7 grid hint so its two counters remain visible. No screenshot glyph extraction or operating-system font fallback.
+Rebuild: node scripts/ssd1306-projects/fonts/generate.mjs <optional Playwright module path>.
+Original and derivative font software remain under SIL OFL 1.1; the application license is independent.

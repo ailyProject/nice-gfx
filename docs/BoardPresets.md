@@ -1,6 +1,6 @@
 # 开发板快捷预设
 
-目录包含编辑器的 52 项配置：24 项 ready（含通用接线）、4 项 pending、24 项 unsupported。库可独立安装，无需编辑器目录。
+目录包含编辑器的 53 项配置：25 项 ready（含通用接线）、4 项 pending、24 项 unsupported。库可独立安装，无需编辑器目录。
 
 ## 使用方法
 
@@ -36,6 +36,7 @@ void loop() {}
 | Wio Terminal / RP2040 | Arduino；前者使用专用 LCD_SPI |
 | Mosaico V1.2 | 仅 `esp_mosaico` Arduino variant，由核心完成电源初始化；不支持原生 IDF |
 | XIAO Round | 自动禁用共享 SPI 的 SD CS，应用 BGR 与反色 |
+| Linkbit 2.13 三色 | ESP32-C3；GDEY0213Z98，122×250 黑白红全刷约 15 秒；旧版 104×212 四灰另用 `linkbit` |
 | 学而思 ESP32 | 使用 SPI2_HOST，MISO19 保持输入 |
 | Waveshare 4B | TCA9554 完成 LCD/触摸复位，背光低有效；GT911 通过 `gfx.i2cBus()` 共享总线 |
 | Korvo-1 | `gfx.copyStats()` / `gfx.scanStats()` 返回同一显示对象的统计 |
@@ -56,6 +57,7 @@ ready 表示在匹配目标上可构造显示对象；pending 尚需板级适配
 | `esp32s3-ili9341` | `Esp32S3Ili9341Display` | ready | 通用参考接线 |
 | `heltec-wifi-lora-32-v3` | `HeltecWiFiLoRa32V3Display` | unsupported | 缺少显示配置：SSD1306 128×64 I2C |
 | `lilygo-t-display-s3` | `LilygoTDisplayS3Display` | unsupported | 缺少显示配置：ST7789 170×320 PARALLEL8 |
+| `linkbit-213-tricolor` | `Linkbit213TricolorDisplay` | ready | 见平台说明 |
 | `linkbit` | `LinkbitDisplay` | unsupported | 缺少显示配置：EPD-CZ04 104×212 SPI |
 | `m5stack-atoms3` | `M5AtomS3Display` | pending | 存在 GC9107 / ST7735S 屏幕版本，需确认实物版本 |
 | `m5stack-cardputer` | `M5CardputerDisplay` | unsupported | 缺少显示配置：ST7789 240×135 SPI |
@@ -101,7 +103,7 @@ ready 表示在匹配目标上可构造显示对象；pending 尚需板级适配
 
 ## 同步配置
 
-源文件：`nice_gfx_editor/configs/boards/*.json`。在编辑器目录运行：
+源文件：`nice gfx studio/configs/boards/*.json`。在编辑器目录运行：
 
 ```powershell
 npm.cmd run boards:library:generate

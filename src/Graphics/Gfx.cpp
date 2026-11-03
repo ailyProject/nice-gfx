@@ -1,5 +1,7 @@
 // NICE_GFX graphics implementation. See LICENSE-Bodmer.txt for contributor notices.
 
+#include <algorithm>
+
 #include "Gfx.h"
 #include "Clip.h"
 #include "Raster.h"

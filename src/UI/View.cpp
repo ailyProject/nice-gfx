@@ -6,7 +6,10 @@
 #include "../Graphics/TileCanvas.h"
 #include "DisplayPolicy.h"
 #include "Animation.h"
+#include "detail/MenuMotion.h"
+#include "../Graphics/MonoConvert.h"
 #include "detail/RangeGeometry.h"
+#include "detail/MonochromeControls.h"
 #include "MotionGeometry.h"
 #include "Transition.h"
 #include "Instruments.h"
@@ -35,8 +38,77 @@
 #include "../Platform/Common/UiMemory.h"
 #include "detail/ImageStorage.h"
 #include "detail/MediaPixel.h"
+#include "detail/JpegMedia.h"
+#include "detail/JpegPrefetch.h"
+#include "../Platform/ESP32/Rgb565NativeCopy.h"
+#ifndef NICE_GFX_UI_JPEG_PREFETCH_COPY
+#define NICE_GFX_UI_JPEG_PREFETCH_COPY 0
+#endif
+#include "detail/KeyedMediaPpa.h"
+#ifndef NICE_GFX_UI_FIXED_CHROME_PPA
+#define NICE_GFX_UI_FIXED_CHROME_PPA 0
+#endif
+#if NICE_GFX_UI_FIXED_CHROME_PPA
+#include "detail/FixedChromeCache.h"
+#include "detail/FixedChromeKey.h"
+#endif
+#ifndef NICE_GFX_UI_INTERNAL_CONTROL
+#if defined(CONFIG_IDF_TARGET_ESP32S31)
+#define NICE_GFX_UI_INTERNAL_CONTROL 1
+#else
+#define NICE_GFX_UI_INTERNAL_CONTROL 0
+#endif
+#endif
+#include "detail/ShapeOverlayCache.h"
+#ifndef NICE_GFX_UI_SHAPE_NATIVE_SPANS
+#define NICE_GFX_UI_SHAPE_NATIVE_SPANS 0
+#endif
+#ifndef NICE_GFX_UI_SHAPE_ALPHA_PPA
+#define NICE_GFX_UI_SHAPE_ALPHA_PPA 0
+#endif
+#if NICE_GFX_UI_SHAPE_NATIVE_SPANS
+#include "detail/ShapeNativeSpans.h"
+#endif
+#ifndef NICE_GFX_UI_SHAPE_OVERLAY_PPA
+#if defined(CONFIG_IDF_TARGET_ESP32S31)
+#define NICE_GFX_UI_SHAPE_OVERLAY_PPA 1
+#else
+#define NICE_GFX_UI_SHAPE_OVERLAY_PPA 0
+#endif
+#endif
 #include "detail/FrameContext.h"
 #include "detail/ComponentPaintIndex.h"
+#ifndef NICE_GFX_UI_TEXT_MASK_NATIVE
+#define NICE_GFX_UI_TEXT_MASK_NATIVE 0
+#endif
+#ifndef NICE_GFX_UI_TEXT_ALPHA_PPA
+#define NICE_GFX_UI_TEXT_ALPHA_PPA 0
+#endif
+#ifndef NICE_GFX_UI_TEXT_MASK_INK_BOUNDS
+#define NICE_GFX_UI_TEXT_MASK_INK_BOUNDS 1
+#endif
+#ifndef NICE_GFX_UI_TEXT_MASK_PPA
+#if defined(CONFIG_IDF_TARGET_ESP32S31)
+#define NICE_GFX_UI_TEXT_MASK_PPA 1
+#else
+#define NICE_GFX_UI_TEXT_MASK_PPA 0
+#endif
+#endif
+#if NICE_GFX_UI_TEXT_MASK_PPA || NICE_GFX_UI_TEXT_MASK_NATIVE
+#include "detail/TextMaskCache.h"
+#endif
+#if NICE_GFX_UI_TEXT_MASK_NATIVE
+#include "detail/TextMaskNative.h"
+#endif
+#ifndef NICE_GFX_UI_NATIVE_RESOURCE_PREWARM
+#define NICE_GFX_UI_NATIVE_RESOURCE_PREWARM 0
+#endif
+#ifndef NICE_GFX_UI_OPTIMIZE_O3
+#define NICE_GFX_UI_OPTIMIZE_O3 0
+#endif
+#if NICE_GFX_UI_OPTIMIZE_O3 && defined(__GNUC__) && !defined(__clang__)
+#pragma GCC optimize("O3")
+#endif
 
 namespace nice_gfx { namespace htmlui {
 namespace {
@@ -71,6 +143,7 @@ class OwnedUiTile {
 };
 
 bool validMedia(const MediaDesc &m) {
+  if(mediaJpeg(m))return detail::validJpegMedia(m);
   if(!m.pixels||!m.width||!m.height||m.width>4096||m.height>4096||!m.frames||m.frames>300||
      !m.fps||m.fps>30||(m.bytesPerPixel!=1&&m.bytesPerPixel!=2&&!mediaColorKeyed(m)&&!mediaPacked(m)))return false;
   const uint64_t bytes=uint64_t(mediaFrameBytes(m))*m.frames+(mediaColorKeyed(m)?2:0);
@@ -202,6 +275,21 @@ struct MediaRoundClip {
 }
 
 struct View::Impl {
+#if NICE_GFX_UI_INTERNAL_CONTROL && defined(CONFIG_IDF_TARGET_ESP32S31)
+  // Fixed control/cache metadata is touched beside every scanout span. Keep
+  // it in internal SRAM while large decoded surfaces remain in PSRAM. The
+  // ordinary allocation is still available when internal SRAM is exhausted.
+  static void *operator new(size_t bytes){
+    if(void *memory=heap_caps_malloc(bytes,MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT))return memory;
+    return ::operator new(bytes);
+  }
+  static void *operator new(size_t bytes,const std::nothrow_t &tag)noexcept{
+    if(void *memory=heap_caps_malloc(bytes,MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT))return memory;
+    return ::operator new(bytes,tag);
+  }
+  static void operator delete(void *memory)noexcept{heap_caps_free(memory);}
+  static void operator delete(void *memory,const std::nothrow_t &)noexcept{heap_caps_free(memory);}
+#endif
   struct TextValue {
     const char *compiled="";
     std::shared_ptr<std::string> owned;
@@ -214,6 +302,7 @@ struct View::Impl {
   struct State { uint16_t mediaFrame=0, parent=NoParent; uint32_t mediaAt=0; bool mediaPending=true,mediaPaused=false; Kind kind=Kind::Container; TextValue text; int32_t value=0, scrollX=0, scrollY=0; uint16_t flags=0, styleIndex=NoParent; int32_t animationX=0, animationY=0; uint32_t animationAt=0; uint8_t opacity=255; bool animating=false, animationPending=false;
     Image image;
     bool imageOverride=false;
+    int8_t focusOverride=-1;
     std::shared_ptr<const InputFieldDesc> implicitInput;
     std::shared_ptr<InstrumentState> instrument;
     std::shared_ptr<const DynamicNode> dynamic;
@@ -222,11 +311,15 @@ struct View::Impl {
     uint32_t motionRevision=0;
   };
   #include "detail/MotionRuntime.inc.h"
-  struct Listener { Id id; EventType type; EventHandler callback; void *context; bool capture; bool defaultAction=false; bool scoped=false; };
+  struct Listener { Id id; EventType type; EventHandler callback; void *context; bool capture; bool defaultAction=false; bool scoped=false; bool uiAction=false; };
   enum class Drag { None, Range, Scroll, Pager, Back, Home, Group, Gesture, Custom, Consumed, Media };
   struct MediaTween { const PageDesc *page;uint16_t node,from,to;uint32_t at,duration;bool pending; };
   std::vector<MediaPlaybackDesc> mediaPolicies;
   std::vector<MediaTween> mediaTweens;
+  struct SharedMediaPolicy { SharedMediaDesc desc; uint16_t node; };
+  struct SharedMediaCarry { Id groupId; uint16_t frame; Image image; bool imageOverride; };
+  std::vector<SharedMediaPolicy> sharedMediaPolicies;
+  std::vector<SharedMediaCarry> sharedMediaCarry;
   int mediaDragTarget=-1;
   uint16_t mediaDragFrom=0;
   int32_t mediaDragWidth=1;
@@ -248,9 +341,13 @@ struct View::Impl {
   bool coordinated() const {return interactionVersion==InteractionVersion::Coordinated;}
   bool descendant(int i,int root) const {for(;i>=0;i=parent(i))if(i==root)return true;return false;}
   int modalRoot() const {
-    if(!coordinated())return -1;
+    if(!project)return -1;
     int result=-1;
-    for(const auto &entry:interactionPolicies)if(entry.policy.modal){const int i=find(entry.id);if(i>=0&&i>result&&visible(page(),state(),i,true))result=i;}
+    if(coordinated())for(const auto &entry:interactionPolicies)if(entry.policy.modal){const int i=find(entry.id);if(i>=0&&i>result&&visible(page(),state(),i,true))result=i;}
+    int overlay=-1;uint16_t depth=0;
+    for(Id id:viewportOverlayIds){const int i=find(id);if(i<0||!visible(page(),state(),i,true))continue;const uint16_t level=viewportOverlayDepth(page(),state(),i);if(level>depth||(level==depth&&i>overlay)){overlay=i;depth=level;}}
+    if(overlay>=0)result=overlay;
+    for(const auto &entry:behaviors)if(entry.open&&entry.page==history.back()&&behaviorModal(entry)){const int i=find(entry.desc.id);if(i>result&&visible(page(),state(),i,true))result=i;}
     return result;
   }
   bool inInputLayer(int i) const {const int modal=modalRoot();return modal<0||descendant(i,modal);}
@@ -277,10 +374,25 @@ struct View::Impl {
   const ComponentDesc *components=nullptr;
   size_t componentCount=0;
   struct ComponentLink {const ComponentDesc *desc;int root,value,text,pager,panel;};
+  std::vector<Id> viewportOverlayIds;
+  uint16_t viewportOverlayLevels=0;
   mutable const PageDesc *componentsPage=nullptr;
   mutable std::vector<ComponentLink> componentLinks;
   mutable std::vector<int32_t> componentNodes;
   std::vector<uint16_t> underlay; // Allocated only when an animation uses opacity.
+  mutable detail::JpegMediaCache jpegCache;
+  detail::JpegPrefetch jpegPrefetch;
+#if NICE_GFX_UI_KEYED_MEDIA_PPA
+  detail::KeyedMediaPpaCache keyedMediaPpaCache;
+#endif
+#if NICE_GFX_UI_SHAPE_OVERLAY_PPA || NICE_GFX_UI_SHAPE_NATIVE_SPANS
+  detail::ShapeOverlayCache shapeOverlayCache;
+  uint64_t shapeTextureHitsBase=0,shapeTextureMissesBase=0,shapeTextureEvictionsBase=0;
+#endif
+#if NICE_GFX_UI_TEXT_MASK_PPA || NICE_GFX_UI_TEXT_MASK_NATIVE
+  detail::TextMaskCache textMaskCache;
+#endif
+  mutable Status mediaDecodeStatus=Status::Ok;
   std::vector<uint16_t> mediaRow; // Reusable wire-order scanline, never a framebuffer.
   detail::FrameContext<State,MotionRuntime> rasterFrame;
   using TextLine=detail::FrameTextLine;
@@ -292,6 +404,31 @@ struct View::Impl {
   mutable uint64_t componentPaintUsed[2]={0,0},componentPaintClock=0;
   mutable const PageDesc *tickPage=nullptr;
   mutable std::vector<uint16_t> animationNodes,mediaNodes;
+#ifndef NICE_GFX_UI_SUBTREE_DAMAGE_RANGES
+#define NICE_GFX_UI_SUBTREE_DAMAGE_RANGES 1
+#endif
+  const PageDesc *subtreeRangePage=nullptr;const NodeDesc *subtreeRangeNodes=nullptr;
+  uint32_t subtreeRangeEpoch=0;uint16_t subtreeRangeCount=0;bool subtreeRangesValid=false;
+  std::unique_ptr<uint16_t[]> subtreeEnds;size_t subtreeEndsCapacity=0;
+  bool prepareSubtreeRanges(){
+    const auto &p=page();
+    if(subtreeRangePage==&p&&subtreeRangeNodes==p.nodes&&subtreeRangeEpoch==inputLayoutEpoch&&subtreeRangeCount==p.count)return subtreeRangesValid;
+    subtreeRangePage=&p;subtreeRangeNodes=p.nodes;subtreeRangeEpoch=inputLayoutEpoch;subtreeRangeCount=p.count;subtreeRangesValid=false;
+    if(!p.count||p.count>4096||state().size()!=p.count)return false;
+    for(uint16_t i=0;i<p.count;++i){const auto &value=state()[i];const uint16_t parent=p.nodes[i].parent;
+      if(value.dynamic||value.parent!=parent||(parent!=NoParent&&parent>=i))return false;
+    }
+    if(subtreeEndsCapacity<p.count){std::unique_ptr<uint16_t[]> next(new(std::nothrow) uint16_t[p.count]);if(!next)return false;subtreeEnds=std::move(next);subtreeEndsCapacity=p.count;}
+    std::unique_ptr<uint16_t[]> counts(new(std::nothrow) uint16_t[p.count]);if(!counts)return false;
+    for(uint16_t i=0;i<p.count;++i){counts[i]=1;subtreeEnds[i]=uint16_t(i+1);}
+    for(size_t end=p.count;end;--end){const uint16_t i=uint16_t(end-1),parent=p.nodes[i].parent;if(parent==NoParent)continue;
+      counts[parent]=uint16_t(counts[parent]+counts[i]);subtreeEnds[parent]=std::max(subtreeEnds[parent],subtreeEnds[i]);
+    }
+    // Prove each node independently. A hoisted shared-media root may make its
+    // ancestors noncontiguous while ordinary business subtrees remain exact.
+    for(uint16_t i=0;i<p.count;++i)if(counts[i]!=subtreeEnds[i]-i)subtreeEnds[i]=NoParent;
+    subtreeRangesValid=true;++stats.subtreeRangeBuilds;return true;
+  }
   void ensureTickNodes() const {
     if(!project||tickPage==&page())return;
     tickPage=&page();animationNodes.clear();mediaNodes.clear();
@@ -322,7 +459,8 @@ struct View::Impl {
     ProfileTimer(Impl &s,ProfileCounter field,bool enabled=true):
       counter(enabled&&s.profilingClock?&(s.stats.*field):nullptr),
       clock(counter?s.profilingClock:nullptr),started(clock?clock():0){}
-    ~ProfileTimer(){if(clock)*counter+=uint32_t(clock()-started);}
+    void stop(){if(clock){*counter+=uint32_t(clock()-started);clock=nullptr;}}
+    ~ProfileTimer(){stop();}
   };
   unsigned geometryProfileDepth=0;
   struct GeometryTimer {
@@ -353,7 +491,7 @@ struct View::Impl {
     int destination=-1;
     RouteAction action=RouteAction::None;
     uint16_t background=0;
-    bool sequential=false;
+    bool sequential=false,sharedComponents=false;
     TransitionSample sample{0,0,0,0,255,false};
   } transition;
   bool snapshotTransition=false;
@@ -367,6 +505,7 @@ struct View::Impl {
   rgb565_ppa::Context ppaFade; // One optional S31 full-page scratch surface.
   int snapshotPressed=-1;
   const InputConfig *input=nullptr;
+  const FocusStyleDesc *focusStyles=nullptr;size_t focusStyleCount=0;Id snapshotFocusId=0;
   mutable const InputConfig *focusIndexConfig=nullptr;
   mutable std::vector<size_t> focusIndex;
   mutable std::vector<int> focusItems;
@@ -377,7 +516,7 @@ struct View::Impl {
     RetainedVector<State> outgoing;
     std::vector<MotionRuntime> outgoingMotions;
     int destination=-1;int32_t offset=0,from=0,to=0;uint32_t started=0,updated=0;
-    bool active=false,settling=false,commit=false,prepared=false;
+    bool active=false,settling=false,commit=false,prepared=false,sharedBackdrop=false;
     bool vertical=false,follow=false;int sign=-1;
     RouteAction action=RouteAction::Replace;
     TransitionDesc config{TransitionEffect::SlideLeft,AnimationEasing::EaseOut,180};
@@ -451,6 +590,8 @@ struct View::Impl {
   }
   ~Impl() { refresh->cancel(); delete refresh; }
   DisplayPolicy displayPolicy=DisplayPolicy::from(display.displayCapabilities());
+  MonochromeEffects monochromeEffects=MonochromeEffects::Threshold;
+  MonochromeEffects snapshotMonochromeEffects=MonochromeEffects::Threshold;
   uint32_t lastDisplayFrameAt=0;
   bool displayFrameStarted=false;
   const PageDesc &page() const { return project->pages[history.back()]; }
@@ -502,6 +643,17 @@ struct View::Impl {
   const RetainedVector<State> &state() const { return pages[history.back()]; }
   const MediaDesc *media(const NodeDesc &node,const State &value) const {
     return value.imageOverride?(value.image.impl_?&value.image.impl_->media:nullptr):node.media;
+  }
+  uint64_t jpegInstance(Id node) const {
+    uint16_t index=history.empty()?0:history.back();const PageDesc *drawing=rasterFrame.current.page;
+    if(project&&drawing)for(uint16_t p=0;p<project->count;++p)if(&project->pages[p]==drawing||!strcmp(project->pages[p].path,drawing->path)){index=p;break;}
+    for(const auto &entry:sharedMediaPolicies)if(entry.desc.pageIndex==index&&entry.desc.nodeId==node)return (uint64_t(entry.desc.groupId)<<1)|1;
+    return ((uint64_t(index)<<32)|node)<<1;
+  }
+  bool decodeJpeg(const MediaDesc &resource,uint16_t frame,JpegDecodeTarget &target,Id node) const {
+    const Status status=jpegCache.resolve(resource,frame,target,jpegInstance(node));
+    if(status!=Status::Ok&&mediaDecodeStatus==Status::Ok)mediaDecodeStatus=status;
+    return status==Status::Ok;
   }
   Status imageTarget(Id id,int &index) const {
     if(!project)return Status::NotInitialized;
@@ -594,12 +746,13 @@ struct View::Impl {
     if(destination<0||destination==history.back())return false;
     groupMotion=GroupMotion{};groupMotion.destination=destination;groupMotion.started=groupMotion.updated=now;groupMotion.active=true;
     groupMotion.action=action;groupMotion.vertical=vertical;groupMotion.sign=sign;groupMotion.config=config;groupMotion.follow=follow;
+    groupMotion.sharedBackdrop=sharesMediaWith(uint16_t(destination));
     const char *from=page().path,*to=project->pages[destination].path;
     bool allowed=routeEvent(EventType::BeforeNavigate,from,to,action);
     if(allowed&&down&&guard){guarding=true;allowed=guard(guardContext,from,to,action);guarding=false;}
     if(!down){groupMotion=GroupMotion{};routeEvent(EventType::NavigationCancel,from,to,action);return false;}
     groupMotion.prepared=allowed;
-    if(allowed){
+    if(allowed&&!groupMotion.sharedBackdrop){
       // Follow gestures compose two immutable page poses, just like ordinary
       // paired transitions. Live animation/setter changes must not make the
       // outgoing page miss its retained surface at every pointer sample.
@@ -610,7 +763,7 @@ struct View::Impl {
       // visit left its entry/exit animation frozen at a transparent pose.
       const uint16_t previous=history.back();history.back()=uint16_t(destination);
       enterAnimations(false);history.back()=previous;refreshMotionPending();
-    }else {routeEvent(EventType::NavigationCancel,from,to,action);if(follow){groupMotion=GroupMotion{};return false;}}
+    }else if(!allowed){routeEvent(EventType::NavigationCancel,from,to,action);if(follow){groupMotion=GroupMotion{};return false;}}
     return down;
   }
   bool prepareGroup(int destination,uint32_t now) {
@@ -628,6 +781,13 @@ struct View::Impl {
   }
   void settleMotion(bool commit,uint32_t now) {
     groupMotion.commit=commit&&groupMotion.prepared;
+    if(groupMotion.sharedBackdrop){
+      if(!groupMotion.commit){abortGroup();return;}
+      // Retain gesture thresholds/cancelability, then commit on the next UI
+      // tick after pointer-up cleanup. No full-page surface moves the backdrop.
+      groupMotion.offset=groupMotion.from=groupMotion.to=0;groupMotion.started=now;
+      groupMotion.duration=0;groupMotion.settling=true;return;
+    }
     groupMotion.from=groupMotion.offset;groupMotion.to=groupMotion.commit?groupMotion.sign*motionDistance():0;
     groupMotion.started=groupMotion.updated=now;groupMotion.settling=true;
     const uint32_t distance=uint32_t(abs(groupMotion.to-groupMotion.from));
@@ -737,10 +897,11 @@ struct View::Impl {
   bool inSubtree(int index,int root) const {for(int at=index;at>=0;at=parent(at))if(at==root)return true;return false;}
   void expansionFocus(const ComponentLink &link,bool shown) {
     if(link.desc->kind==ComponentKind::Select)invalidate(link.text);
-    if(!input||link.panel<0||focusNode<0)return;
+    const bool overlay=(link.desc->flags&ComponentViewportOverlay)!=0;
+    if(!input||link.panel<0||(focusNode<0&&!overlay))return;
     int next=-1;
     if(!shown&&inSubtree(focusNode,link.panel))next=focusTarget(link.desc->id);
-    else if(shown&&inSubtree(focusNode,link.root)) {
+    else if(shown&&(overlay||inSubtree(focusNode,link.root))) {
       if(link.desc->kind==ComponentKind::Select&&link.desc->optionCount){const int index=clamp32(state()[link.root].value,0,link.desc->optionCount-1);next=find(link.desc->options[index].id);}
       else for(int index=link.panel+1;index<int(page().count);++index)if(inSubtree(index,link.panel)&&focusable(index,false)){next=index;break;}
     }
@@ -772,13 +933,44 @@ struct View::Impl {
     if(s[i].dynamic&&s[i].dynamic->styleOverride)return s[i].dynamic->style;
     return s[i].styleIndex<compiledStyleCount?compiledStyles[s[i].styleIndex]:p.nodes[i].style;
   }
+  bool styledFocus() const {return !buildingSurface&&focusStyleCount&&snapshotFocusId;}
+  bool focusStyleOwner(Id id) const {for(size_t i=0;i<focusStyleCount;++i)if(focusStyles[i].owner==id)return true;return false;}
+  const FocusStyleDesc *focusStyle(int i) const {
+    if(!styledFocus())return nullptr;
+    for(int node=i;node>=0;node=rasterFrame.current.values[node].parent==NoParent?-1:int(rasterFrame.current.values[node].parent))if(rasterFrame.current.values[node].flags&Disabled)return nullptr;
+    const Id id=rasterFrame.current.page->nodes[i].id;size_t first=0,last=focusStyleCount;
+    while(first<last){const size_t middle=first+(last-first)/2;if(focusStyles[middle].target<id)first=middle+1;else last=middle;}
+    for(;first<focusStyleCount&&focusStyles[first].target==id;++first)if(focusStyles[first].owner==snapshotFocusId)return focusStyles+first;
+    return nullptr;
+  }
+  static void applyFocusStyle(const FocusStyleDesc *focus,Style &style,uint16_t &flags) {
+    if(!focus)return;const uint16_t f=focus->flags;
+    if(f&FocusBackground){style.background=focus->background;flags=(flags&~Transparent)|((f&FocusTransparent)?Transparent:0);}
+    if(f&FocusActiveBackground){style.pressedColor=focus->activeBackground;flags&=~GradientActive;flags=(flags&~ActiveTransparent)|((f&FocusActiveTransparent)?ActiveTransparent:0);}
+    if(f&FocusColor)style.color=focus->color;
+    if(f&FocusBorder)style.borderColor=focus->borderColor;
+  }
+  static void applyFocusShape(const FocusStyleDesc *focus,ShapeDesc &shape) {
+    if(!focus)return;const uint16_t f=focus->flags;
+    if(f&FocusFill){shape.fillColor=focus->fillColor;shape.flags=(shape.flags&~ShapeFill)|((f&FocusFillNone)?0:ShapeFill);}
+    if(f&FocusStroke){shape.strokeColor=focus->strokeColor;shape.flags=(shape.flags&~ShapeStroke)|((f&FocusStrokeNone)?0:ShapeStroke);}
+  }
+  bool viewportOverlayRoot(const PageDesc &p,int i) const {
+    return componentCount&&!viewportOverlayIds.empty()&&std::binary_search(viewportOverlayIds.begin(),viewportOverlayIds.end(),p.nodes[i].id);
+  }
+  int gestureParent(int i) const {return viewportOverlayRoot(page(),i)?-1:parent(i);}
+  uint16_t viewportOverlayDepth(const PageDesc &p,const RetainedVector<State> &values,int i) const {
+    uint16_t depth=0;if(viewportOverlayIds.empty()||!componentCount)return depth;
+    for(int a=i;a>=0;a=values[a].parent==NoParent?-1:values[a].parent)if(viewportOverlayRoot(p,a))++depth;
+    return depth;
+  }
   Rect baseRect(const PageDesc &p,const RetainedVector<State> &s,int i) const {
     Rect r=p.nodes[i].rect;const auto &d=s[i].dynamic;
     if(d&&d->boundsOverride){r.x+=d->offsetX;r.y+=d->offsetY;r.width=d->width;r.height=d->height;}return r;
   }
   Rect layoutRect(const PageDesc &p,const RetainedVector<State> &s,int i) const {
     Rect r=baseRect(p,s,i);
-    for(uint16_t a=s[i].parent;a!=NoParent;a=s[a].parent)if(s[a].dynamic&&s[a].dynamic->boundsOverride){r.x+=s[a].dynamic->offsetX;r.y+=s[a].dynamic->offsetY;}return r;
+    for(uint16_t child=i,a=s[i].parent;a!=NoParent;child=a,a=s[a].parent){if(viewportOverlayRoot(p,child))break;if(s[a].dynamic&&s[a].dynamic->boundsOverride){r.x+=s[a].dynamic->offsetX;r.y+=s[a].dynamic->offsetY;}}return r;
   }
   Rect childBox(const PageDesc &p,const RetainedVector<State> &s,int i,Rect r) const {
     r=contentBox(r,styleFor(p,s,i));if(s[i].kind==Kind::Pager)r.height=std::max<int32_t>(0,r.height-p.nodes[i].pager.indicatorHeight);return r;
@@ -805,7 +997,7 @@ struct View::Impl {
 #include "detail/NativeRender.inc.h"
   Rect poseRect(const PageDesc &p,const RetainedVector<State> &s,int i) const {
     Rect r=layoutRect(p,s,i);r.x+=s[i].animationX;r.y+=s[i].animationY;
-    for(uint16_t a=s[i].parent;a!=NoParent;a=s[a].parent) { r.x+=s[a].animationX-s[a].scrollX; r.y+=s[a].animationY-s[a].scrollY; }
+    for(uint16_t child=i,a=s[i].parent;a!=NoParent;child=a,a=s[a].parent) {if(viewportOverlayRoot(p,child))break;r.x+=s[a].animationX-s[a].scrollX;r.y+=s[a].animationY-s[a].scrollY;}
     return r;
   }
   Rect rect(const PageDesc &p,const RetainedVector<State> &s,int i) const {
@@ -816,8 +1008,8 @@ struct View::Impl {
   int32_t pagerStride(int i) const { return contentBox(baseRect(page(),state(),i),styleFor(page(),state(),i)).width; }
   Rect clip(const PageDesc &p,const RetainedVector<State> &s,int i) const {
     Rect result{0,0,p.width,p.height};
-    for(uint16_t a=s[i].parent;a!=NoParent;a=s[a].parent)
-      {if((s[a].flags&Clip)||scrolling(s[a].kind))result=intersect(result,childBox(p,s,a,poseRect(p,s,a)));
+    for(uint16_t child=i,a=s[i].parent;a!=NoParent;child=a,a=s[a].parent)
+      {if(viewportOverlayRoot(p,child))break;if((s[a].flags&Clip)||scrolling(s[a].kind))result=intersect(result,childBox(p,s,a,poseRect(p,s,a)));
        if(p.nodes[a].motion){const auto &m=motionPose(p,s,a);if(m.reveal<1024)result=intersect(result,motion_geometry::reveal(poseRect(p,s,a),m.reveal,p.nodes[a].motion->flags));}}
     if(p.nodes[i].motion){const auto &m=motionPose(p,s,i);if(m.reveal<1024&&m.scale==1024&&m.rotation%360==0)result=intersect(result,motion_geometry::reveal(poseRect(p,s,i),m.reveal,p.nodes[i].motion->flags));}
     return result;
@@ -858,6 +1050,7 @@ struct View::Impl {
     return false;
   }
   void advanceAnimations(uint32_t now) {
+    ProfileTimer animationTimer(*this,&RuntimeStats::animationMicros);
     ensureTickNodes();
     for(uint16_t i:animationNodes) {
       State &v=state()[i];
@@ -880,7 +1073,8 @@ struct View::Impl {
       // Sampling an infinite animation at its terminal pose does not finish it.
       const bool finiteCompletion=a.repeat!=0;
       uint32_t elapsed=uint32_t(now-v.animationAt);
-      const bool terminal=displayPolicy.terminalAnimation(a,n.motion);
+      const bool terminal=menuMotionConfig.preset==MenuPreset::Reduced||displayPolicy.terminalAnimation(a,n.motion)&&
+        !(displayPolicy.monochrome&&!displayPolicy.slowRefresh&&monochromeEffects==MonochromeEffects::Bayer4);
       if(terminal){if(!a.repeat)a.repeat=1;elapsed=uint32_t(a.delay)+uint32_t(a.duration)*a.repeat;}
       // Rebase infinite cycles after their one-time delay, surviving clock rollover.
       if(!terminal&&!a.repeat&&a.duration&&elapsed>=uint32_t(a.delay)+a.duration) {
@@ -932,9 +1126,18 @@ struct View::Impl {
   void invalidateSubtree(int i) {
     if(i<0)return;
     surfaceWarmPending=!surfaces.empty();++surfaceMutationEpoch;
+    size_t end=page().count;bool ranged=false;
+#if NICE_GFX_UI_SUBTREE_DAMAGE_RANGES
+    DirtyRect pending;
+    if(refresh->pendingRegions()==1&&refresh->pendingRegion(0,pending)&&!pending.x&&!pending.y&&pending.width==page().width&&pending.height==page().height){++stats.subtreeFullSkips;return;}
+    if(size_t(i)<end&&prepareSubtreeRanges()&&subtreeEnds[i]!=NoParent){ranged=true;end=subtreeEnds[i];++stats.subtreeRangeHits;}
+#endif
+    if(!ranged)++stats.subtreeRangeFallbacks;
     // One bounding region also covers children extending beyond the parent.
     Rect bounds{0,0,0,0};bool any=false;
-    for(uint16_t j=uint16_t(i);j<page().count;++j){int a=j;while(a>=0&&a!=i)a=parent(a);if(a!=i||!visible(page(),state(),j))continue;
+    for(uint16_t j=uint16_t(i);j<end;++j){++stats.subtreeVisitedNodes;
+      if(!ranged){int a=j;while(a>=0&&a!=i)a=parent(a);if(a!=i)continue;}
+      if(!visible(page(),state(),j))continue;
       Rect r=intersect(rect(j),clip(page(),state(),j));if(r.width<=0||r.height<=0)continue;
       if(!any){bounds=r;any=true;}else{const int32_t right=std::max(bounds.x+bounds.width,r.x+r.width),bottom=std::max(bounds.y+bounds.height,r.y+r.height);bounds.x=std::min(bounds.x,r.x);bounds.y=std::min(bounds.y,r.y);bounds.width=right-bounds.x;bounds.height=bottom-bounds.y;}
     }
@@ -942,7 +1145,8 @@ struct View::Impl {
   }
   int hit(int32_t px,int32_t py) const {
     const int modal=modalRoot();
-    for(int i=int(page().count)-1;i>=0;--i)
+    for(int level=viewportOverlayLevels;level>=0;--level)for(int i=int(page().count)-1;i>=0;--i)
+      if(viewportOverlayDepth(page(),state(),i)==level)
       if((modal<0||descendant(i,modal))&&policy(i).pointerEvents&&visible(page(),state(),i,true)&&opacity(page(),state(),i)>0&&contains(rect(i),px,py)&&contains(clip(page(),state(),i),px,py)) {
         if(page().nodes[i].motion){const auto &m=motionPose(page(),state(),i);if(!motion_geometry::contains(poseRect(page(),state(),i),m.scale,m.rotation,px,py,m.reveal,page().nodes[i].motion->flags,page().nodes[i].motion->pivotX,page().nodes[i].motion->pivotY,page().nodes[i].kind==Kind::Shape))continue;}
         return i;
@@ -955,7 +1159,7 @@ struct View::Impl {
     const auto &m=motionPose(page(),state(),i);
     return motion_geometry::contains(poseRect(page(),state(),i),m.scale,m.rotation,px,py,m.reveal,page().nodes[i].motion->flags,page().nodes[i].motion->pivotX,page().nodes[i].motion->pivotY,page().nodes[i].kind==Kind::Shape);
   }
-  int nearestControl(int i) const { for(;i>=0;i=parent(i)) { if(page().nodes[i].kind==Kind::Label&&page().nodes[i].targetId) { int target=find(page().nodes[i].targetId);return target>=0&&visible(page(),state(),target,true)?target:-1; } if(control(page().nodes[i].kind)) return i; } return -1; }
+  int nearestControl(int i) const { for(;i>=0;i=parent(i)) { if(page().nodes[i].kind==Kind::Label&&page().nodes[i].targetId) { int target=find(page().nodes[i].targetId);return target>=0&&visible(page(),state(),target,true)?target:-1; } if(control(page().nodes[i].kind)) return i; if(const auto *link=componentFor(i))if(link->root==i&&link->desc->kind==ComponentKind::ImageButton)return i; } return -1; }
   int activationBoundary(int i) const {
     for(;i>=0;i=parent(i)){
       const auto &n=page().nodes[i];
@@ -980,36 +1184,52 @@ struct View::Impl {
     if(first<focusIndex.size()&&input->focus[focusIndex[first]].id==id)return &input->focus[focusIndex[first]];
     return nullptr;
   }
-  int scopeFor(int i) const { for(int a=parent(i);a>=0;a=parent(a))if(scrolling(page().nodes[a].kind)) { const auto *f=focusDesc(a);if(page().nodes[a].kind==Kind::Scroll&&f&&!f->enabled)continue;return a; }return -1; }
+  int scopeFor(int i) const { for(int child=i,a=parent(i);a>=0;child=a,a=parent(a)){if(viewportOverlayRoot(page(),child))break;if(scrolling(page().nodes[a].kind)) { const auto *f=focusDesc(a);if(page().nodes[a].kind==Kind::Scroll&&f&&!f->enabled)continue;return a; }}return -1; }
+  int32_t scrollReadingStep(int i,bool horizontal) const {
+    const Style *style=&styleFor(page(),state(),i);
+    // A reader normally has one Text child. Bound fallback sampling so a key
+    // never scans an arbitrarily long menu just to choose its line height.
+    for(int next=i+1,end=std::min<int>(int(page().count),i+17);next<end;++next){
+      if(!descendant(next,i))break;const auto kind=page().nodes[next].kind;
+      if((kind==Kind::Text||kind==Kind::Label)&&visible(page(),state(),next)){style=&styleFor(page(),state(),next);break;}
+    }
+    return style->font?std::max<int32_t>(1,(horizontal?style->font->width:style->font->height)*style->fontSize):(horizontal?8:16);
+  }
   bool focusable(int i,bool inScope=true) const {
     if(i<0||!inInputLayer(i)||!visible(page(),state(),i,true)||opacity(page(),state(),i)==0)return false;
     const auto *f=focusDesc(i);const auto &n=page().nodes[i];
-    if(f?!f->enabled:!(control(n.kind)||scrolling(n.kind)||n.routeAction!=RouteAction::None))return false;
+    if(state()[i].focusOverride==0)return false;
+    if(state()[i].focusOverride<0&&(f?!f->enabled:!(control(n.kind)||scrolling(n.kind)||n.routeAction!=RouteAction::None||focusStyleOwner(n.id))))return false;
     const Rect own=baseRect(page(),state(),i);if(own.width<=0||own.height<=0)return false;
+    Rect revealCandidate=behaviorFocusRect(i);
     for(int child=i,a=parent(i);a>=0;child=a,a=parent(a)) {
+      if(viewportOverlayRoot(page(),child))break;
       if(page().nodes[a].kind==Kind::Pager) {
         int index=0;for(int k=a+1;k<child;++k)if(page().nodes[k].parent==a)++index;
         if(index!=state()[a].value)return false;
       }
-      if((state()[a].flags&Clip)&&!scrolling(page().nodes[a].kind)) { const Rect r=intersect(rect(i),contentBox(rect(a),styleFor(page(),state(),a)));if(r.width<=0||r.height<=0)return false; }
+      if(scrolling(page().nodes[a].kind))revealCandidate=behaviorFocusRect(a);
+      else if(state()[a].flags&Clip) { const Rect r=intersect(revealCandidate,contentBox(behaviorFocusRect(a),styleFor(page(),state(),a)));if(r.width<=0||r.height<=0)return false; }
     }
     return !inScope||scopeFor(i)==focusScope;
   }
   const InputPage *inputPage() const { if(input)for(size_t i=0;i<input->pageCount;++i)if(!strcmp(input->pages[i].path,page().path))return &input->pages[i];return nullptr; }
   void reveal(int i) {
-    for(int a=parent(i);a>=0;a=parent(a))if(page().nodes[a].kind==Kind::Scroll) {
+    if(revealMenuFocus(i))return;
+    for(int child=i,a=parent(i);a>=0;child=a,a=parent(a)){if(viewportOverlayRoot(page(),child))break;if(page().nodes[a].kind==Kind::Scroll) {
       const Rect r=rect(i),box=contentBox(rect(a),styleFor(page(),state(),a));
       const int32_t dx=r.x<box.x?r.x-box.x:r.x+r.width>box.x+box.width?r.x+r.width-box.x-box.width:0;
       const int32_t dy=r.y<box.y?r.y-box.y:r.y+r.height>box.y+box.height?r.y+r.height-box.y-box.height:0;
       scroll(a,state()[a].scrollX+dx,state()[a].scrollY+dy);
-    }
+    }}
   }
   bool setFocus(int i,bool revealTarget=true) {
     if(!focusable(i,false))return false;
-    if(editNode>=0&&editNode!=i) { const int old=editNode;editNode=-1;setValue(old,editValue);dispatch(old,EventType::Input);if(!focusable(i,false))return false; }
+    if(editNode>=0&&editNode!=i) { const int old=editNode;editNode=-1;if(!behaviorKeepDraft(old)){setValue(old,editValue);dispatch(old,EventType::Input);}if(!focusable(i,false))return false; }
     const int old=focusNode;focusScope=scopeFor(i);focusNode=i;
     if(pageFocus.size()==project->count)pageFocus[history.back()]=page().nodes[i].id;
-    if(revealTarget)reveal(i);invalidate(old);invalidate(i);
+    if(revealTarget)reveal(i);aimMenuIndicator();invalidate(old);invalidate(i);
+    if(old!=i&&focusStyleCount)refresh->invalidateAll();
     if(focusNode!=i||!focusable(i,false))return false;
     if(old!=i) {
       if(old>=0)dispatch(old,EventType::Blur);
@@ -1023,6 +1243,7 @@ struct View::Impl {
   void setKeyInput(bool enabled) {
     if(keyInput==enabled)return;
     keyInput=enabled;
+    if(project&&menuMotionEnabled()){if(enabled)aimMenuIndicator(true);else resetMenuMotion();}
     if(project)invalidate(focusNode);
     invalidateKeyboardKey(softInput.keyFocus);
   }
@@ -1032,6 +1253,9 @@ struct View::Impl {
   }
   void restoreFocus() {
     focusNode=focusScope=editNode=-1;
+    applyPageMenuMotion();
+    resetMenuMotion();
+    compactMenuRows();
     if(!input)return;
     const auto *p=inputPage();const Id id=pageFocus.size()==project->count&&pageFocus[history.back()]?pageFocus[history.back()]:p?p->initial:0;
     const int i=find(id);if(i>=0&&focusable(i,false))setFocus(i);
@@ -1054,15 +1278,26 @@ struct View::Impl {
       return best>=0&&setFocus(best);
     }
     const auto at=std::find(items.begin(),items.end(),focusNode);int index=at==items.end()?0:int(at-items.begin());
+    if(p&&!p->wrapNavigation&&((reverse&&index==0)||(!reverse&&index==int(items.size())-1)))return false;
     if(focusScope>=0&&((reverse&&index==0)||(!reverse&&index==int(items.size())-1)))return setFocus(focusScope);
     index=(index+(reverse?-1:1)+int(items.size()))%int(items.size());return setFocus(items[index]);
   }
   const KeyBinding *keyBinding(Id key,KeyGesture gesture) const {
     if(!input||!project)return nullptr;const KeyBinding *global=nullptr;
+    if(const auto *local=inputPage())if(local->bindings)for(size_t i=0;i<local->bindingCount;++i){const auto &binding=local->bindings[i];if(binding.key==key&&binding.gesture==gesture)return &binding;}
     for(size_t i=0;i<input->count;++i) { const auto &b=input->bindings[i];if(b.key!=key||b.gesture!=gesture)continue;if(b.page&&!strcmp(b.page,page().path))return &b;if(!b.page)global=&b; }
     return global;
   }
   bool keyAction(InputAction action,Id targetId,const char *route,uint32_t now) {
+    if(action!=InputAction::None&&dismissInputToasts())return true;
+    if(behaviorInputBlocked())return true;
+    if(!softInput.visible&&focusNode>=0&&focusScope==focusNode&&page().nodes[focusNode].kind==Kind::Scroll&&focusable(focusNode,false)&&(!targetId||targetId==page().nodes[focusNode].id)){
+      if(action==InputAction::Back||action==InputAction::Confirm||action==InputAction::Activate){focusScope=scopeFor(focusNode);invalidate(focusNode);return true;}
+      const bool previous=action==InputAction::Previous||action==InputAction::Up||action==InputAction::Left;
+      const bool next=action==InputAction::Next||action==InputAction::Down||action==InputAction::Right;
+      if(previous||next){const bool horizontal=(state()[focusNode].flags&Horizontal)!=0;const int32_t delta=scrollReadingStep(focusNode,horizontal)*(previous?-1:1);return scroll(focusNode,state()[focusNode].scrollX+(horizontal?delta:0),state()[focusNode].scrollY+(horizontal?0:delta));}
+    }
+    if(action==InputAction::Back&&dismissBehaviorModal())return true;
     if(softInput.visible)return softKeyAction(action);
     const int modal=modalRoot();
     if(modal>=0){
@@ -1086,12 +1321,18 @@ struct View::Impl {
     const bool direction=action==InputAction::Previous||action==InputAction::Next||action==InputAction::Up||action==InputAction::Down||action==InputAction::Left||action==InputAction::Right;
     const bool reverse=action==InputAction::Previous||action==InputAction::Up||action==InputAction::Left||action==InputAction::Decrement||action==InputAction::PagePrevious||action==InputAction::ScrollPrevious;
     if(direction&&editNode<0&&!(i>=0&&page().nodes[i].kind==Kind::Pager&&(action==InputAction::Left||action==InputAction::Right)))return moveFocus(action);
+    if(targetId&&(action==InputAction::ScrollPrevious||action==InputAction::ScrollNext)&&i>=0&&page().nodes[i].kind==Kind::Scroll&&visible(page(),state(),i,true)&&inInputLayer(i)){
+      const int32_t delta=action==InputAction::ScrollPrevious?-24:24;return scroll(i,state()[i].scrollX+delta,state()[i].scrollY+delta);
+    }
     if(!focusable(i,false)) { if(targetId)return false;const auto &items=focusTargets();if(items.empty())return false;setFocus(items.front());i=focusNode; }
     const Kind kind=page().nodes[i].kind;
     if(action==InputAction::Confirm||action==InputAction::Activate) {
       if(kind==Kind::Spinbox)return softBegin(i);
       if(kind==Kind::Range||kind==Kind::Spinbox) { if(editNode==i){editNode=-1;if(state()[i].value!=editValue)dispatch(i,EventType::Change);}else{editNode=i;editValue=state()[i].value;}refresh->invalidateAll();return true; }
-      if(scrolling(kind)) { focusScope=i;const auto &items=focusTargets();if(items.empty()){focusScope=scopeFor(i);return false;}return setFocus(items.front()); }
+      if(scrolling(kind)) { focusScope=i;const auto &items=focusTargets();if(items.empty()){
+        if(kind==Kind::Scroll){int32_t mx,my;extent(i,mx,my);if((state()[i].flags&Horizontal)?mx>0:my>0){invalidate(i);return true;}}
+        focusScope=scopeFor(i);return false;
+      }return setFocus(items.front()); }
       activateNode(i,now,false);return true;
     }
     if((direction&&editNode==i)||action==InputAction::Increment||action==InputAction::Decrement) {
@@ -1109,6 +1350,7 @@ struct View::Impl {
     const auto first=std::lower_bound(copy.begin(),copy.end(),key,listenerBefore);
     for(auto it=first;it!=copy.end()&&it->id==id&&it->type==event.type&&it->capture==capture;++it) {
       if(coordinated()&&event.type==EventType::Click&&it->defaultAction!=defaults)continue;
+      if(!it->uiAction&&behaviorEditInput(find(event.target),event.type))continue;
       if((defaults||it->scoped)&&!acceptsEvent(event))continue;
       if(event.immediatePropagationStopped)break;
       ++stats.listenerVisits;it->callback(it->context,event);
@@ -1192,7 +1434,7 @@ struct View::Impl {
   }
   void endProcessing() {
     processing=false;
-    if(pendingNavigation&&!transition.active&&!groupMotion.active) {
+    if(pendingNavigation&&(!transition.active||sharedComponentDeparture())&&!groupMotion.active) {
       const std::string path=pendingPath;const RouteAction action=pendingAction;const TransitionDesc config=pendingTransition;
       const bool explicitTransition=pendingExplicitTransition,instant=pendingInstant;pendingNavigation=false;
       navigate(path.c_str(),action,explicitTransition?&config:nullptr,instant);
@@ -1200,11 +1442,13 @@ struct View::Impl {
   }
   void commitRoute(int destination,RouteAction action,const char *from,bool playEnter=true,bool resumeLoops=false) {
     const char *to=project->pages[destination].path;
+    if(destination!=history.back())prepareBehaviorDeparture();
+    captureSharedMedia(uint16_t(destination));
     if(action==RouteAction::Home) history.assign(1,uint16_t(destination));
     else if(action==RouteAction::Back) history.pop_back();
     else if(action==RouteAction::Replace) history.back()=uint16_t(destination);
     else history.push_back(uint16_t(destination));
-    initializeActive();++inputEpoch;restoreFocus();enterAnimations(playEnter);refresh->invalidateAll();
+    initializeActive();++inputEpoch;restoreFocus();enterAnimations(playEnter);enterSharedMedia();refresh->invalidateAll();
     // Preserve loop playback, while finite entry effects stay revealed. The
     // route callback runs last so the application can still pause these loops.
     if(resumeLoops)for(uint16_t i=0;i<page().count;++i){const auto &a=page().nodes[i].animation;
@@ -1228,12 +1472,17 @@ struct View::Impl {
   void commitDeparture() {
     const char *from=transition.from->path;
     const int destination=transition.destination;const RouteAction action=transition.action;
+    // Shared navigation remains touchable during departure. A later contact
+    // can still be held when its terminal frame commits, so retire its old
+    // page indices before changing history. Cancel listeners may queue another
+    // navigation, but must not reenter or retarget this accepted commit.
+    if(down){const bool nested=processing;processing=true;cancel();processing=nested;}
     if(transition.sequential) {
       const TransitionDesc incoming=*transition.incoming;
       transition.outgoing.clear();transition.from=nullptr;
       if(incoming.effect!=TransitionEffect::None)pagePhase(TransitionPhase::Enter,incoming);
       else {transition.active=transition.pending=false;transition.phase=TransitionPhase::Enter;}
-    } else if(project->transition.effect!=TransitionEffect::None&&destination!=history.back()) {
+    } else if(!transition.sharedComponents&&project->transition.effect!=TransitionEffect::None&&destination!=history.back()) {
       // The legacy paired transition sees the final component-departure pose.
       transition.outgoing=state();transition.outgoingMotions=pageMotions[history.back()];pagePhase(TransitionPhase::Paired,project->transition);
     } else {
@@ -1248,11 +1497,19 @@ struct View::Impl {
     }
     commitDeparture();
   }
-  void beginDeparture(int destination,RouteAction action,bool sequential) {
+  bool sharedComponentDeparture() const {return transition.active&&transition.sharedComponents&&transition.phase==TransitionPhase::Components;}
+  int sharedNavigationHit(int32_t px,int32_t py) const {
+    if(!sharedComponentDeparture()||contains(transition.viewport,px,py))return -1;
+    const int index=hit(px,py),nav=nearestNavigation(index);
+    if(nav<0)return -1;
+    const NodeDesc &n=page().nodes[nav];const int destination=routeIndex(n.route);
+    return destination>=0&&(destination==history.back()||sharesMediaWith(uint16_t(destination)))?index:-1;
+  }
+  void beginDeparture(int destination,RouteAction action,bool sequential,bool sharedComponents=false) {
     nextTransitionEpoch();
     transition.from=&page();transition.outgoing=state();transition.outgoingMotions=pageMotions[history.back()];transition.destination=destination;transition.action=action;
     transition.viewport=navigationViewport(page().path,project->pages[destination].path);
-    transition.sequential=sequential;transition.reverse=action==RouteAction::Back||action==RouteAction::Home;
+    transition.sequential=sequential;transition.sharedComponents=sharedComponents;transition.reverse=action==RouteAction::Back||action==RouteAction::Home;
     const PageDesc &incoming=project->pages[destination];
     transition.incoming=incoming.enterTransition?incoming.enterTransition:&project->transition;
     transition.background=incoming.background;
@@ -1268,6 +1525,7 @@ struct View::Impl {
     if(!any)finishComponents();
   }
   void advanceDeparture(uint32_t now) {
+    ProfileTimer animationTimer(*this,&RuntimeStats::animationMicros);
     if(transition.pending){transition.started=now;transition.pending=false;}
     const uint32_t elapsed=uint32_t(now-transition.started);bool any=false;
     for(uint16_t i=0;i<page().count;++i) {
@@ -1319,7 +1577,7 @@ struct View::Impl {
     return nullptr;
   }
   bool navigate(const char *path,RouteAction action,const TransitionDesc *config=nullptr,bool instant=false) {
-    instant=instant||displayPolicy.slowRefresh;
+    instant=instant||displayPolicy.slowRefresh||menuMotionConfig.preset==MenuPreset::Reduced;
     if(!project||guarding||backAnimation.active||groupMotion.active) return false;
     if(processing) {
       // InputAction::Back is deferred inside its event scope; retain the physical
@@ -1327,21 +1585,33 @@ struct View::Impl {
       if(action==RouteAction::Back&&!path&&history.size()<2)path=backFallbackRoute();
       queueNavigation(path,action,config,instant);return true;
     }
-    if(transition.active)return false;
+    if(transition.active&&!sharedComponentDeparture())return false;
     if(action==RouteAction::Home&&history.size()==1&&history.back()==project->initial) { processing=true;cancel();softCancel();if(instant){enterAnimations(false);refresh->invalidateAll();}endProcessing();return true; }
     if(action==RouteAction::Back&&history.size()<2) {
       // A declared route is an opt-in fallback for direct/Replace entry. Physical
       // Back uses the first Back control currently visible and enabled on screen.
       if(!path)path=backFallbackRoute();
-      if(!path||!*path)return false;
+      if(!path||!*path){navigationFeedback("Already at root");return false;}
       action=RouteAction::Replace;
     }
-    if(action==RouteAction::Push&&history.size()>=64) return false;
+    if(action==RouteAction::Push&&history.size()>=navigationLimit){navigationFeedback("Navigation limit");return false;}
     int destination=-1;
     if(action==RouteAction::Home) destination=project->initial;
     else if(action==RouteAction::Back) destination=history[history.size()-2];
     else if(path) for(uint16_t i=0;i<project->count;++i) if(strcmp(project->pages[i].path,path)==0) { destination=i;break; }
-    if(destination<0) return false;
+    if(destination<0){navigationFeedback("Page unavailable");return false;}
+    if(!sharedComponentDeparture()&&destination==history.back()&&
+       (action==RouteAction::Push||action==RouteAction::Replace)&&navigationFeedback("Already on page"))return false;
+    if(sharedComponentDeparture()) {
+      if(destination==history.back())return cancelDeparture();
+      if(!sharesMediaWith(uint16_t(destination)))return false;
+      const char *from=page().path,*to=project->pages[destination].path;
+      processing=true;bool allowed=routeEvent(EventType::BeforeNavigate,from,to,action);
+      if(allowed&&guard){guarding=true;allowed=guard(guardContext,from,to,action);guarding=false;}
+      if(allowed){transition.destination=destination;transition.action=action;transition.background=project->pages[destination].background;}
+      else routeEvent(EventType::NavigationCancel,from,to,action);
+      processing=false;return allowed;
+    }
     const char *from=page().path,*to=project->pages[destination].path;
     processing=true;
     bool allowed=action==RouteAction::Back&&backPrepared;
@@ -1350,11 +1620,15 @@ struct View::Impl {
     if(!allowed) { routeEvent(EventType::NavigationCancel,from,to,action);processing=false;pendingNavigation=false;return false; }
     const bool interactive=action==RouteAction::Back&&backPrepared;
     const bool same=destination==history.back();
-    const bool sequential=!instant&&!config&&!interactive&&!same&&(page().exitTransition||project->pages[destination].enterTransition);
+    if(!same)prepareBehaviorDeparture();
+    // A shared backdrop stays in the same coordinate space while content is
+    // replaced. Whole-page snapshots would move it twice and gate rapid tabs.
+    const bool sharedContinuous=!same&&sharesMediaWith(uint16_t(destination));
+    const bool sequential=!sharedContinuous&&!instant&&!config&&!interactive&&!same&&(page().exitTransition||project->pages[destination].enterTransition);
     bool exits=false;
     if(!instant&&!config&&!interactive&&!same)for(uint16_t i=0;i<page().count;++i)if(page().nodes[i].exitAnimation&&page().nodes[i].exitAnimation->effect!=AnimationEffect::None&&visible(page(),state(),i)){exits=true;break;}
     const TransitionDesc paired=config?*config:project->transition;
-    const bool animated=!instant&&paired.effect!=TransitionEffect::None&&!same&&!interactive;
+    const bool animated=!sharedContinuous&&!instant&&paired.effect!=TransitionEffect::None&&!same&&!interactive;
     cancel();
     softCancel();
     if(editNode>=0){int i=editNode;editNode=-1;if(state()[i].value!=editValue){setValue(i,editValue);dispatch(i,EventType::Input);}}
@@ -1362,7 +1636,7 @@ struct View::Impl {
     inertia.active=false;
     if(animation.active) { state()[animation.node].scrollX=state()[animation.node].value*pagerStride(animation.node);animation.active=false; }
     if(sequential||exits) {
-      beginDeparture(destination,action,sequential);processing=false;return true;
+      beginDeparture(destination,action,sequential,sharedContinuous);processing=false;return true;
     }
     if(animated) {
       nextTransitionEpoch();
@@ -1422,7 +1696,7 @@ struct View::Impl {
     }
     const auto parentOf=[&](int n){return p.nodes[n].parent==NoParent?-1:int(p.nodes[n].parent);};
     for(uint16_t j=uint16_t(i+1);j<p.count;++j) {
-      int a=j;while(a>=0&&a!=i)a=parentOf(a);
+      int a=j;while(a>=0&&a!=i){if(viewportOverlayRoot(p,a)){a=-1;break;}a=parentOf(a);}
       if(a==i&&visible(p,values,j)) {
         Rect r=layoutRect(p,values,j);
         for(int ancestor=parentOf(j);ancestor>=0&&ancestor!=i;ancestor=parentOf(ancestor))
@@ -1434,6 +1708,7 @@ struct View::Impl {
   void extent(int i,int32_t &maxX,int32_t &maxY) const {extent(page(),state(),i,maxX,maxY);}
   bool scroll(int i,int32_t sx,int32_t sy,bool emit=true) {
     if(i<0||!scrolling(page().nodes[i].kind)) return false;
+    cancelMenuScroll(i);
     int32_t maxX,maxY;extent(i,maxX,maxY);
     const bool horizontal=page().nodes[i].kind==Kind::Pager||(state()[i].flags&Horizontal);
     sx=horizontal?clamp32(sx,0,maxX):0;sy=horizontal?0:clamp32(sy,0,maxY);
@@ -1471,7 +1746,7 @@ struct View::Impl {
   }
   #include "detail/InteractionRuntime.inc.h"
   void pointerDown(int32_t px,int32_t py,uint32_t now) {
-    if(!project) return;processing=true;cancel();if(editNode>=0){int i=editNode;editNode=-1;setValue(i,editValue);dispatch(i,EventType::Input);}++inputEpoch;px=clamp32(px,-32768,32767);py=clamp32(py,-32768,32767);x=startX=px;y=startY=py;downAt=now;spinRepeatAt=now+500;down=true;
+    if(!project) return;processing=true;cancel();if(editNode>=0){int i=editNode;editNode=-1;if(!behaviorKeepDraft(i)){setValue(i,editValue);dispatch(i,EventType::Input);}}++inputEpoch;px=clamp32(px,-32768,32767);py=clamp32(py,-32768,32767);x=startX=px;y=startY=py;downAt=now;spinRepeatAt=now+500;down=true;
     const bool interruptedInertia=inertia.active&&contains(rect(inertia.node),px,py)&&contains(clip(page(),state(),inertia.node),px,py);inertia.active=false;
     interruptedPager=animation.active?animation.node:-1;animation.active=false;
     lastX=px;lastY=py;lastAt=now;velocityX=velocityY=0;
@@ -1482,7 +1757,7 @@ struct View::Impl {
     if(contactModal<0)if(const auto *g=navigationGroup(page().path))if(g->indicatorHeight&&contains(navigationFooter(*g),x,y)){
       navigationFooterContact=true;navigationDot=navigationDotAt(*g,x,y);target=activeControl=-1;
     }
-    if(input) { int candidate=activeControl>=0?activeControl:target;for(;candidate>=0&&!focusable(candidate,false);candidate=parent(candidate)){}if(candidate>=0)setFocus(candidate,false); }
+    if(input||focusStyleCount) { int candidate=activeControl>=0?activeControl:target;for(;candidate>=0&&!focusable(candidate,false);candidate=parent(candidate)){}if(candidate>=0)setFocus(candidate,false); }
     rangeGrabOffset=0;rangeThumbContact=false;
     if(activeControl>=0) startValue=state()[activeControl].value;
     if(activeControl>=0&&page().nodes[activeControl].kind==Kind::Range) {
@@ -1491,7 +1766,7 @@ struct View::Impl {
       rangeThumbContact=contains(geometry.thumb,x,y);
       if(rangeThumbContact)rangeGrabOffset=geometry.vertical?y-(geometry.thumb.y+geometry.thumb.height/2):x-(geometry.thumb.x+geometry.thumb.width/2);
     }
-    for(int a=target;a>=0;a=parent(a)) {
+    for(int a=target;a>=0;a=gestureParent(a)) {
       const uint16_t f=state()[a].flags;
       if(f&TouchNone) allowX=allowY=false;
       if(f&TouchPanX)allowY=false;if(f&TouchPanY)allowX=false;
@@ -1535,12 +1810,12 @@ struct View::Impl {
       const bool horizontal=abs(dx)>=abs(dy);
       const SwipeDirection direction=horizontal?(dx<0?SwipeDirection::Left:SwipeDirection::Right):(dy<0?SwipeDirection::Up:SwipeDirection::Down);
       const bool axisAllowed=horizontal?allowX:allowY;
-      const auto *edgeGesture=axisAllowed?swipeBinding(direction,true):nullptr;
+      const auto *edgeGesture=axisAllowed&&contactModal<0?swipeBinding(direction,true):nullptr;
       if(edgeGesture) claimGesture(edgeGesture,now);
-      else if(!navigation&&swipeHome&&startY>=int32_t(page().height)-24&&startY<page().height&&startX>=0&&startX<page().width&&dy<-6&&!horizontal&&allowY) {
+      else if(contactModal<0&&!navigation&&swipeHome&&startY>=int32_t(page().height)-24&&startY<page().height&&startX>=0&&startX<page().width&&dy<-6&&!horizontal&&allowY) {
         drag=Drag::Home;cancelTarget();
       }
-      else if(!navigation&&edgeBack&&history.size()>1&&startX<24&&dx>6&&horizontal&&allowX&&activeControl<0) {
+      else if(contactModal<0&&!navigation&&edgeBack&&history.size()>1&&startX<24&&dx>6&&horizontal&&allowX&&activeControl<0) {
         const char *from=page().path,*to=project->pages[history[history.size()-2]].path;
         bool prepared=routeEvent(EventType::BeforeNavigate,from,to,RouteAction::Back);
         if(prepared&&down&&guard) { guarding=true;prepared=guard(guardContext,from,to,RouteAction::Back);guarding=false; }
@@ -1549,11 +1824,11 @@ struct View::Impl {
         if(backPrepared) { drag=Drag::Back;cancelTarget(); }
         else { routeEvent(EventType::NavigationCancel,from,to,RouteAction::Back);allowX=false; }
       }
-      else if(horizontal&&allowX&&[&](){for(int a=target;a>=0;a=parent(a))if(mediaScrubTarget(a)>=0){acquireMediaScrub(a);return true;}return false;}()) {}
+      else if(horizontal&&allowX&&[&](){for(int a=target;a>=0;a=gestureParent(a))if(mediaScrubTarget(a)>=0){acquireMediaScrub(a);return true;}return false;}()) {}
       else if(activeControl>=0&&page().nodes[activeControl].kind==Kind::Range&&horizontal==!(page().nodes[activeControl].flags&VerticalRange)&&!canceled) { drag=Drag::Range;owner=activeControl; }
       else if((horizontal&&allowX)||(!horizontal&&allowY)) {
         bool contained=false;
-        for(int a=target;a>=0;a=parent(a)) {
+        for(int a=target;a>=0;a=gestureParent(a)) {
           if(!scrolling(page().nodes[a].kind)) continue;
           const bool axis=page().nodes[a].kind==Kind::Pager||(state()[a].flags&Horizontal);
           int32_t mx,my;extent(a,mx,my);
@@ -1565,7 +1840,7 @@ struct View::Impl {
           if(axis==horizontal&&(state()[a].flags&OverscrollContain))contained=true;
           if(state()[a].flags&OverscrollContain) break;
         }
-        if(drag==Drag::None&&!contained&&down) {
+        if(drag==Drag::None&&!contained&&down&&contactModal<0) {
           if(const auto *binding=swipeBinding(direction,false))claimGesture(binding,now);
           else if(horizontal){int index=-1;const auto *g=navigationGroup(page().path,&index);
             if(g&&g->swipe&&contains(navigationViewport(page().path),startX,startY)){const int next=index+(dx<0?1:-1);
@@ -1727,6 +2002,7 @@ struct View::Impl {
   }
   Rect backgroundCover(int index,Rect clipped) const {
     Rect best{0,0,0,0};int64_t bestArea=0;
+    if(behaviorVisualMoving())return best;
     // Tiny backgrounds cost less to paint than scanning later occluders.
     // Returning no cover only restores normal paint order; never skip pixels.
     if(clipped.width<=0||clipped.height<=0||uint64_t(clipped.width)*clipped.height<=64)return best;
@@ -1748,6 +2024,7 @@ struct View::Impl {
         if(!(bits&0xfu)){bits>>=4;bit+=4;}if(!(bits&3u)){bits>>=2;bit+=2;}if(!(bits&1u))++bit;
 #endif
         candidates&=candidates-1;const uint16_t i=uint16_t(word*32+size_t(bit));
+        if(viewportOverlayLevels&&viewportOverlayDepth(*rasterFrame.current.page,rasterFrame.current.values,i)<viewportOverlayDepth(*rasterFrame.current.page,rasterFrame.current.values,index))continue;
         const Geometry &g=paintCache->nodes[i];if(!g.visible||g.alpha!=255)continue;
         if(rasterFrame.current.page->nodes[i].motion){const auto &m=motionPose(*rasterFrame.current.page,rasterFrame.current.values,i);if(m.scale!=1024||m.rotation%360!=0)continue;}
         const State &v=rasterFrame.current.values[i];
@@ -1791,10 +2068,20 @@ struct View::Impl {
     r=contentBox(r,style);if(n.kind==Kind::Checkbox){const int32_t w=std::min<int32_t>(r.width,int32_t(style.thumbWidth)+8);r.x+=w;r.width-=w;}return r;
   }
   void prepareText(FrameCache &cache,Geometry &g,const NodeDesc &n,const State &v,const Style &style) {
-    g.lineFirst=uint32_t(cache.lines.size());g.lineCount=0;g.textY=0;
+    g.lineFirst=uint32_t(cache.lines.size());g.lineCount=0;g.textY=0;g.ellipsisCount=0;
     if(v.kind!=Kind::Text&&v.kind!=Kind::Label&&v.kind!=Kind::Button&&v.kind!=Kind::Checkbox)return;
     const char *s=v.text.c_str();Rect r=textBox(g.rect,n,style);if(r.width<=0||r.height<=0||!*s)return;
     ++stats.textLayouts;const int32_t h=style.font->height*style.fontSize;
+    if(n.id==snapshotMarqueeId&&snapshotMarqueeId){
+      int32_t width=0;const size_t length=strlen(s);for(size_t at=0;at<length;){const auto cp=nextCode(s,at,length);if(cp=='\n'||cp=='\r')break;width+=nice_gfx::detail::monoAdvance(*style.font,cp)*style.fontSize;}
+      cache.lines.push_back({0,length,width});g.lineCount=1;g.textY=std::max<int32_t>(0,(r.height-h)/2);return;
+    }
+    if(menuMotionEnabled()&&menuMotionConfig.ellipsis&&(v.kind==Kind::Button||v.kind==Kind::Checkbox||r.height<2*h)){
+      int32_t full=0;const size_t length=strlen(s);for(size_t at=0;at<length;){const auto cp=nextCode(s,at,length);if(cp=='\n'||cp=='\r')break;full+=nice_gfx::detail::monoAdvance(*style.font,cp)*style.fontSize;}
+      if(full>r.width){const int32_t dot=std::max<int32_t>(1,nice_gfx::detail::monoAdvance(*style.font,'.')*style.fontSize);g.ellipsisCount=uint8_t(std::min<int32_t>(3,r.width/dot));const int32_t budget=r.width-g.ellipsisCount*dot;size_t end=0;int32_t width=0;
+        for(size_t at=0;at<length;){const size_t before=at;const auto cp=nextCode(s,at,length);const int32_t advance=nice_gfx::detail::monoAdvance(*style.font,cp)*style.fontSize;if(cp=='\n'||cp=='\r'||width+advance>budget){end=before;break;}width+=advance;end=at;}
+        cache.lines.push_back({0,end,width+g.ellipsisCount*dot});g.lineCount=1;g.textY=std::max<int32_t>(0,(r.height-h)/2);return;}
+    }
     if(v.kind==Kind::Button||v.kind==Kind::Checkbox) {
       int32_t available=r.width;bool fits=true;const size_t length=strlen(s);
       for(size_t pos=0;pos<length;) {const uint16_t cp=nextCode(s,pos,length);
@@ -1825,8 +2112,10 @@ struct View::Impl {
       if(v.kind==Kind::Media){if(cache.mediaFirst==NoParent)cache.mediaFirst=i;cache.mediaEnd=uint16_t(i+1);}
       g.rect=baseRect(p,s,i);g.rect.x+=v.animationX;g.rect.y+=v.animationY;g.clip={0,0,p.width,p.height};g.visible=!(v.flags&Hidden);g.inputVisible=g.visible&&!(v.flags&Disabled);
       if(v.parent!=NoParent){auto &a=cache.nodes[v.parent];++a.children;const Rect b=p.nodes[v.parent].rect;
-        g.rect.x+=a.rect.x-b.x-s[v.parent].scrollX;g.rect.y+=a.rect.y-b.y-s[v.parent].scrollY;
-        g.clip=a.clip;if((s[v.parent].flags&Clip)||scrolling(s[v.parent].kind))g.clip=intersect(g.clip,childBox(p,s,v.parent,a.rect));
+        if(!viewportOverlayRoot(p,i)){
+          g.rect.x+=a.rect.x-b.x-s[v.parent].scrollX;g.rect.y+=a.rect.y-b.y-s[v.parent].scrollY;
+          g.clip=a.clip;if((s[v.parent].flags&Clip)||scrolling(s[v.parent].kind))g.clip=intersect(g.clip,childBox(p,s,v.parent,a.rect));
+        }
         g.visible=g.visible&&a.visible;g.inputVisible=g.inputVisible&&a.inputVisible;
       }
       if(n.motion){const auto &m=motionPose(p,s,i);
@@ -1866,10 +2155,100 @@ struct View::Impl {
     canvas.setViewport(visible.x,visible.y,visible.width,visible.height,false);canvas.setFont(style.font);canvas.setTextSize(style.fontSize);canvas.setTextColor(style.color);
     const char *s=v.text.c_str();int32_t y=r.y+g.textY;const int32_t h=style.font->height*style.fontSize;
     for(size_t lineIndex=g.lineFirst;lineIndex<size_t(g.lineFirst)+g.lineCount;++lineIndex){const auto &line=paintCache->lines[lineIndex];if(y+h>clipped.y&&y<clipped.y+clipped.height){
-      int32_t x=r.x;if(style.textAlign==1)x+=std::max<int32_t>(0,(r.width-line.width)/2);else if(style.textAlign==2)x+=std::max<int32_t>(0,r.width-line.width);
+      int32_t x=r.x;if(n.id==snapshotMarqueeId)x-=snapshotMarqueeOffset;else if(style.textAlign==1)x+=std::max<int32_t>(0,(r.width-line.width)/2);else if(style.textAlign==2)x+=std::max<int32_t>(0,r.width-line.width);
       for(size_t j=line.begin;j<line.end;){if(s[j]=='\r'){++j;continue;}const uint16_t cp=nextCode(s,j,line.end);if(cp>=32&&cp!=127)x+=canvas.drawChar(cp,x,y);}
+      for(uint8_t dot=0;dot<g.ellipsisCount;++dot)x+=canvas.drawChar('.',x,y);
     }y+=h;}
     canvas.setViewport(clipped.x,clipped.y,clipped.width,clipped.height,false);
+  }
+  Status paintTextMaskNative(int index,Rect clipped,uint8_t alpha) {
+#if NICE_GFX_UI_TEXT_MASK_NATIVE
+    if(!alpha||displayPolicy.monochrome||renderOrder!=PixelOrder::Native||buildingSurface||
+       snapshotTransition||rasterFrame.preview.page||!nativeOverlayTarget||stagingNativeTarget||
+       focusStyle(index)||snapshotPressed==index)return Status::Unsupported;
+    const auto &page=*rasterFrame.current.page;const auto &values=rasterFrame.current.values;
+    const auto &n=page.nodes[index];const auto &value=values[index];
+    if((n.kind!=Kind::Text&&n.kind!=Kind::Label)||!(value.flags&Transparent))return Status::Unsupported;
+    for(int at=index;at>=0;at=values[at].parent==NoParent?-1:values[at].parent)
+      if((values[at].flags&Disabled)||page.nodes[at].motion)return Status::Unsupported;
+    const auto &style=styleFor(page,values,index);
+    if(!style.font||style.borderWidth||style.radius||style.gradient)return Status::Unsupported;
+    const auto &geometry=paintCache->nodes[index];
+    Rect box=textBox(geometry.rect,n,style);box.x+=paintOffsetX;box.y+=paintOffsetY;
+    clipped=intersect(clipped,box);if(clipped.width<=0||clipped.height<=0||!geometry.lineCount)return Status::Ok;
+    if(geometry.lineFirst>paintCache->lines.size()||geometry.lineCount>paintCache->lines.size()-geometry.lineFirst)return Status::Unsupported;
+    const detail::TextMaskLayout layout{style.font,value.text.c_str(),paintCache->lines.data()+geometry.lineFirst,
+      geometry.lineCount,box.width,box.height,geometry.textY,style.fontSize,style.textAlign,(value.flags&NoAntialias)==0};
+    const uint64_t previousHits=textMaskCache.hits(),previousBuilds=textMaskCache.builds(),previousRejects=textMaskCache.rejected();
+    const uint32_t resolveStarted=profilingClock?profilingClock():0;
+    detail::TextMaskView mask;const bool resolved=textMaskCache.resolve(layout,mask);
+    if(profilingClock)stats.textResolveMicros+=profilingClock()-resolveStarted;
+    stats.textMaskHits+=textMaskCache.hits()-previousHits;stats.textMaskBuilds+=textMaskCache.builds()-previousBuilds;
+    stats.textMaskRejects+=textMaskCache.rejected()-previousRejects;stats.textMaskBytes=textMaskCache.bytes();
+    if(!resolved)return Status::Unsupported;
+    stats.textMaskRoiPixels+=uint64_t(clipped.width)*clipped.height;
+    if(mask.empty){++stats.textMaskEmptySkips;return Status::Ok;}
+#if NICE_GFX_UI_TEXT_MASK_INK_BOUNDS
+    Rect ink;if(mask.inkBounds(ink)){
+      const Rect previous=clipped;ink.x+=box.x;ink.y+=box.y;clipped=intersect(clipped,ink);
+      if(clipped.width!=previous.width||clipped.height!=previous.height)++stats.textMaskBoundsClips;
+    }
+#endif
+    if(clipped.width<=0||clipped.height<=0){++stats.textMaskEmptySkips;return Status::Ok;}
+    stats.textMaskCompositePixels+=uint64_t(clipped.width)*clipped.height;
+    const uint32_t compositeStarted=profilingClock?profilingClock():0;
+    const bool composited=detail::blendTextMaskIntoNative(*nativeOverlayTarget,clipped.x,clipped.y,mask,
+      size_t(clipped.x-box.x),size_t(clipped.y-box.y),size_t(clipped.width),size_t(clipped.height),style.color,alpha);
+    if(profilingClock)stats.textCompositeMicros+=profilingClock()-compositeStarted;
+    if(!composited)return Status::Unsupported;
+    ++stats.textNativeBlits;return Status::Ok;
+#else
+    (void)index;(void)clipped;(void)alpha;return Status::Unsupported;
+#endif
+  }
+  Status paintTextMaskOverlay(int index,Rect clipped,uint8_t alpha) {
+#if NICE_GFX_UI_TEXT_MASK_PPA
+    if(!alpha||!ppaBlendEnabled||!rgb565_ppa::Context::available()||displayPolicy.monochrome||
+       renderOrder!=PixelOrder::Native||buildingSurface||snapshotTransition||rasterFrame.preview.page||
+       !nativeOverlayTarget||stagingNativeTarget||focusStyle(index)||snapshotPressed==index)return Status::Unsupported;
+    const auto &page=*rasterFrame.current.page;const auto &values=rasterFrame.current.values;
+    const auto &n=page.nodes[index];const auto &value=values[index];
+    if((n.kind!=Kind::Text&&n.kind!=Kind::Label)||!(value.flags&Transparent))return Status::Unsupported;
+    // Translation and inherited opacity are already in Geometry. Keep other
+    // motion/focus/disabled semantics on the original ordered node painter.
+    for(int at=index;at>=0;at=values[at].parent==NoParent?-1:values[at].parent)
+      if((values[at].flags&Disabled)||page.nodes[at].motion)return Status::Unsupported;
+    const auto &style=styleFor(page,values,index);
+    if(!style.font||style.borderWidth||style.radius||style.gradient)return Status::Unsupported;
+    const auto &geometry=paintCache->nodes[index];
+    Rect box=textBox(geometry.rect,n,style);box.x+=paintOffsetX;box.y+=paintOffsetY;
+    clipped=intersect(clipped,box);if(clipped.width<=0||clipped.height<=0||!geometry.lineCount)return Status::Ok;
+    if(geometry.lineFirst>paintCache->lines.size()||geometry.lineCount>paintCache->lines.size()-geometry.lineFirst)return Status::Unsupported;
+    const detail::TextMaskLayout layout{style.font,value.text.c_str(),paintCache->lines.data()+geometry.lineFirst,
+      geometry.lineCount,box.width,box.height,geometry.textY,style.fontSize,style.textAlign,(value.flags&NoAntialias)==0};
+    detail::TextMaskView mask;if(!textMaskCache.resolve(layout,mask))return Status::Unsupported;
+    stats.textMaskRoiPixels+=uint64_t(clipped.width)*clipped.height;
+    if(mask.empty){++stats.textMaskEmptySkips;return Status::Ok;}
+#if NICE_GFX_UI_TEXT_MASK_INK_BOUNDS
+    Rect ink;if(mask.inkBounds(ink)){
+      const Rect previous=clipped;ink.x+=box.x;ink.y+=box.y;clipped=intersect(clipped,ink);
+      if(clipped.width!=previous.width||clipped.height!=previous.height)++stats.textMaskBoundsClips;
+    }
+#endif
+    if(clipped.width<=0||clipped.height<=0){++stats.textMaskEmptySkips;return Status::Ok;}
+    stats.textMaskCompositePixels+=uint64_t(clipped.width)*clipped.height;
+    platform::OverlayView overlay;overlay.data=mask.data;overlay.width=mask.width;overlay.height=mask.height;
+    overlay.stride=mask.stride;overlay.bytes=mask.bytes;overlay.format=platform::OverlayFormat::Alpha8;
+    overlay.alpha=alpha;overlay.color=style.color;
+    const size_t x=size_t(clipped.x-box.x),y=size_t(clipped.y-box.y);
+    const uint32_t started=profilingClock?profilingClock():0;
+    const Status result=ppaFade.blendOverlayIntoNative(*nativeOverlayTarget,clipped.x,clipped.y,overlay,x,y,clipped.width,clipped.height);
+    if(result==Status::Ok){++stats.textGpuBlits;++stats.ppaBlendCalls;stats.ppaBlendPixels+=uint64_t(clipped.width)*clipped.height;
+      if(profilingClock)stats.ppaBlendMicros+=profilingClock()-started;}
+    return result;
+#else
+    (void)index;(void)clipped;(void)alpha;return Status::Unsupported;
+#endif
   }
   using ComponentPaint=detail::ComponentPaint;
   detail::ComponentPaintIndex &prepareComponentPaint(const PageDesc &p) const {
@@ -1917,10 +2296,119 @@ struct View::Impl {
       sourceY+=yStep;remainderY+=yRemainder;if(remainderY>=r.height){remainderY-=r.height;++sourceY;}
     }
   }
+  Status paintShapeNative(int index,Rect clipped,uint8_t alpha) {
+#if NICE_GFX_UI_SHAPE_NATIVE_SPANS
+#if NICE_GFX_UI_SHAPE_ALPHA_PPA
+    // Preserve cheap native writes for stationary SVG chrome. Only partially
+    // transparent business shapes need the existing hardware alpha compositor.
+    if(alpha<255)return Status::Unsupported;
+#endif
+    if(!alpha||renderOrder!=PixelOrder::Native||buildingSurface||snapshotTransition||rasterFrame.preview.page||
+       !nativeOverlayTarget||stagingNativeTarget||focusStyle(index)||snapshotPressed==index)return Status::Unsupported;
+    const auto &n=rasterFrame.current.page->nodes[index];const auto &v=rasterFrame.current.values[index];
+    if(n.kind!=Kind::Shape||!n.shape||n.motion||!(v.flags&Transparent)||(v.flags&Disabled))return Status::Unsupported;
+    for(uint16_t parent=v.parent;parent!=NoParent;parent=rasterFrame.current.values[parent].parent)
+      if(rasterFrame.current.values[parent].flags&Disabled)return Status::Unsupported;
+    const auto &style=styleFor(*rasterFrame.current.page,rasterFrame.current.values,index);
+    if(style.radius||style.borderWidth||style.gradient||style.paddingTop||style.paddingRight||style.paddingBottom||style.paddingLeft)return Status::Unsupported;
+    Rect box=paintCache->nodes[index].rect;box.x+=paintOffsetX;box.y+=paintOffsetY;
+    clipped=intersect(box,clipped);if(clipped.width<=0||clipped.height<=0)return Status::Ok;
+    detail::ShapeOverlayCache::NativeTexture texture;
+    const uint32_t resolveStarted=profilingClock?profilingClock():0;
+    const bool resolved=shapeOverlayCache.resolveNative(*n.shape,box,style.radius,texture);
+    if(profilingClock)stats.shapeResolveMicros+=profilingClock()-resolveStarted;
+    if(!resolved)return Status::Unsupported;
+    const uint32_t compositeStarted=profilingClock?profilingClock():0;
+    const Status status=detail::paintShapeNativeSpans(*nativeOverlayTarget,texture,box,clipped,alpha);
+    if(profilingClock)stats.shapeCompositeMicros+=profilingClock()-compositeStarted;
+    if(status==Status::Ok)++stats.shapeNativeBlits;
+    return status;
+#else
+    (void)index;(void)clipped;(void)alpha;return Status::Unsupported;
+#endif
+  }
+  Status paintShapeOverlay(int index,Rect clipped,uint8_t alpha) {
+#if NICE_GFX_UI_SHAPE_OVERLAY_PPA
+    if(!alpha||renderOrder!=PixelOrder::Native||buildingSurface||snapshotTransition||rasterFrame.preview.page||
+       !nativeOverlayTarget||stagingNativeTarget||focusStyle(index)||snapshotPressed==index)return Status::Unsupported;
+    const auto &n=rasterFrame.current.page->nodes[index];const auto &v=rasterFrame.current.values[index];
+    if(n.kind!=Kind::Shape||!n.shape||n.motion||!(v.flags&Transparent)||(v.flags&Disabled))return Status::Unsupported;
+    for(uint16_t parent=v.parent;parent!=NoParent;parent=rasterFrame.current.values[parent].parent)
+      if(rasterFrame.current.values[parent].flags&Disabled)return Status::Unsupported;
+    const auto &style=styleFor(*rasterFrame.current.page,rasterFrame.current.values,index);
+    if(style.radius||style.borderWidth||style.gradient||style.paddingTop||style.paddingRight||style.paddingBottom||style.paddingLeft)return Status::Unsupported;
+    Rect box=paintCache->nodes[index].rect;box.x+=paintOffsetX;box.y+=paintOffsetY;
+    clipped=intersect(box,clipped);if(clipped.width<=0||clipped.height<=0)return Status::Ok;
+    ShapeDesc shape=*n.shape;detail::ShapeOverlayCache::Texture texture;
+    if(!shapeOverlayCache.resolve(shape,box,style.radius,texture))return Status::Unsupported;
+    platform::OverlayView overlay;overlay.data=reinterpret_cast<const uint8_t *>(texture.pixels);
+    overlay.width=texture.width;overlay.height=texture.height;overlay.stride=texture.stride;overlay.bytes=texture.bytes;
+    overlay.format=platform::OverlayFormat::Argb8888;overlay.alpha=alpha;
+    const size_t x=size_t(clipped.x-box.x),y=size_t(clipped.y-box.y);
+    const uint32_t started=profilingClock?profilingClock():0;
+    const Status status=ppaFade.blendOverlayIntoNative(*nativeOverlayTarget,clipped.x,clipped.y,overlay,x,y,clipped.width,clipped.height);
+    if(status==Status::Ok){++stats.shapeGpuBlits;++stats.ppaBlendCalls;stats.ppaBlendPixels+=uint64_t(clipped.width)*clipped.height;
+      if(profilingClock)stats.ppaBlendMicros+=profilingClock()-started;}
+    return status;
+#else
+    (void)index;(void)clipped;(void)alpha;return Status::Unsupported;
+#endif
+  }
+  Status paintKeyedMediaOverlay(int index,Rect clipped,uint8_t alpha) {
+#if NICE_GFX_UI_KEYED_MEDIA_PPA && defined(CONFIG_IDF_TARGET_ESP32S31)
+    if(alpha!=255||renderOrder!=PixelOrder::Native||buildingSurface||snapshotTransition||rasterFrame.preview.page||
+       !nativeOverlayTarget||stagingNativeTarget||focusStyle(index)||snapshotPressed==index)return Status::Unsupported;
+    const auto &n=rasterFrame.current.page->nodes[index];const auto &v=rasterFrame.current.values[index];
+    if(n.kind!=Kind::Media||n.motion||v.imageOverride||!(v.flags&Transparent)||(v.flags&Disabled)||!n.media||
+       !mediaColorKeyed(*n.media)||n.media->frames!=1||v.mediaFrame)return Status::Unsupported;
+    for(uint16_t parent=v.parent;parent!=NoParent;parent=rasterFrame.current.values[parent].parent)
+      if(rasterFrame.current.values[parent].flags&Disabled)return Status::Unsupported;
+    const auto &style=styleFor(*rasterFrame.current.page,rasterFrame.current.values,index);
+    if(style.radius||style.borderWidth||style.gradient||style.paddingTop||style.paddingRight||style.paddingBottom||style.paddingLeft)return Status::Unsupported;
+    const auto &m=*n.media;Rect box=paintCache->nodes[index].rect;box.x+=paintOffsetX;box.y+=paintOffsetY;
+    if(box.width!=m.width||box.height!=m.height)return Status::Unsupported;
+    clipped=intersect(box,clipped);if(clipped.width<=0||clipped.height<=0)return Status::Ok;
+    const size_t stride=mediaStrideBytes(m),bytes=mediaFrameBytes(m,stride);const uint8_t *frame=mediaPixels(m);
+    const uintptr_t address=reinterpret_cast<uintptr_t>(frame);
+    if(!bytes||address>UINTPTR_MAX-bytes||!esp_ptr_in_drom(m.pixels)||!esp_ptr_in_drom(frame)||
+       !esp_ptr_in_drom(reinterpret_cast<const void *>(address+bytes-1)))return Status::Unsupported;
+    platform::OverlayView overlay;if(!keyedMediaPpaCache.resolve(m,frame,stride,overlay))return Status::Unsupported;
+    const size_t x=size_t(clipped.x-box.x),y=size_t(clipped.y-box.y);
+    const uint32_t started=profilingClock?profilingClock():0;
+    const Status status=ppaFade.blendOverlayIntoNative(*nativeOverlayTarget,clipped.x,clipped.y,overlay,x,y,clipped.width,clipped.height);
+    if(status==Status::Ok){++stats.keyedGpuBlits;++stats.ppaBlendCalls;stats.ppaBlendPixels+=uint64_t(clipped.width)*clipped.height;
+      if(profilingClock)stats.ppaBlendMicros+=profilingClock()-started;}
+    return status;
+#else
+    (void)index;(void)clipped;(void)alpha;return Status::Unsupported;
+#endif
+  }
   void paintKeyedMedia(const MediaDesc &m,const uint8_t *frame,size_t stride,Rect r,Rect clipped,
                        const MediaRoundClip *roundClip=nullptr) {
     const Rect area=intersect(r,clipped);if(area.width<=0||area.height<=0)return;
     const uint16_t key=uint16_t(pgm_read_byte(m.pixels))<<8|pgm_read_byte(m.pixels+1);
+    // Native-size color-key pixels already form immutable Wire565 runs. Borrow
+    // those runs directly instead of copying every opaque byte through the
+    // PSRAM media row before blitting it into the framebuffer. ESP8266 keeps
+    // explicit byte reads because its flash cannot use ordinary row copies.
+#if !defined(ARDUINO_ARCH_ESP8266)
+    if(!roundClip&&r.width==m.width&&r.height==m.height&&
+       !(reinterpret_cast<uintptr_t>(frame)&1)&&!(stride&1)){
+      const uint16_t storedKey=rgb565_blend::toWire(key);
+      for(int32_t y=area.y;y<area.y+area.height;++y){
+        const uint8_t *row=frame+size_t(y-r.y)*stride+size_t(area.x-r.x)*2;
+        const uint8_t *cursor=row,*end=row+size_t(area.width)*2;
+        while(cursor<end){
+          while(cursor<end&&pgm_read_word(cursor)==storedKey)cursor+=2;
+          const uint8_t *first=cursor;
+          while(cursor<end&&pgm_read_word(cursor)!=storedKey)cursor+=2;
+          if(first<cursor)canvas.blit(area.x+int32_t((first-row)/2),y,
+            PixelView(first,size_t(cursor-first)/2,1,0,PixelOrder::Wire));
+        }
+      }
+      return;
+    }
+#endif
     mediaRow.resize(size_t(area.width));uint8_t *bytes=reinterpret_cast<uint8_t *>(mediaRow.data());
     const int32_t xStep=m.width/r.width,xRemainder=m.width%r.width;
     for(int32_t y=area.y;y<area.y+area.height;++y){
@@ -2110,7 +2598,7 @@ struct View::Impl {
   }
   bool paintRawMediaAlpha(int index,Rect clipped,const DirtyRect &area,uint16_t *pixels,size_t stride,uint8_t alpha) {
     const NodeDesc &node=rasterFrame.current.page->nodes[index];
-    if(node.kind!=Kind::Media||!alpha||alpha==255||displayPolicy.monochrome)return false;
+    if(focusStyle(index)||node.kind!=Kind::Media||!alpha||alpha==255||displayPolicy.monochrome)return false;
     const State &value=rasterFrame.current.values[index];const Style &style=styleFor(*rasterFrame.current.page,rasterFrame.current.values,index);
     if(style.radius||style.borderWidth||style.gradient||style.paddingTop||style.paddingRight||style.paddingBottom||style.paddingLeft)return false;
     const MediaDesc *source=media(node,value);
@@ -2146,10 +2634,28 @@ struct View::Impl {
     return true;
   }
 
+#ifndef NICE_GFX_UI_SKIP_EMPTY_CONTAINERS
+#define NICE_GFX_UI_SKIP_EMPTY_CONTAINERS 1
+#endif
+  bool emptyContainerPaint(int i) const {
+    const auto &page=*rasterFrame.current.page;const auto &values=rasterFrame.current.values;
+    const auto &node=page.nodes[i];const auto &value=values[i];
+    if(node.kind!=Kind::Container||value.kind!=Kind::Container||node.motion||node.instrument)return false;
+    Style style=styleFor(page,values,i);uint16_t flags=value.flags;
+    applyFocusStyle(focusStyle(i),style,flags);
+    if(style.borderWidth)return false;
+    bool disabled=(flags&Disabled)!=0;
+    for(uint16_t parent=value.parent;parent!=NoParent&&!disabled;parent=values[parent].parent)disabled=(values[parent].flags&Disabled)!=0;
+    // Container has no component selection, text, media or other content of
+    // its own. Effective transparency plus no border makes this paint empty;
+    // geometry, inherited alpha and child paints remain independent.
+    return (flags&(disabled?DisabledTransparent:i==snapshotPressed?ActiveTransparent:Transparent))!=0;
+  }
   void paintNode(int i,Rect clipped) {
-    const NodeDesc &n=rasterFrame.current.page->nodes[i];const State &v=rasterFrame.current.values[i];const Style &s=styleFor(*rasterFrame.current.page,rasterFrame.current.values,i);
+    const NodeDesc &n=rasterFrame.current.page->nodes[i];const State &v=rasterFrame.current.values[i];Style s=styleFor(*rasterFrame.current.page,rasterFrame.current.values,i);
+    uint16_t paintFlags=v.flags;const auto *focusedStyle=focusStyle(i);applyFocusStyle(focusedStyle,s,paintFlags);
     canvas.setAntialiasing(!displayPolicy.monochrome&&!(v.flags&NoAntialias));
-    Rect r=paintCache->nodes[i].rect;r.x+=paintOffsetX;r.y+=paintOffsetY;
+    Rect r=behaviorPaintRect(i,paintCache->nodes[i].rect);r.x+=paintOffsetX;r.y+=paintOffsetY;
     // Opaque dynamic RGB565 completely replaces its own box background. Keep
     // clipped row copies, but omit the fill/occlusion scan it would overwrite.
     if(v.kind==Kind::Media&&paintCache->nodes[i].alpha==255&&v.imageOverride&&v.image.impl_&&
@@ -2166,29 +2672,45 @@ struct View::Impl {
     const bool pressed=i==snapshotPressed;
     const ComponentPaint component=v.kind==Kind::Button?componentPaint(*rasterFrame.current.page,rasterFrame.current.values,n.id):ComponentPaint{};
     const bool selected=component.selected&&!disabled;
-    uint16_t bg=selected?s.thumbColor:disabled?s.disabledColor:(pressed?s.pressedColor:s.background);
+    const bool focusBackground=!disabled&&focusedStyle&&(pressed||(focusedStyle->flags&FocusBackground));
+    uint16_t bg=focusBackground?(pressed?s.pressedColor:s.background):selected?s.thumbColor:disabled?s.disabledColor:(pressed?s.pressedColor:s.background);
     // RGB styles have one foreground for all states. A 1-bit selected/pressed
     // background must choose its opposite foreground to retain readable menus.
     Style monoStyle;
     const Style *contentStyle=&s;
-    if(displayPolicy.monochrome){monoStyle=s;
-      if(selected||disabled||pressed)monoStyle.color=DisplayPolicy::foregroundOn(bg);
+    const bool transparent=(!selected||focusBackground)&&(disabled?(paintFlags&DisabledTransparent)!=0:
+      pressed?(paintFlags&ActiveTransparent)!=0:(paintFlags&Transparent)!=0);
+    uint16_t monoBackground=bg;
+    if(displayPolicy.monochrome){
+      bool inheritedState=false;
+      if(transparent){monoBackground=rasterFrame.current.page->background;
+        // Resolve state backplates for transparent captions/icons without a cache or allocation.
+        for(uint16_t ancestor=v.parent;ancestor!=NoParent;ancestor=rasterFrame.current.values[ancestor].parent){
+          const auto &av=rasterFrame.current.values[ancestor];Style as=styleFor(*rasterFrame.current.page,rasterFrame.current.values,ancestor);uint16_t af=av.flags;
+          const auto *focus=focusStyle(ancestor);applyFocusStyle(focus,as,af);
+          bool ad=(af&Disabled)!=0;for(uint16_t p=av.parent;p!=NoParent&&!ad;p=rasterFrame.current.values[p].parent)ad=(rasterFrame.current.values[p].flags&Disabled)!=0;
+          const bool ap=ancestor==snapshotPressed,selectedParent=av.kind==Kind::Button&&componentPaint(*rasterFrame.current.page,rasterFrame.current.values,rasterFrame.current.page->nodes[ancestor].id).selected&&!ad;
+          inheritedState|=ap||ad||selectedParent;
+          const bool fb=!ad&&focus&&(ap||(focus->flags&FocusBackground));
+          const bool at=(!selectedParent||fb)&&(ad?(af&DisabledTransparent)!=0:ap?(af&ActiveTransparent)!=0:(af&Transparent)!=0);
+          if(!at){monoBackground=fb?(ap?as.pressedColor:as.background):selectedParent?as.thumbColor:ad?as.disabledColor:ap?as.pressedColor:as.background;break;}
+          if(viewportOverlayRoot(*rasterFrame.current.page,ancestor))break;
+        }
+      }
+      monoStyle=s;monoStyle.background=monoBackground;
+      if(selected||disabled||pressed||inheritedState)monoStyle.color=DisplayPolicy::foregroundOn(monoBackground);
       contentStyle=&monoStyle;
     }
-    const bool transparent=!selected&&(disabled?(v.flags&DisabledTransparent)!=0:
-      pressed?(v.flags&ActiveTransparent)!=0:(v.flags&Transparent)!=0);
-    const bool gradient=!(n.flags&RangeFillGradient)&&!selected&&(disabled?(v.flags&GradientDisabled)!=0:pressed?(v.flags&GradientActive)!=0:true);
+    const bool gradient=!(n.flags&RangeFillGradient)&&(!selected||focusBackground)&&(disabled?(paintFlags&GradientDisabled)!=0:pressed?(paintFlags&GradientActive)!=0:!(focusedStyle&&(focusedStyle->flags&FocusBackground)));
     if(!transparent)rounded(r,bg,s.borderColor,s,gradient,i,clipped);
     else for(int b=0;b<s.borderWidth&&2*b<std::min<int32_t>(r.width,r.height);++b)
       canvas.drawRoundRect(r.x+b,r.y+b,r.width-2*b,r.height-2*b,std::max<int32_t>(0,std::min<int32_t>(s.radius,std::min<int32_t>(r.width,r.height)/2)-b),s.borderColor);
-    if(displayPolicy.monochrome&&disabled&&r.width>0&&r.height>0&&
-       (v.kind==Kind::Button||v.kind==Kind::InputField||v.kind==Kind::Checkbox||v.kind==Kind::Switch||v.kind==Kind::Range)){
-      const uint16_t marker=DisplayPolicy::foregroundOn(bg);
-      for(int32_t x=0;x<r.width;x+=4)canvas.drawFastHLine(r.x+x,r.y+r.height-1,std::min<int32_t>(2,r.width-x),marker);
-    }
+    const auto *monoComponent=displayPolicy.monochrome&&v.kind==Kind::Container?componentFor(i):nullptr;
+    const bool monoControl=displayPolicy.monochrome&&(v.kind==Kind::Button||v.kind==Kind::InputField||v.kind==Kind::Checkbox||v.kind==Kind::Switch||v.kind==Kind::Range||v.kind==Kind::Progress||n.instrument||(monoComponent&&monoComponent->root==i&&monoComponent->desc->kind==ComponentKind::ImageButton));
+    detail::MonoControlState<nice_gfx::TileCanvas> monoState{canvas,r,clipped,monoBackground,monoControl&&disabled,monoControl&&pressed};
     if(v.kind==Kind::Text||v.kind==Kind::Label||v.kind==Kind::Button) {
-      if(selected&&r.width>0&&r.height>0){const int32_t inset=std::min<int32_t>(12,r.width/4);
-        canvas.fillRoundRect(r.x+inset,r.y+std::max<int32_t>(0,r.height-4),r.width-2*inset,std::min<int32_t>(2,r.height),1,s.fillColor);}
+      if((selected||(displayPolicy.monochrome&&disabled&&component.selected))&&r.width>0&&r.height>0){const int32_t inset=std::min<int32_t>(12,r.width/4);
+        const bool disabledSelection=displayPolicy.monochrome&&disabled;canvas.fillRoundRect(r.x+inset,r.y+std::max<int32_t>(0,r.height-(disabledSelection?2:4)),r.width-2*inset,disabledSelection?1:std::min<int32_t>(2,r.height),disabledSelection?0:1,disabledSelection?DisplayPolicy::foregroundOn(monoBackground):s.fillColor);}
       text(i,n,v,*contentStyle,clipped);
       if(component.select&&r.width>0&&r.height>0){const float cx=r.x+r.width-18,cy=r.y+r.height/2;
         const float direction=component.expanded?-1.0f:1.0f;
@@ -2202,19 +2724,26 @@ struct View::Impl {
     const Rect borderBox=r;
     r=contentBox(r,s);
     if(v.kind==Kind::InputField){paintInputField(n,v,*contentStyle,r);return;}
-    if(v.kind==Kind::Shape&&n.shape&&r.width>0&&r.height>0){renderShape(canvas,*n.shape,r,clipped,s.radius);return;}
-    if(n.instrument&&r.width>0&&r.height>0){NodeDesc styled=n;styled.style=*contentStyle;styled.flags=v.flags|(displayPolicy.monochrome?NoAntialias:0);renderInstrument(canvas,styled,*v.instrument,v.value,r);return;}
+    if(v.kind==Kind::Shape&&n.shape&&r.width>0&&r.height>0){ShapeDesc shape=*n.shape;applyFocusShape(focusedStyle,shape);renderShape(canvas,shape,r,clipped,s.radius);return;}
+    if(n.instrument&&r.width>0&&r.height>0){NodeDesc styled=n;styled.style=*contentStyle;styled.flags=v.flags|(displayPolicy.monochrome?NoAntialias:0);renderInstrument(canvas,styled,*v.instrument,v.value,r,displayPolicy.monochrome);return;}
     const MediaDesc *source=v.kind==Kind::Media?media(n,v):nullptr;
     if(source&&r.width>0&&r.height>0) {
+      MediaDesc decodedMedia{};Image::Impl decodedImage(ImageView(),nullptr,nullptr,0);
+      const Image::Impl *image=v.imageOverride?v.image.impl_:nullptr;bool jpeg=false;
+      if(mediaJpeg(*source)){
+        JpegDecodeTarget target;if(!decodeJpeg(*source,v.mediaFrame,target,n.id))return;
+        decodedMedia={reinterpret_cast<const uint8_t *>(target.pixels),target.width,target.height,1,1,2};
+        decodedImage.source=ImageView(target.pixels,target.width,target.height,target.capacityBytes,ImageFormat::RGB565,PixelOrder::Native,target.strideBytes);
+        decodedImage.media=decodedMedia;source=&decodedMedia;image=&decodedImage;jpeg=true;
+      }
       const MediaDesc &m=*source;
-      const Image::Impl *image=v.imageOverride?v.image.impl_:nullptr;
       const size_t stride=image?image->source.strideBytes:mediaStrideBytes(m);
       // Public viewport getters describe the coordinate datum, which stays
       // full-screen for setViewport(..., false). Use the renderer's real tile
       // intersection so a 16-row refresh never samples the entire image.
       const Rect area=intersect(r,clipped);
       if(area.width<=0||area.height<=0)return;
-      const uint8_t *frame=mediaPixels(m)+size_t(v.mediaFrame)*mediaFrameBytes(m,stride);
+      const uint8_t *frame=mediaPixels(m)+(jpeg?0:size_t(v.mediaFrame)*mediaFrameBytes(m,stride));
       if(mediaPacked(m)){paintPackedMedia(m,image,frame,stride,r,clipped,borderBox,s);return;}
       if(mediaColorKeyed(m)){
         const MediaRoundClip clip(borderBox,s);paintKeyedMedia(m,frame,stride,r,clipped,s.radius&&clip.rounded()?&clip:nullptr);return;
@@ -2287,7 +2816,7 @@ struct View::Impl {
         sourceY+=yStep;remainderY+=yRemainder;if(remainderY>=r.height){remainderY-=r.height;++sourceY;}
       }
     } else if(v.kind==Kind::Icon&&n.icon) {
-      canvas.drawIcon(r.x,r.y,*n.icon,s.color);
+      canvas.drawIcon(r.x,r.y,*n.icon,contentStyle->color);
     } else if(v.kind==Kind::Pager&&n.pager.indicatorHeight) {
       const int count=paintCache->nodes[i].children;
       const int size=n.pager.dotSize,step=size+n.pager.dotGap;
@@ -2298,6 +2827,7 @@ struct View::Impl {
       }
     } else if(v.kind==Kind::Range||v.kind==Kind::Progress) {
       const auto g=detail::rangeGeometry(r,s,(n.flags&VerticalRange)!=0,v.kind==Kind::Range,v.value,n.minimum,n.maximum);
+      if(displayPolicy.monochrome){detail::monoRange(canvas,g,s,v.kind==Kind::Range);return;}
       const int32_t track=g.vertical?g.track.width:g.track.height;
       const int32_t radius=s.trackRadius==65535?track/2:std::min<int32_t>(s.trackRadius,track/2);
       canvas.fillRoundRect(g.track.x,g.track.y,g.track.width,g.track.height,radius,s.trackColor);
@@ -2314,10 +2844,12 @@ struct View::Impl {
         if(displayPolicy.monochrome)canvas.drawRoundRect(x,y,tw,th,radius,DisplayPolicy::foregroundOn(s.thumbColor));}
     } else if(v.kind==Kind::Checkbox) {
       const int32_t w=std::min<int32_t>(r.width,s.thumbWidth),h=std::min<int32_t>(r.height,s.thumbHeight);Rect box{r.x,r.y+(r.height-h)/2,w,h};rounded(box,v.value?s.fillColor:s.trackColor,s.borderColor,s);
+      if(displayPolicy.monochrome){detail::monoCheckbox(canvas,box,s,v.value,monoBackground);text(i,n,v,*contentStyle,clipped);return;}
       if(v.value&&w>5&&h>5) {const int32_t x0=box.x+w*25/100,y0=box.y+h/2,x1=box.x+w*44/100,y1=box.y+h*70/100,x2=box.x+w*78/100,y2=box.y+h*28/100;
         canvas.drawWideLine(x0,y0,x1,y1,2,s.thumbColor);canvas.drawWideLine(x1,y1,x2,y2,2,s.thumbColor);}
       text(i,n,v,*contentStyle,clipped);
     } else if(v.kind==Kind::Switch) {
+      if(displayPolicy.monochrome){detail::monoSwitch(canvas,r,s,v.switchPosition,monoBackground);return;}
       const int32_t th=std::min<int32_t>(r.height,s.thumbHeight),tw=std::min<int32_t>(std::min<int32_t>(r.width,s.thumbWidth),std::max<int32_t>(1,r.width-2));
       const int32_t inset=std::min<int32_t>(1,(r.width-tw)/2),travel=std::max<int32_t>(0,r.width-tw-2*inset);
       const int32_t track=std::min<int32_t>(r.height,s.trackSize);
@@ -2335,7 +2867,7 @@ struct View::Impl {
 #endif
   bool paintFlatTextAlpha(int index,Rect clipped,const DirtyRect &area,uint16_t *pixels,size_t stride,uint8_t alpha) {
     const auto &p=*rasterFrame.current.page;const auto &n=p.nodes[index];const auto &v=rasterFrame.current.values[index];
-    if((n.kind!=Kind::Text&&n.kind!=Kind::Label)||displayPolicy.monochrome)return false;
+    if(focusStyle(index)||(n.kind!=Kind::Text&&n.kind!=Kind::Label)||displayPolicy.monochrome)return false;
     const auto &s=styleFor(p,rasterFrame.current.values,index);
     if(!s.font||s.borderWidth||s.radius||s.gradient)return false;
     bool disabled=(v.flags&Disabled)!=0;
@@ -2402,9 +2934,43 @@ struct View::Impl {
     }
     return canvas.attach(area,pixels,size_t(area.height-1)*stride+size_t(area.width),stride,PixelOrder::Native);
   }
+  Status finishOverlayPaintState(int index,Rect clipped,const DirtyRect &area,uint16_t *pixels,size_t stride,uint8_t alpha) {
+    // GPU overlays bypass paintNode, but later focus/footer painters inherit
+    // its AA setting and the ordinary alpha painter's restored canvas bounds.
+    if(alpha<255&&renderOrder==PixelOrder::Native){
+      const Status status=canvas.attach(area,pixels,size_t(area.height-1)*stride+size_t(area.width),stride,PixelOrder::Native);
+      if(status!=Status::Ok)return status;
+    }else canvas.setViewport(clipped.x,clipped.y,clipped.width,clipped.height,false);
+    canvas.setAntialiasing(!displayPolicy.monochrome&&!(rasterFrame.current.values[index].flags&NoAntialias));
+    return Status::Ok;
+  }
 #include "detail/MotionRender.inc.h"
 #include "detail/TextInput.inc.h"
 #include "detail/OpaqueCover.inc.h"
+#include "detail/FixedChromeRender.inc.h"
+#include "detail/NativeResourceWarm.inc.h"
+  // Run once on each finished scanout tile, after raw retained-surface copies.
+  // Bayer coordinates are screen anchored, independent of dirty tile boundaries.
+  void finishMonochromeTile(const DirtyRect &area,uint16_t *pixels,size_t stride) {
+    if(buildingSurface||foregroundCapture)return;
+    paintBehaviorBackdrop({area.x,area.y,area.width,area.height},pixels,stride);
+    paintBehaviorFrames(area);
+    if(displayPolicy.monochrome&&!displayPolicy.slowRefresh&&snapshotMonochromeEffects==MonochromeEffects::Bayer4){
+      MonoOptions options;options.dither=MonoDither::Bayer4;
+      for(int32_t y=0;y<area.height;++y)for(int32_t x=0;x<area.width;++x){
+        uint16_t &pixel=pixels[size_t(y)*stride+size_t(x)];
+        const uint16_t value=renderOrder==PixelOrder::Wire?rgb565_blend::fromWire(pixel):pixel;
+        const uint16_t color=monoWhite(value,options,unsigned(area.x+x),unsigned(area.y+y))?0xffff:0;
+        pixel=renderOrder==PixelOrder::Wire?rgb565_blend::toWire(color):color;
+      }
+    }
+    if(displayPolicy.monochrome&&snapshotLightMode){
+      for(int32_t y=0;y<area.height;++y)for(int32_t x=0;x<area.width;++x){uint16_t &pixel=pixels[size_t(y)*stride+x];const uint16_t value=renderOrder==PixelOrder::Wire?rgb565_blend::fromWire(pixel):pixel;const uint16_t inverse=DisplayPolicy::foregroundOn(value);pixel=renderOrder==PixelOrder::Wire?rgb565_blend::toWire(inverse):inverse;}
+    }
+    // Invert the final binary backdrop, including any translucent content.
+    if(snapshotInput&&snapshotMenuVisible&&!snapshotTransition&&!rasterFrame.preview.page)
+      {paintMenuIndicator(area,pixels,stride);paintAdvancedMenu(area);}
+  }
   static Status render(void *context,const DirtyRect &requestedArea,uint16_t *pixels,size_t stride) {
     Impl &self=*static_cast<Impl *>(context);
     DirtyRect area=requestedArea;
@@ -2442,11 +3008,11 @@ struct View::Impl {
     // the scheduler on both layers rather than by the keyboard background.
     if(!self.buildingSurface&&!self.snapshotTransition&&!self.rasterFrame.preview.page&&self.snapshotKeyboard.visible&&self.snapshotKeyboard.node>=0){
       area.height=std::max<int32_t>(0,std::min<int32_t>(area.height,self.snapshotKeyboard.rect.y-area.y));
-      if(!area.height){self.paintKeyboard({requestedArea.x,requestedArea.y,requestedArea.width,requestedArea.height});self.canvas.detach();return Status::Ok;}
+      if(!area.height){self.paintKeyboard({requestedArea.x,requestedArea.y,requestedArea.width,requestedArea.height});self.finishMonochromeTile(requestedArea,pixels,stride);self.canvas.detach();return Status::Ok;}
     }
     // A stationary cached enter/exit fade uses a constant background.
     // Blend immutable pixels directly without materializing an underlay.
-    if(self.renderOrder==PixelOrder::Wire&&!self.buildingSurface&&self.snapshotTransition&&!self.rasterFrame.preview.page&&self.snapshotSurface&&
+    if(self.renderOrder==PixelOrder::Wire&&!self.buildingSurface&&self.transition.config.effect!=TransitionEffect::Dissolve&&self.snapshotTransition&&!self.rasterFrame.preview.page&&self.snapshotSurface&&
        (self.snapshotPhase==TransitionPhase::Enter||self.snapshotPhase==TransitionPhase::Exit)&&
        !self.snapshotKeyboard.visible&&!self.snapshotInput&&
        (self.snapshotGroupIndex<0||!self.snapshotGroup.indicatorHeight)&&
@@ -2456,12 +3022,12 @@ struct View::Impl {
       const size_t offset=size_t(area.y)*pageWidth+size_t(area.x);
       rgb565_blend::wireRowsSolid(pixels,stride,self.snapshotSurface->pixels+offset,pageWidth,
         size_t(area.width),size_t(area.height),self.snapshotBackground,self.transitionFrame.opacity);
-      ++self.surfaceStats.hits;self.canvas.detach();return Status::Ok;
+      ++self.surfaceStats.hits;self.finishMonochromeTile(area,pixels,stride);self.canvas.detach();return Status::Ok;
     }
     // Cached paired fades have exact immutable pixels for both pages. Blend
     // them straight into the tile instead of copying the outgoing page,
     // saving its underlay, painting the incoming page, then blending in place.
-    if(self.renderOrder==PixelOrder::Wire&&!self.buildingSurface&&self.snapshotTransition&&self.snapshotPhase==TransitionPhase::Paired&&
+    if(self.renderOrder==PixelOrder::Wire&&!self.buildingSurface&&self.transition.config.effect!=TransitionEffect::Dissolve&&self.snapshotTransition&&self.snapshotPhase==TransitionPhase::Paired&&
        self.rasterFrame.preview.page&&self.snapshotSurface&&self.previewSurface&&!self.snapshotKeyboard.visible&&
        !self.snapshotInput&&(self.snapshotGroupIndex<0||!self.snapshotGroup.indicatorHeight)&&
        !self.transitionFrame.outX&&!self.transitionFrame.outY&&!self.transitionFrame.inX&&!self.transitionFrame.inY){
@@ -2470,7 +3036,7 @@ struct View::Impl {
       rgb565_blend::wireRowsFrom(pixels,stride,self.snapshotSurface->pixels+offset,pageWidth,
         self.previewSurface->pixels+offset,pageWidth,size_t(area.width),size_t(area.height),self.transitionFrame.opacity);
       self.surfaceStats.hits+=self.transitionFrame.opacity&&self.transitionFrame.opacity<255?2:1;
-      self.canvas.detach();return Status::Ok;
+      self.finishMonochromeTile(area,pixels,stride);self.canvas.detach();return Status::Ok;
     }
     const PageDesc *activePage=self.rasterFrame.current.page;
     const int activePressed=self.snapshotPressed;
@@ -2507,7 +3073,7 @@ struct View::Impl {
         for(int32_t y=0;y<area.height;++y)memcpy(self.transitionUnderlay.data()+size_t(y)*area.width,pixels+size_t(y)*stride,size_t(area.width)*2);
       }
       self.canvas.setViewport(area.x,area.y,area.width,area.height,false);
-      const Surface *surface=self.rasterFrame.preview.page&&layer==0?self.previewSurface:self.snapshotSurface;
+      const Surface *surface=self.behaviorVisualMoving()?nullptr:self.rasterFrame.preview.page&&layer==0?self.previewSurface:self.snapshotSurface;
       if(!self.buildingSurface&&self.snapshotAnimationSurface&&!self.rasterFrame.preview.page){
         result=self.paintAnimationSurface(area);
         if(result!=Status::Ok){self.canvas.detach();return result;}
@@ -2520,17 +3086,25 @@ struct View::Impl {
       } else {
       if(!self.buildingSurface&&!self.surfaces.empty())++self.surfaceStats.misses;
       const Rect source=self.renderingViewport?v:Rect{0,0,self.rasterFrame.current.page->width,self.rasterFrame.current.page->height};
-      const int opaqueCover=self.opaqueCover(area);
-      int firstPaint=opaqueCover;
+      const int opaqueCover=self.foregroundCapture||self.behaviorVisualMoving()||self.viewportOverlayLevels?-1:self.opaqueCover(area);
+      int firstPaint=self.foregroundCapture?self.foregroundPrefix+1:opaqueCover;
       if(opaqueCover>=0&&self.renderOrder==PixelOrder::Native)if(auto *panel=nice_gfx::detail::DisplayAccess::panel(self.display)){
         bool painted=false;result=self.blitOpaqueCover(*panel,opaqueCover,area,painted);
         if(result!=Status::Ok){self.canvas.detach();return result;}
         if(painted)++firstPaint;
       }
-      if(opaqueCover<0)self.canvas.fillRect(source.x+self.paintOffsetX,source.y+self.paintOffsetY,source.width,source.height,self.rasterFrame.current.page->background);
+      if(opaqueCover<0&&!self.foregroundCapture)self.canvas.fillRect(source.x+self.paintOffsetX,source.y+self.paintOffsetY,source.width,source.height,self.rasterFrame.current.page->background);
+#if NICE_GFX_UI_FIXED_CHROME_PPA
+      FixedChromeApplied chrome;
+      if(!self.foregroundCapture&&opaqueCover>=0&&firstPaint==opaqueCover+1){
+        result=self.paintFixedChrome(opaqueCover,area,pixels,available,stride,chrome);
+        if(result!=Status::Ok){self.canvas.detach();return result;}
+      }
+#endif
       const FrameCache &cache=*self.paintCache;
       const int firstBand=clamp32((area.y-self.paintOffsetY)/cache.bandHeight,0,31),lastBand=clamp32((area.y+area.height-1-self.paintOffsetY)/cache.bandHeight,0,31);
       const size_t firstCandidate=firstPaint>0?size_t(firstPaint):0;
+      for(unsigned overlayLevel=0;overlayLevel<=self.viewportOverlayLevels;++overlayLevel)
       for(size_t word=firstCandidate/32;word<cache.words;++word){uint32_t candidates=0;
       for(int band=firstBand;band<=lastBand;++band)candidates|=cache.bands[size_t(band)*cache.words+word];
       if(word==firstCandidate/32)candidates&=uint32_t(0xffffffffu)<<(firstCandidate%32);
@@ -2543,14 +3117,60 @@ struct View::Impl {
       if(!(bits&0xfu)){bits>>=4;bit+=4;}if(!(bits&3u)){bits>>=2;bit+=2;}if(!(bits&1u))++bit;
 #endif
       candidates&=candidates-1;const int i=int(word*32)+bit;++self.stats.candidateNodes;
-      const Geometry &g=cache.nodes[i];Rect clipped=intersect(g.clip,g.rect);
+      if(self.viewportOverlayDepth(*self.rasterFrame.current.page,self.rasterFrame.current.values,i)!=overlayLevel)continue;
+      const Geometry &g=cache.nodes[i];Rect clipped=self.behaviorClip(i,intersect(g.clip,g.rect));
       if(self.renderingViewport)clipped=intersect(clipped,v);
       clipped.x+=self.paintOffsetX;clipped.y+=self.paintOffsetY;
       clipped=intersect(clipped,{area.x,area.y,area.width,area.height});if(clipped.width<=0||clipped.height<=0)continue;
-      const uint8_t alpha=g.alpha;if(!alpha)continue;++self.stats.paintedNodes;
+      const uint8_t alpha=g.alpha;if(!alpha)continue;
+#if NICE_GFX_UI_SKIP_EMPTY_CONTAINERS
+      if(self.emptyContainerPaint(i)){
+        // Preserve the empty painter's canvas state for later focus/footer
+        // drawing, while omitting its identity underlay copy and alpha blend.
+        if(alpha<255&&self.renderOrder==PixelOrder::Native){
+          result=self.canvas.attach(area,pixels,available,stride,PixelOrder::Native);
+          if(result!=Status::Ok){self.canvas.detach();return result;}
+        }else self.canvas.setViewport(clipped.x,clipped.y,clipped.width,clipped.height,false);
+        self.canvas.setAntialiasing(!self.displayPolicy.monochrome&&!(self.rasterFrame.current.values[i].flags&NoAntialias));
+        continue;
+      }
+#endif
+#if NICE_GFX_UI_FIXED_CHROME_PPA
+      if(!self.foregroundCapture&&self.fixedChromeContains(chrome,clipped)){
+        result=self.finishOverlayPaintState(i,clipped,area,pixels,stride,alpha);
+        if(result!=Status::Ok){self.canvas.detach();return result;}++self.stats.fixedChromeNodesSkipped;continue;
+      }
+#endif
+      ++self.stats.paintedNodes;
       ProfileTimer nodeTimer(self,paintProfileCounter(self.rasterFrame.current.page->nodes[i].kind));
       if(self.rasterFrame.current.page->nodes[i].motion){const auto &m=self.motionPose(*self.rasterFrame.current.page,self.rasterFrame.current.values,i);
         if(m.scale!=1024||m.rotation%360!=0){self.paintTransformedNode(i,clipped,area,pixels,stride,alpha);continue;}}
+      if(alpha==255&&self.rasterFrame.current.page->nodes[i].kind==Kind::Media){
+        const Status overlay=self.paintKeyedMediaOverlay(i,clipped,alpha);
+        if(overlay==Status::Ok){result=self.finishOverlayPaintState(i,clipped,area,pixels,stride,alpha);if(result!=Status::Ok){self.canvas.detach();return result;}continue;}
+        if(overlay!=Status::Unsupported){self.canvas.detach();return overlay;}
+      }
+      if(self.rasterFrame.current.page->nodes[i].kind==Kind::Shape){
+        Status overlay=self.paintShapeNative(i,clipped,alpha);
+        if(overlay==Status::Unsupported)overlay=self.paintShapeOverlay(i,clipped,alpha);
+        if(overlay==Status::Ok){const uint32_t finishStarted=self.profilingClock?self.profilingClock():0;result=self.finishOverlayPaintState(i,clipped,area,pixels,stride,alpha);if(self.profilingClock)self.stats.shapeFinishMicros+=self.profilingClock()-finishStarted;if(result!=Status::Ok){self.canvas.detach();return result;}continue;}
+        if(overlay!=Status::Unsupported){self.canvas.detach();return overlay;}
+      }
+      if(self.rasterFrame.current.page->nodes[i].kind==Kind::Text||self.rasterFrame.current.page->nodes[i].kind==Kind::Label){
+#if NICE_GFX_UI_TEXT_MASK_NATIVE
+        Status overlay=Status::Unsupported;
+#if NICE_GFX_UI_TEXT_ALPHA_PPA
+        // Stationary opaque text stays on the CPU ink-only path; animated
+        // opacity may use A8 hardware without making PPA a required backend.
+        if(alpha<255)overlay=self.paintTextMaskOverlay(i,clipped,alpha);
+#endif
+        if(overlay==Status::Unsupported)overlay=self.paintTextMaskNative(i,clipped,alpha);
+#else
+        const Status overlay=self.paintTextMaskOverlay(i,clipped,alpha);
+#endif
+        if(overlay==Status::Ok){const uint32_t finishStarted=self.profilingClock?self.profilingClock():0;result=self.finishOverlayPaintState(i,clipped,area,pixels,stride,alpha);if(self.profilingClock)self.stats.textFinishMicros+=self.profilingClock()-finishStarted;if(result!=Status::Ok){self.canvas.detach();return result;}continue;}
+        if(overlay!=Status::Unsupported){self.canvas.detach();return overlay;}
+      }
       if(alpha<255&&self.rasterFrame.current.page->nodes[i].kind==Kind::Media&&
          self.paintRawMediaAlpha(i,clipped,area,pixels,stride,alpha))continue;
 #if NICE_GFX_UI_FLAT_TEXT_ALPHA
@@ -2571,9 +3191,10 @@ struct View::Impl {
         self.underlay.data(),size_t(clipped.width),size_t(clipped.width),size_t(clipped.height),alpha);
       }
       }
-      if(self.snapshotInput&&!self.snapshotTransition&&!self.rasterFrame.preview.page&&self.snapshotFocus>=0&&cache.nodes[self.snapshotFocus].inputVisible) {
+      if(!self.snapshotMenuEnabled&&!self.foregroundCapture&&self.snapshotInput&&!self.snapshotTransition&&!self.rasterFrame.preview.page&&self.snapshotFocus>=0&&cache.nodes[self.snapshotFocus].inputVisible) {
         const Geometry &g=cache.nodes[self.snapshotFocus];const Rect r=g.rect,c=intersect(r,g.clip);
         self.canvas.setViewport(c.x,c.y,c.width,c.height,false);
+        const int32_t radius=std::min<int32_t>(self.styleFor(*self.rasterFrame.current.page,self.rasterFrame.current.values,self.snapshotFocus).radius,std::min(r.width,r.height)/2);
         if(self.displayPolicy.monochrome){
           const Rect visible=intersect(c,{area.x,area.y,area.width,area.height});
           auto contrast=[&](int32_t x,int32_t y){
@@ -2583,22 +3204,38 @@ struct View::Impl {
             const uint16_t outline=DisplayPolicy::foregroundOn(value);
             pixel=self.renderOrder==PixelOrder::Wire?rgb565_blend::toWire(outline):outline;
           };
+          // Each pixel belongs to one inset ring, so rounded corner joins
+          // cannot invert the same monochrome destination pixel twice.
+          const auto inside=[](int32_t x,int32_t y,Rect box,int32_t curve){
+            if(box.width<=0||box.height<=0||x<box.x||y<box.y||x>=box.x+box.width||y>=box.y+box.height)return false;
+            const int32_t dx=std::max<int32_t>(0,std::max(std::min(box.x+curve,box.x+box.width-curve-1)-x,x-std::max(box.x+curve,box.x+box.width-curve-1)));
+            const int32_t dy=std::max<int32_t>(0,std::max(std::min(box.y+curve,box.y+box.height-curve-1)-y,y-std::max(box.y+curve,box.y+box.height-curve-1)));
+            return dx*dx+dy*dy<=curve*curve;
+          };
           for(int n=0;n<self.snapshotFocusWidth&&2*n<std::min(r.width,r.height);++n){
-            const int32_t left=r.x+n,right=r.x+r.width-1-n,top=r.y+n,bottom=r.y+r.height-1-n;
-            const int32_t x0=std::max(left,visible.x),x1=std::min(right,visible.x+visible.width-1);
-            for(int32_t x=x0;x<=x1;++x){contrast(x,top);if(bottom!=top)contrast(x,bottom);}
-            const int32_t y0=std::max(top+1,visible.y),y1=std::min(bottom-1,visible.y+visible.height-1);
-            for(int32_t y=y0;y<=y1;++y){contrast(left,y);if(right!=left)contrast(right,y);}
+            const Rect ring{r.x+n,r.y+n,r.width-2*n,r.height-2*n},inner{ring.x+1,ring.y+1,ring.width-2,ring.height-2};
+            const int32_t curve=std::min<int32_t>(std::max<int32_t>(0,radius-n),std::min(ring.width,ring.height)/2);
+            const int32_t innerCurve=std::min<int32_t>(std::max<int32_t>(0,curve-1),std::max<int32_t>(0,std::min(inner.width,inner.height)/2));
+            const Rect clipped=intersect(ring,visible);
+            for(int32_t y=clipped.y;y<clipped.y+clipped.height;++y)for(int32_t x=clipped.x;x<clipped.x+clipped.width;++x)
+              if(inside(x,y,ring,curve)&&!inside(x,y,inner,innerCurve))contrast(x,y);
           }
-        }else for(int n=0;n<self.snapshotFocusWidth&&2*n<std::min(r.width,r.height);++n)self.canvas.drawRect(r.x+n,r.y+n,r.width-2*n,r.height-2*n,self.snapshotFocusColor);
+        }else for(int n=0;n<self.snapshotFocusWidth&&2*n<std::min(r.width,r.height);++n){
+          const int32_t width=r.width-2*n,height=r.height-2*n,curve=std::min<int32_t>(std::max<int32_t>(0,radius-n),std::min(width,height)/2);
+          self.canvas.drawRoundRect(r.x+n,r.y+n,width,height,curve,self.snapshotFocusColor);
+        }
       }
       }
-      if(fade)rgb565_blend::wireRows(pixels,stride,self.transitionUnderlay.data(),size_t(area.width),
-        size_t(area.width),size_t(area.height),self.transitionFrame.opacity);
+      if(fade){
+        if(self.transition.config.effect==TransitionEffect::Dissolve){const auto &d=self.transition.config;
+          for(int32_t y=0;y<area.height;++y)for(int32_t x=0;x<area.width;++x)
+            if(!dissolveIncoming(area.x+x,area.y+y,self.transitionFrame.opacity,d.seed,d.grain))pixels[size_t(y)*stride+x]=self.transitionUnderlay[size_t(y)*area.width+x];
+        }else rgb565_blend::wireRows(pixels,stride,self.transitionUnderlay.data(),size_t(area.width),size_t(area.width),size_t(area.height),self.transitionFrame.opacity);
+      }
       if(self.rasterFrame.preview.page&&layer==0) { self.rasterFrame.current.page=activePage;self.rasterFrame.current.values.swap(self.rasterFrame.preview.values);self.rasterFrame.current.motions.swap(self.rasterFrame.preview.motions); }
     }
     self.snapshotPressed=activePressed;
-    if(self.snapshotGroupIndex>=0&&self.snapshotGroup.indicatorHeight){
+    if(!self.foregroundCapture&&self.snapshotGroupIndex>=0&&self.snapshotGroup.indicatorHeight){
       const auto &g=self.snapshotGroup;const Rect footer=self.navigationFooter(g);const int width=footer.width,top=footer.y;
       const int step=int(g.dotSize)+g.dotGap,left=footer.x+(width-(int(g.count)*step-g.dotGap))/2;
       const int dotsY=top+(g.indicatorHeight-g.dotSize)/2;
@@ -2624,6 +3261,7 @@ struct View::Impl {
       }
       self.seedPixels+=uint64_t(area.width)*area.height;
     }
+    self.finishMonochromeTile(requestedArea,pixels,stride);
     self.canvas.detach();return Status::Ok;
   }
   Status start() {
@@ -2631,6 +3269,9 @@ struct View::Impl {
     if(processing)return Status::Busy;
     if(display.width()!=page().width||display.height()!=page().height)return Status::InvalidArgument;
     if(refresh->busy()||!refresh->dirty()||updateDepth)return Status::Ok;
+    ProfileTimer snapshotTimer(*this,&RuntimeStats::snapshotMicros);
+    snapshotMonochromeEffects=monochromeEffects;
+    snapshotBehaviors();
     seedSurface=nullptr;seedPixels=seedExpectedPixels=0;
     surfaceWarmPending=!surfaces.empty();++surfaceMutationEpoch;
     ensureInputAvailable();
@@ -2644,7 +3285,9 @@ struct View::Impl {
     // Sketch-global Views precede display initialization and rotation. Sync the
     // virtual raster bounds only when starting a validated, idle refresh.
     if(canvas.width()!=page().width||canvas.height()!=page().height)canvas.resize(page().width,page().height);
-    snapshotFocus=focusNode;
+    snapshotFocus=focusNode;snapshotFocusId=focusNode>=0?page().nodes[focusNode].id:0;
+    snapshotMenuMotion();
+    snapshotAdvancedMenu();
     snapshotKeyInput=keyInput;
     snapshotInput=input!=nullptr&&snapshotKeyInput&&!transition.active;snapshotFocusColor=input?input->color:0;snapshotFocusWidth=input?input->width:0;
     cacheResourcePage(history.back());
@@ -2665,7 +3308,7 @@ struct View::Impl {
       snapshotMotionRect=navigationViewport(page().path,rasterFrame.preview.page->path);snapshotTransition=true;snapshotPhase=TransitionPhase::Paired;
       transitionFrame={0,0,backOffset,0,255,false};
     }
-    if(groupMotion.active){
+    if(groupMotion.active&&!groupMotion.sharedBackdrop){
       snapshotMotionRect=navigationViewport(page().path,project->pages[groupMotion.destination].path);
       const int32_t offset=groupMotion.offset;
       const int32_t incoming=offset-groupMotion.sign*motionDistance();
@@ -2674,17 +3317,24 @@ struct View::Impl {
       if(groupMotion.prepared){rasterFrame.preview.page=&page();rasterFrame.preview.values=groupMotion.outgoing;rasterFrame.preview.motions=groupMotion.outgoingMotions;rasterFrame.current.page=&project->pages[groupMotion.destination];rasterFrame.current.values=pages[groupMotion.destination];rasterFrame.current.motions=pageMotions[groupMotion.destination];}
     }
     snapshotSurface=previewSurface=nullptr;snapshotAnimationSurface=nullptr;snapshotAnimationLayerCount=0;
+    snapshotTimer.stop();
+    ProfileTimer framePrepareTimer(*this,&RuntimeStats::framePrepareMicros);
+    directJpegCover=-1;directJpegTarget=nullptr;
+    struct DirectJpegMarkerGuard {Impl &self;~DirectJpegMarkerGuard(){self.directJpegCover=-1;self.directJpegTarget=nullptr;}} directJpegMarkerGuard{*this};
+    detail::JpegMediaCache::FramebufferPlan directJpegPlan;
+    const int directJpegIndex=planDirectJpegFrame(directJpegPlan);
+    const bool directJpegPlanned=directJpegIndex>=0;
     // Hydrate a retained terminal key before exact-match and animation-atlas
     // checks. The other page remains protected throughout a paired snapshot.
     // CPU RGB fades can merge exact cold run streams without decoding two
     // complete pages merely to read them back for this one transition.
-    if(!renderBudget.maxPixelsPerTick&&!compressedFadeKeysReady()){
+    if(!directJpegPlanned&&!renderBudget.maxPixelsPerTick&&!compressedFadeKeysReady()){
       restoreSurfacePage(*rasterFrame.current.page,rasterFrame.preview.page);
       if(rasterFrame.preview.page)restoreSurfacePage(*rasterFrame.preview.page,rasterFrame.current.page);
     }
     const bool keyboardCovers=snapshotKeyboard.visible&&snapshotKeyboard.fullscreen&&!snapshotTransition&&!rasterFrame.preview.page;
-    const bool plainFocus=snapshotInput&&!snapshotTransition&&!rasterFrame.preview.page&&snapshotFocus>=0;
-    if(!keyboardCovers&&snapshotPressed<0&&!plainFocus)snapshotSurface=findSurface(*rasterFrame.current.page,rasterFrame.current.values);
+    const bool plainFocus=(snapshotInput||styledFocus())&&!snapshotTransition&&!rasterFrame.preview.page&&snapshotFocus>=0;
+    if(!directJpegPlanned&&!keyboardCovers&&snapshotPressed<0&&!plainFocus)snapshotSurface=findSurface(*rasterFrame.current.page,rasterFrame.current.values);
     if(rasterFrame.preview.page)previewSurface=findSurface(*rasterFrame.preview.page,rasterFrame.preview.values);
     const bool exactBeforePatch=snapshotSurface!=nullptr;
     // With an exact outgoing surface, prefetch beside its cheap first copy.
@@ -2693,12 +3343,13 @@ struct View::Impl {
     if(!renderBudget.maxPixelsPerTick&&snapshotTransition&&snapshotPhase==TransitionPhase::Exit&&transition.config.effect==TransitionEffect::Fade&&
        transitionFrame.opacity>0&&(transitionFrame.opacity<255||exactBeforePatch)&&transition.destination>=0)
       restoreSurfacePage(project->pages[transition.destination],rasterFrame.current.page,rasterFrame.preview.page);
-    if(!snapshotSurface&&!renderBudget.maxPixelsPerTick)findAnimationSurface();
-    bool geometryPrepared=false,previewGeometryPrepared=false,transitionRepairAttempted=false;
+    if(!directJpegPlanned&&!snapshotSurface&&!renderBudget.maxPixelsPerTick)findAnimationSurface();
+    // A direct JPEG plan has already sampled this immutable frame's geometry.
+    bool geometryPrepared=directJpegPlanned,previewGeometryPrepared=false,transitionRepairAttempted=false;
     // Prefer a bounded retained repair during page motion. Native rendering
     // remains first for ordinary live maps, while changed route labels must
     // not force a static page to rerasterize at every slide sample.
-    if(!renderBudget.maxPixelsPerTick&&!keyboardCovers&&!snapshotSurface&&!snapshotAnimationSurface&&snapshotPressed<0&&!plainFocus){
+    if(!directJpegPlanned&&!renderBudget.maxPixelsPerTick&&!keyboardCovers&&!snapshotSurface&&!snapshotAnimationSurface&&snapshotPressed<0&&!plainFocus){
       uint64_t repairBudget=0;
       // A claimed gesture freezes its key. A paired fade also retains both
       // complete source surfaces, so even a large incoming animation can repair
@@ -2727,6 +3378,7 @@ struct View::Impl {
     // only the scheduler may publish after every region has completed.
     auto *framePanel=nice_gfx::detail::DisplayAccess::panel(display);
     if(!framePanel)return Status::NotInitialized;
+    if(directJpegPlanned)refresh->invalidateAll();
     DirtyRect frameDamage[16];const size_t frameDamageCount=refresh->pendingRegions();
     if(frameDamageCount>16)return Status::InvalidArgument;
     for(size_t i=0;i<frameDamageCount;++i)if(!refresh->pendingRegion(i,frameDamage[i]))return Status::InvalidArgument;
@@ -2741,10 +3393,38 @@ struct View::Impl {
     const bool nativeReady=nativeStatus==Status::Ok;
     ++stats.frames;
     if(nativeReady){
-      prepareFrameGeometry(*rasterFrame.current.page,rasterFrame.current.values,rasterFrame.current.geometry);geometryPrepared=true;
+      if(!geometryPrepared){prepareFrameGeometry(*rasterFrame.current.page,rasterFrame.current.values,rasterFrame.current.geometry);geometryPrepared=true;}
       if(rasterFrame.preview.page&&!previewSurface){prepareFrameGeometry(*rasterFrame.preview.page,rasterFrame.preview.values,rasterFrame.preview.geometry);previewGeometryPrepared=true;}
-      partitionNativeRegions(nativeFrame);
+      bool decodedToFrame=false;
+      if(directJpegPlanned&&nativeFrame.frame.stride==nativeFrame.frame.width&&nativeFrame.count==1&&
+         !nativeFrame.regions[0].x&&!nativeFrame.regions[0].y&&nativeFrame.regions[0].width==nativeFrame.frame.width&&nativeFrame.regions[0].height==nativeFrame.frame.height){
+        const size_t bytes=nativeFrame.frame.stride*nativeFrame.frame.height*2;
+        JpegDecodeTarget target{nativeFrame.frame.pixels,bytes,nativeFrame.frame.stride*2,uint16_t(nativeFrame.frame.width),uint16_t(nativeFrame.frame.height)};
+        Status decoded=Status::Unsupported;
+        detail::JpegPrefetch::Lease prefetched;
+        if(jpegPrefetch.acquire(directJpegPlan,prefetched)){
+          ProfileTimer copyTimer(*this,&RuntimeStats::jpegPrefetchCopyMicros);
+          const PixelView pixels(prefetched.pixels,prefetched.width,prefetched.height,prefetched.strideBytes/2,PixelOrder::Native);
+#if NICE_GFX_UI_JPEG_PREFETCH_COPY == 2
+          if(prefetched.width==target.width&&prefetched.height==target.height&&prefetched.strideBytes==target.strideBytes&&prefetched.capacityBytes>=bytes)
+            decoded=nice_gfx::platform::rgb565_native_copy::copy(nativeFrame.frame.pixels,prefetched.pixels,bytes/2).ok?Status::Ok:Status::Unsupported;
+#elif NICE_GFX_UI_JPEG_PREFETCH_COPY == 1
+          if(prefetched.width==target.width&&prefetched.height==target.height&&prefetched.strideBytes==target.strideBytes&&prefetched.capacityBytes>=bytes){
+            memcpy(nativeFrame.frame.pixels,prefetched.pixels,bytes);decoded=Status::Ok;
+          }
+#else
+          decoded=ppaFade.copyIntoNative(nativeFrame.frame,0,0,pixels,prefetched.capacityBytes,0,0,prefetched.width,prefetched.height);
+#endif
+          if(decoded==Status::Ok)++stats.jpegPrefetchBlits;
+        }
+        if(decoded==Status::Unsupported)decoded=jpegCache.decodeFramebuffer(directJpegPlan,target);
+        if(decoded==Status::Ok&&plannedJpegMedia)requestJpegAhead(*plannedJpegMedia,plannedJpegFrame);
+        if(decoded==Status::Ok){directJpegCover=directJpegIndex;directJpegTarget=nativeFrame.frame.pixels;decodedToFrame=true;}
+        else if(decoded!=Status::Unsupported)return decoded;
+      }
+      if(!decodedToFrame)partitionNativeRegions(nativeFrame);
     }
+    framePrepareTimer.stop();
     if(!renderBudget.maxPixelsPerTick&&!nativeReady&&rasterFrame.preview.page&&!previewSurface&&snapshotTransition&&snapshotPhase==TransitionPhase::Paired){
       // A dynamic image can be published just before navigation, before its
       // page surface receives a normal refresh. Repair against the captured
@@ -2939,9 +3619,13 @@ struct View::Impl {
     // once that frame is on the display, using only the focused dirty area.
     if(keyInput&&input)invalidate(focusNode);
   }
+  #include "detail/MenuMotionRuntime.inc.h"
+  #include "detail/BehaviorRuntime.inc.h"
+  #include "detail/MenuAdvancedRuntime.inc.h"
 };
 
 #include "detail/Dynamic.inc.h"
+#include "detail/BehaviorApi.inc.h"
 
 View::View(NICE_GFX &d,size_t n):impl_(new Impl(d,n)) {}
 View::View(NICE_GFX &d,uint16_t *a,uint16_t *b,size_t n):impl_(new Impl(d,a,b,n)) {}
@@ -2951,6 +3635,9 @@ bool View::configureResourceCache(size_t bytes,size_t reserve){
   s.resourceCacheBudget=bytes;s.resourceReserve=reserve;return true;
 }
 Status View::create(NICE_GFX &d,View *&output,size_t n) noexcept {
+#if NICE_GFX_UI_MONOCHROME_ONLY
+  if(!d.displayCapabilities().monochrome())return Status::Unsupported;
+#endif
   if(n>std::vector<uint16_t>().max_size())return Status::InvalidArgument;
 #if defined(__cpp_exceptions) || defined(_CPPUNWIND)
   try {
@@ -2965,6 +3652,9 @@ Status View::create(NICE_GFX &d,View *&output,size_t n) noexcept {
 #endif
 }
 Status View::create(NICE_GFX &d,uint16_t *a,uint16_t *b,size_t n,View *&output) noexcept {
+#if NICE_GFX_UI_MONOCHROME_ONLY
+  if(!d.displayCapabilities().monochrome())return Status::Unsupported;
+#endif
   if(!a||!n||a==b||n>std::vector<uint16_t>().max_size())return Status::InvalidArgument;
 #if defined(__cpp_exceptions) || defined(_CPPUNWIND)
   try {
@@ -2979,7 +3669,11 @@ Status View::create(NICE_GFX &d,uint16_t *a,uint16_t *b,size_t n,View *&output) 
 #endif
 }
 Status View::mount(const ProjectDesc &p) {
-  Impl &s=*impl_;if(s.processing)return Status::Busy;
+  Impl &s=*impl_;
+#if NICE_GFX_UI_MONOCHROME_ONLY
+  if(!s.display.displayCapabilities().monochrome())return Status::Unsupported;
+#endif
+  if(s.processing)return Status::Busy;
   if(p.version!=ResourceVersion||!p.pages||!p.count||p.initial>=p.count||!validTransition(p.transition))return Status::InvalidArgument;
   std::unique_ptr<Impl> prepared;
   std::vector<std::vector<int>> cancellationPaths;
@@ -3029,11 +3723,11 @@ Status View::mount(const ProjectDesc &p) {
         validatedFonts.push_back(n.style.font);
       }
       if((n.kind==Kind::Range||n.kind==Kind::Progress)&&(n.maximum<=n.minimum||n.step<=0))return Status::InvalidArgument;
-      if(n.kind==Kind::Media&&n.media&&!validMedia(*n.media))return Status::InvalidArgument;
+      if(n.kind==Kind::Media&&n.media){if(!validMedia(*n.media))return Status::InvalidArgument;if(mediaJpeg(*n.media)&&!s.jpegCache.available())return Status::Unsupported;}
       if(n.kind==Kind::Icon && !(n.flags&Hidden) && (!n.icon || !n.icon->bitmap || !n.icon->width || !n.icon->height || n.icon->width>128 || n.icon->height>128 || (n.icon->bitsPerPixel!=0&&n.icon->bitsPerPixel!=1&&n.icon->bitsPerPixel!=4) || n.icon->bytes!=(n.icon->bitsPerPixel==4?(n.icon->width+1)/2:(n.icon->width+7)/8)*n.icon->height))return Status::InvalidArgument;
       if(n.kind==Kind::Pager&&contentBox(n.rect,n.style).width<=0)return Status::InvalidArgument;
       if(n.pager.indicatorHeight) {
-        if(n.kind!=Kind::Pager||n.pager.indicatorHeight<16||n.pager.indicatorHeight>80||n.pager.dotSize<2||n.pager.dotSize>12||n.pager.dotGap<2||n.pager.dotGap>20)return Status::InvalidArgument;
+        if(n.kind!=Kind::Pager||n.pager.indicatorHeight<6||n.pager.dotSize>n.pager.indicatorHeight||n.pager.indicatorHeight>80||n.pager.dotSize<2||n.pager.dotSize>12||n.pager.dotGap<2||n.pager.dotGap>20)return Status::InvalidArgument;
         const Rect area=contentBox(n.rect,n.style);int count=0;
         for(uint16_t k=0;k<page.count;++k)if(page.nodes[k].parent==i)++count;
         if(!count||area.height<=n.pager.indicatorHeight||count*n.pager.dotSize+(count-1)*n.pager.dotGap>area.width)return Status::InvalidArgument;
@@ -3069,6 +3763,7 @@ Status View::mount(const ProjectDesc &p) {
       next.components=nullptr;next.componentCount=0;next.componentsPage=nullptr;next.lookupPage=nullptr;
     }
   }
+  next.jpegCache.configure(s.jpegCache.handler(),s.jpegCache.context());
   next.resourceCacheBudget=s.resourceCacheBudget;next.resourceReserve=s.resourceReserve;
   next.attachResourceProject(p);next.pages.resize(p.count);next.pageMotions.resize(p.count);
   next.history.assign(1,p.initial);next.pageFocus.assign(p.count,0);
@@ -3108,10 +3803,21 @@ Status View::mount(const ProjectDesc &p) {
   // scheduler already points at these same buffers; no framebuffer is copied.
   mounted.first.swap(s.first);if(!mounted.second.size())mounted.second.swap(s.second);
   impl_=prepared.release();delete &s;
+#if defined(NICE_GFX_UI_NATIVE_RESOURCE_PREWARM) && NICE_GFX_UI_NATIVE_RESOURCE_PREWARM
+  // Compiled-default resource warming is independent of generated action,
+  // shared-media and input configuration, which load() installs after mount.
+  // Failure is best-effort and does not change a successfully mounted project.
+  (void)impl_->warmNativeResources();
+#endif
   return Status::Ok;
 }
 bool View::on(Id id,EventType type,EventHandler cb,void *context,bool capture) { if(!cb)return false;impl_->addListener({id,type,cb,context,capture});return true; }
 bool View::onScoped(Id id,EventType type,EventHandler cb,void *context){if(!cb)return false;impl_->addListener({id,type,cb,context,false,false,true});return true;}
+bool View::onUi(Id id,EventType type,EventHandler cb,void *context){
+  if(!cb)return false;auto &s=*impl_;
+  for(const auto &listener:*s.listeners)if(listener.uiAction&&listener.id==id&&listener.type==type&&listener.callback==cb&&listener.context==context)return true;
+  s.addListener({id,type,cb,context,false,type==EventType::Click,true,true});return true;
+}
 bool View::onDefault(Id id,EventType type,EventHandler cb,void *context){
   if(!cb)return false;
   for(const auto &l:*impl_->listeners)if(l.id==id&&l.type==type&&l.callback==cb&&l.context==context&&l.defaultAction)return true;
@@ -3154,9 +3860,10 @@ bool View::onOnce(Id id,EventType type,EventHandler cb,void *context,bool captur
 }
 bool View::configureComponents(const ComponentDesc *config,size_t count) {
   auto &s=*impl_;if(!s.project||s.processing||s.refresh->busy()||count>65535||(!config&&count))return false;
-  std::vector<size_t> ordered(count);std::vector<uint8_t> found(count,0);std::vector<uint16_t> nodes;
+  std::vector<size_t> ordered(count);std::vector<uint8_t> found(count,0);std::vector<uint16_t> nodes;std::vector<Id> overlays;
   for(size_t c=0;c<count;++c){ordered[c]=c;const auto &d=config[c];
-    if(!d.id||uint8_t(d.kind)>uint8_t(ComponentKind::Confirm)||d.optionCount>12||(d.optionCount&&!d.options))return false;
+    if(!d.id||uint8_t(d.kind)>uint8_t(ComponentKind::Confirm)||d.optionCount>12||(d.optionCount&&!d.options)||(d.flags&~ComponentViewportOverlay)||((d.flags&ComponentViewportOverlay)&&!d.expandedId))return false;
+    if(d.flags&ComponentViewportOverlay)overlays.push_back(d.expandedId);
     if((d.kind==ComponentKind::Select||d.kind==ComponentKind::Choice)&&(!d.optionCount||d.valueId))return false;
     const Id slots[]={d.valueId,d.textId,d.pageId,d.expandedId};
     for(size_t n=0;n<4;++n)if(slots[n])for(size_t j=0;j<n;++j)if(slots[n]==slots[j])return false;
@@ -3188,6 +3895,9 @@ bool View::configureComponents(const ComponentDesc *config,size_t count) {
   }
   if(std::find(found.begin(),found.end(),uint8_t(0))!=found.end())return false;
   s.components=config;s.componentCount=count;s.componentsPage=nullptr;
+  std::sort(overlays.begin(),overlays.end());overlays.erase(std::unique(overlays.begin(),overlays.end()),overlays.end());s.viewportOverlayIds.swap(overlays);
+  s.viewportOverlayLevels=0;for(uint16_t p=0;p<s.project->count;++p){const auto &page=s.project->pages[p];for(uint16_t i=0;i<page.count;++i)if(s.viewportOverlayRoot(page,i)){uint16_t depth=1;for(uint16_t a=page.nodes[i].parent;a!=NoParent;a=page.nodes[a].parent)if(s.viewportOverlayRoot(page,a))++depth;s.viewportOverlayLevels=std::max(s.viewportOverlayLevels,depth);}}
+  s.clearFrameGeometryMemo();for(uint16_t p=0;p<s.project->count;++p)s.clearSurfacePage(&s.project->pages[p]);s.refresh->invalidateAll();
   for(auto &index:s.componentPaintIndices)index=detail::ComponentPaintIndex{};
   s.componentPaintUsed[0]=s.componentPaintUsed[1]=0;s.componentPaintClock=0;
   s.prepareComponents();
@@ -3197,11 +3907,51 @@ bool View::configureComponents(const ComponentDesc *config,size_t count) {
 }
 bool View::setExpanded(Id id,bool expanded) {auto &s=*impl_;const auto *link=s.publicComponent(id);return link&&link->panel>=0&&(expanded?show(s.page().nodes[link->panel].id):hide(s.page().nodes[link->panel].id));}
 bool View::expanded(Id id) const {auto &s=*impl_;const auto *link=s.publicComponent(id);return link&&link->panel>=0&&!(s.state()[link->panel].flags&Hidden);}
+bool View::configureFocusStyles(const FocusStyleDesc *styles,size_t count) {
+  auto &s=*impl_;if(s.processing||s.refresh->busy()||count>65535||(count&&!styles))return false;
+  for(size_t i=0;i<count;++i){const auto &d=styles[i];
+    if(!d.target||!d.owner||(d.flags&~uint16_t(1023))||(i&&(styles[i-1].target>d.target||(styles[i-1].target==d.target&&styles[i-1].owner>=d.owner))))return false;
+  }
+  s.focusStyles=styles;s.focusStyleCount=count;s.surfaceWarmPending=!s.surfaces.empty();++s.surfaceMutationEpoch;s.refresh->invalidateAll();return true;
+}
 void View::configureInput(const InputConfig &config) {
   auto &s=*impl_;const bool nested=s.processing;s.processing=true;
   s.input=&config;s.focusIndexConfig=nullptr;++s.inputLayoutEpoch;
   if(s.project){s.restoreFocus();s.refresh->invalidateAll();}
   if(!nested)s.endProcessing();
+}
+bool View::configureMenuMotion(const MenuMotionConfig &config) {
+  auto &s=*impl_;if(s.processing||!validMenuMotion(config))return false;
+  s.processing=true;
+  s.baseMenuMotionConfig=config;s.baseMenuMotionConfigured=true;s.applyPageMenuMotion();s.resetMenuMotion();
+  s.compactMenuRows();
+  if(s.project){if(s.focusNode>=0){s.reveal(s.focusNode);s.aimMenuIndicator(true);}s.refresh->invalidateAll();}
+  s.endProcessing();
+  return true;
+}
+bool View::setMenuMotionPreset(MenuPreset preset) {
+  if(uint8_t(preset)>uint8_t(MenuPreset::Reduced))return false;
+  auto config=impl_->baseMenuMotionConfigured?impl_->baseMenuMotionConfig:impl_->menuMotionConfig;config.preset=preset;
+  if(preset!=MenuPreset::Custom)config.mode=preset==MenuPreset::Reduced?MenuMotionMode::Instant:MenuMotionMode::Spring;
+  config.camera=config.position=config.size=config.decoration=config.overlay=MenuDynamics{};
+  if(impl_->processing){auto &s=*impl_;s.baseMenuMotionConfig=config;s.baseMenuMotionConfigured=true;s.applyPageMenuMotion();s.resetMenuMotion();s.compactMenuRows();if(s.project){if(s.focusNode>=0){s.reveal(s.focusNode);s.aimMenuIndicator(true);}s.refresh->invalidateAll();}return true;}
+  return configureMenuMotion(config);
+}
+bool View::setLightMode(bool enabled) {
+  auto &s=*impl_;
+  if(s.monochromeLightMode!=enabled){s.monochromeLightMode=enabled;if(s.project)s.refresh->invalidateAll();}return true;
+}
+bool View::lightMode() const { return impl_->monochromeLightMode; }
+bool View::setMenuIndicator(MenuIndicator indicator) {
+  if(uint8_t(indicator)>uint8_t(MenuIndicator::Underline))return false;
+  auto &s=*impl_;s.menuMotionConfig.indicator=indicator;if(s.project)s.refresh->invalidateAll();return true;
+}
+bool View::configureMonochromeEffects(MonochromeEffects effects) {
+  auto &s=*impl_;
+  if(s.processing||s.refresh->busy()||uint8_t(effects)>uint8_t(MonochromeEffects::Bayer4))return false;
+  s.monochromeEffects=effects;
+  if(s.project)s.refresh->invalidateAll();
+  return true;
 }
 bool View::configureNavigation(const NavigationDesc *config){
   auto &s=*impl_;if(s.processing||(config&&!s.validNavigation(*config)))return false;
@@ -3209,6 +3959,7 @@ bool View::configureNavigation(const NavigationDesc *config){
 }
 bool View::configureRenderCache(uint16_t *storage,size_t pixels,size_t compressedPixels){return impl_->configureSurfaces(storage,pixels,compressedPixels);}
 bool View::prewarmRenderCache(const char *path){return impl_->prewarmSurface(path);}
+bool View::prewarmNativeResources(){return impl_->warmNativeResources();}
 bool View::stepRenderCache(uint32_t now,size_t maxPixels){
   auto &s=*impl_;if(!s.project||!maxPixels||s.softInput.visible)return false;
   const size_t saved=s.renderBudget.maxPixelsPerTick;
@@ -3310,12 +4061,17 @@ bool View::hasImage(Id id,const Image &image) const {
 Status View::setMediaResource(Id id,const MediaDesc &resource) {
   int index=-1;const Status target=impl_->imageTarget(id,index);if(target!=Status::Ok)return target;
   if(!validMedia(resource))return Status::InvalidArgument;
-  const size_t bytes=mediaFrameBytes(resource)*resource.frames;
+  if(mediaJpeg(resource)&&!impl_->jpegCache.available())return Status::Unsupported;
+  const size_t bytes=mediaJpeg(resource)?detail::jpegResource(resource)->bytes:mediaFrameBytes(resource)*resource.frames;
   const ImageFormat format=mediaMasked(resource)?ImageFormat::Mono1Masked:mediaPacked(resource)?ImageFormat::Mono1:mediaPixelBytes(resource)==2?ImageFormat::RGB565:ImageFormat::RGB332;
   const ImageView view(mediaPixels(resource),resource.width,resource.height,bytes,format,PixelOrder::Wire,mediaStrideBytes(resource));
   auto *storage=new(std::nothrow) Image::Impl(view,nullptr,nullptr,0,true);if(!storage)return Status::NoMemory;
   storage->media=resource;Image image(storage);impl_->replaceImage(index,image,true);return Status::Ok;
 }
+bool View::configureJpegDecoder(JpegDecodeHandler handler,void *context){
+  auto &s=*impl_;if(s.processing||s.refresh->busy())return false;s.jpegCache.configure(handler,context);s.mediaDecodeStatus=Status::Ok;s.refresh->invalidateAll();return true;
+}
+JpegMediaStats View::jpegMediaStats()const{return impl_->jpegCache.stats();}
 bool View::configureMediaPlayback(const MediaPlaybackDesc *policies,size_t count) {
   auto &s=*impl_;if(!s.project||s.processing||s.down||count>4096||(count&&!policies))return false;
   std::vector<MediaPlaybackDesc> prepared;if(count)prepared.assign(policies,policies+count);
@@ -3339,6 +4095,26 @@ bool View::configureMediaPlayback(const MediaPlaybackDesc *policies,size_t count
     v.mediaFrame=initial;v.mediaAt=0;v.mediaPending=true;v.mediaPaused=!s.mediaPlayback(node.id).autoplay;
     if(changed&&p==s.history.back())s.invalidate(i);
   }
+  return true;
+}
+bool View::configureSharedMedia(const SharedMediaDesc *policies,size_t count) {
+  auto &s=*impl_;if(!s.project||s.processing||s.down||count>4096||(count&&!policies))return false;
+  std::vector<Impl::SharedMediaPolicy> prepared;prepared.reserve(count);
+  for(size_t at=0;at<count;++at) {
+    const auto &entry=policies[at];
+    if(!entry.groupId||!entry.nodeId||entry.pageIndex>=s.project->count||entry.fps>60)return false;
+    const auto &page=s.project->pages[entry.pageIndex];int node=-1;
+    for(uint16_t i=0;i<page.count;++i)if(page.nodes[i].id==entry.nodeId){node=i;break;}
+    if(node<0||page.nodes[node].kind!=Kind::Media||!page.nodes[node].media||entry.targetFrame>=page.nodes[node].media->frames)return false;
+    for(const auto &previous:prepared) {
+      if(previous.desc.pageIndex==entry.pageIndex&&(previous.desc.groupId==entry.groupId||previous.desc.nodeId==entry.nodeId))return false;
+      if(previous.desc.groupId==entry.groupId&&s.project->pages[previous.desc.pageIndex].nodes[previous.node].media!=page.nodes[node].media)return false;
+    }
+    prepared.push_back({entry,uint16_t(node)});
+  }
+  std::sort(prepared.begin(),prepared.end(),[](const Impl::SharedMediaPolicy &a,const Impl::SharedMediaPolicy &b){return a.desc.groupId<b.desc.groupId||(a.desc.groupId==b.desc.groupId&&a.desc.pageIndex<b.desc.pageIndex);});
+  s.sharedMediaPolicies.swap(prepared);s.sharedMediaCarry.clear();
+  s.enterSharedMedia();
   return true;
 }
 bool View::setMediaFrame(Id id,int32_t frame) {
@@ -3412,10 +4188,22 @@ bool View::setEnabled(Id id,bool enabled){
   auto &s=*impl_;const int i=s.find(id);if(i<0)return false;
   if(bool(!(s.state()[i].flags&Disabled))==enabled)return true;
   const bool nested=s.processing;s.processing=true;++s.inputLayoutEpoch;
-  if(enabled)s.state()[i].flags&=~Disabled;else s.state()[i].flags|=Disabled;s.invalidate(i);
+  if(enabled)s.state()[i].flags&=~Disabled;else s.state()[i].flags|=Disabled;s.invalidateSubtree(i);
+  s.cancelUnavailableEditors();
   if(s.down&&!s.pointerAvailable())pointerCancel();s.ensureInputAvailable();
   if(s.buildKeyboard(s.softInput))s.invalidateKeyboardKeys();
   if(!nested)s.endProcessing();return true;
+}
+bool View::setFocusable(Id id,bool enabled){
+  auto &s=*impl_;const int i=s.find(id);if(i<0)return false;const int8_t wanted=enabled?1:0;if(s.state()[i].focusOverride==wanted)return true;
+  const bool nested=s.processing;s.processing=true;s.state()[i].focusOverride=wanted;++s.inputLayoutEpoch;s.invalidate(i);
+  if(!enabled){
+    for(auto &b:s.behaviors)if(b.page==s.history.back()&&b.open&&b.running&&b.desc.kind==BehaviorKind::Editor&&s.valueTarget(b.desc.target)==i){s.finishBehaviorState(b,false);if(b.closing)s.completeBehaviorClose(b);}
+    if(s.editNode==i){s.editNode=-1;s.setValue(i,s.editValue);s.dispatch(i,EventType::Input);}
+    if(s.softInput.node==i)s.softCancel();
+    if(s.focusNode==i){s.focusScope=s.scopeFor(i);s.focusNode=-1;s.dispatch(i,EventType::Blur);if(s.focusNode<0)s.moveFocus(InputAction::Next);}
+  }
+  s.ensureInputAvailable();if(!nested)s.endProcessing();return true;
 }
 bool View::scrollTo(Id id,int32_t x,int32_t y){Impl &s=*impl_;int i=s.find(id);if(s.inertia.node==i)s.inertia.active=false;if(s.animation.node==i)s.animation.active=false;bool nested=s.processing;s.processing=true;bool r=s.scroll(i,x,y);if(!nested)s.endProcessing();return r;}
 bool View::setPage(Id id,int32_t page){Impl &s=*impl_;int i=s.pageTarget(id);if(s.animation.node==i)s.animation.active=false;bool nested=s.processing;s.processing=true;bool r=s.setPage(i,page,true);if(!nested)s.endProcessing();return r;}
@@ -3430,8 +4218,36 @@ bool View::releasePage(const char *path){auto &s=*impl_;if(!s.project||!path||s.
     s.clearSurfacePage(&s.project->pages[i]);RetainedVector<Impl::State>().swap(s.pages[i]);std::vector<Impl::MotionRuntime>().swap(s.pageMotions[i]);s.pageFocus[i]=0;return true;
   }return false;
 }
-RuntimeStats View::runtimeStats()const{return impl_->stats;}
-void View::resetRuntimeStats(){impl_->stats=RuntimeStats{};}
+RuntimeStats View::runtimeStats()const{
+  const auto &s=*impl_;RuntimeStats result=s.stats;const auto &overlay=s.ppaFade.stats();
+  const auto prefetched=s.jpegPrefetch.stats();
+  result.jpegPrefetchHits=prefetched.hits;result.jpegPrefetchMisses=prefetched.misses;result.jpegPrefetchRequests=prefetched.requests;
+  result.jpegPrefetchDecoded=prefetched.completed;result.jpegPrefetchFailures=prefetched.failures;
+  result.jpegPrefetchDecodeMicros=prefetched.decodeMicros;result.jpegPrefetchBytes=prefetched.outputBytes;
+  result.controlBytes=sizeof(Impl);
+#if NICE_GFX_UI_FIXED_CHROME_PPA
+  result.fixedChromeBytes=s.fixedChromeCache.bytes()+s.fixedChromeKeyScratch.capacity();
+#endif
+#if defined(CONFIG_IDF_TARGET_ESP32S31)
+  result.controlInternal=esp_ptr_internal(impl_);
+#endif
+  result.overlayPreflightMicros=overlay.overlayPreflightMicros;result.overlayDriverMicros=overlay.overlayDriverMicros;
+  result.overlaySyncMicros=overlay.overlaySyncMicros;result.overlayPreflightCalls=overlay.overlayPreflightCalls;
+  result.overlaySyncCalls=overlay.overlaySyncCalls;result.overlaySyncedBytes=overlay.overlaySyncedBytes;
+#if NICE_GFX_UI_SHAPE_OVERLAY_PPA || NICE_GFX_UI_SHAPE_NATIVE_SPANS
+  result.shapeTextureHits=s.shapeOverlayCache.hits()-s.shapeTextureHitsBase;
+  result.shapeTextureMisses=s.shapeOverlayCache.misses()-s.shapeTextureMissesBase;
+  result.shapeTextureEvictions=s.shapeOverlayCache.evictions()-s.shapeTextureEvictionsBase;
+  result.shapeTextureBytes=s.shapeOverlayCache.bytes();
+#endif
+  return result;
+}
+void View::resetRuntimeStats(){auto &s=*impl_;s.stats=RuntimeStats{};s.ppaFade.resetOverlayStats();
+#if NICE_GFX_UI_SHAPE_OVERLAY_PPA || NICE_GFX_UI_SHAPE_NATIVE_SPANS
+  s.shapeTextureHitsBase=s.shapeOverlayCache.hits();s.shapeTextureMissesBase=s.shapeOverlayCache.misses();
+  s.shapeTextureEvictionsBase=s.shapeOverlayCache.evictions();
+#endif
+}
 void View::setProfilingClock(uint32_t (*clock)()){impl_->profilingClock=clock;impl_->refresh->setProfilingClock(clock);}
 bool View::configureRenderBudget(const RenderBudget &budget){
   auto &s=*impl_;if(s.processing||!s.refresh->configurePixelBudget(budget.maxPixelsPerTick))return false;
@@ -3451,13 +4267,14 @@ MemoryStats View::memoryStats()const{const auto &s=*impl_;MemoryStats m;
   };
   m.stateBytes=s.resourceCacheBytes()+(s.compiledStyles?s.compiledStyleLimit*sizeof(Style):0)+sizeof(Impl)+sizeof(*s.refresh)+s.pages.capacity()*sizeof(RetainedVector<Impl::State>)+s.history.capacity()*sizeof(uint16_t)+sizeof(std::vector<Impl::Listener>)+s.listeners->capacity()*sizeof(Impl::Listener)+s.pageFocus.capacity()*sizeof(Id)+stringStorage(s.pendingPath)+s.lookup.capacity()*sizeof(uint16_t)+s.eventPaths.capacity()*sizeof(std::vector<int>);
   for(const auto &path:s.eventPaths)m.stateBytes+=path.capacity()*sizeof(int);
-  m.stateBytes+=s.focusIndex.capacity()*sizeof(size_t)+s.focusItems.capacity()*sizeof(int);
+  m.stateBytes+=s.focusIndex.capacity()*sizeof(size_t)+s.focusItems.capacity()*sizeof(int)+s.menuScrollMotions.capacity()*sizeof(Impl::MenuScrollMotion);
   m.stateBytes+=(s.animationNodes.capacity()+s.mediaNodes.capacity())*sizeof(uint16_t);
   m.stateBytes+=s.pageMotions.capacity()*sizeof(std::vector<Impl::MotionRuntime>);
   for(const auto &poses:s.pageMotions)m.stateBytes+=poses.capacity()*sizeof(Impl::MotionRuntime);
   m.snapshotBytes+=(s.rasterFrame.current.motions.capacity()+s.rasterFrame.preview.motions.capacity()+s.transition.outgoingMotions.capacity()+s.groupMotion.outgoingMotions.capacity())*sizeof(Impl::MotionRuntime);
   m.stateBytes+=s.interactionPolicies.capacity()*sizeof(InteractionDesc);
   m.stateBytes+=s.mediaPolicies.capacity()*sizeof(MediaPlaybackDesc)+s.mediaTweens.capacity()*sizeof(Impl::MediaTween);
+  m.stateBytes+=s.sharedMediaPolicies.capacity()*sizeof(Impl::SharedMediaPolicy)+s.sharedMediaCarry.capacity()*sizeof(Impl::SharedMediaCarry);
   m.stateBytes+=s.componentLinks.capacity()*sizeof(Impl::ComponentLink)+s.componentNodes.capacity()*sizeof(int32_t);
   std::vector<const void *> seen;
   auto payload=[&](const RetainedVector<Impl::State> &items){for(const auto &v:items){
@@ -3471,7 +4288,7 @@ MemoryStats View::memoryStats()const{const auto &s=*impl_;MemoryStats m;
   for(const auto &p:s.pages){if(!p.empty())++m.residentPages;m.residentNodes+=p.size();m.stateBytes+=p.capacity()*sizeof(Impl::State);payload(p);}
   for(const auto *p:{&s.rasterFrame.current.values,&s.rasterFrame.preview.values,&s.transition.outgoing,&s.groupMotion.outgoing}){m.snapshotBytes+=p->capacity()*sizeof(Impl::State);payload(*p);}
   for(const auto &key:s.geometryMemoKey)if(key.dynamic&&std::find(seen.begin(),seen.end(),key.dynamic.get())==seen.end()){seen.push_back(key.dynamic.get());m.payloadBytes+=sizeof(DynamicNode);}
-  m.stateBytes+=s.geometryMemoKey.capacity()*sizeof(Impl::FrameGeometryKey);
+  m.stateBytes+=s.geometryMemoKey.capacity()*sizeof(Impl::FrameGeometryKey)+s.subtreeEndsCapacity*sizeof(uint16_t);
   for(const auto *c:{&s.rasterFrame.current.geometry,&s.rasterFrame.preview.geometry,&s.geometryMemoCache})m.geometryBytes+=c->nodes.capacity()*sizeof(Impl::Geometry)+c->lines.capacity()*sizeof(Impl::TextLine)+c->bands.capacity()*sizeof(uint32_t);
   // Both SoftInput objects themselves are already part of sizeof(Impl).
   for(const auto *k:{&s.softInput,&s.snapshotKeyboard}){m.payloadBytes+=stringStorage(k->draft)+stringStorage(k->error)+stringStorage(k->pressed);if(k->keys&&std::find(seen.begin(),seen.end(),k->keys.get())==seen.end()){seen.push_back(k->keys.get());m.geometryBytes+=sizeof(std::vector<Impl::SoftKey>)+k->keys->capacity()*sizeof(Impl::SoftKey);for(const auto &key:*k->keys)m.payloadBytes+=stringStorage(key.id)+stringStorage(key.label)+stringStorage(key.value)+stringStorage(key.action);}}
@@ -3484,8 +4301,20 @@ MemoryStats View::memoryStats()const{const auto &s=*impl_;MemoryStats m;
   for(const auto &entry:s.compressedSurfaces){m.snapshotBytes+=entry.key.capacity()*sizeof(Impl::State);payload(entry.key);
     const auto &c=entry.geometry;m.geometryBytes+=c.nodes.capacity()*sizeof(Impl::Geometry)+c.lines.capacity()*sizeof(Impl::TextLine)+c.bands.capacity()*sizeof(uint32_t);
   }
-  m.cacheBytes=s.surfacePixels*sizeof(uint16_t);
-  m.tileBytes=s.capacity*s.tileCount*sizeof(uint16_t);m.scratchBytes=(s.underlay.capacity()+s.transitionUnderlay.capacity()+s.mediaRow.capacity())*sizeof(uint16_t)+s.ppaFade.stats().scratchBytes;
+  m.cacheBytes=s.surfacePixels*sizeof(uint16_t)+s.jpegPrefetch.stats().outputBytes;
+#if NICE_GFX_UI_FIXED_CHROME_PPA
+  m.cacheBytes+=s.fixedChromeCache.bytes()+s.fixedChromeKeyScratch.capacity();
+#endif
+#if NICE_GFX_UI_KEYED_MEDIA_PPA
+  m.cacheBytes+=s.keyedMediaPpaCache.bytes();
+#endif
+#if NICE_GFX_UI_SHAPE_OVERLAY_PPA || NICE_GFX_UI_SHAPE_NATIVE_SPANS
+  m.cacheBytes+=s.shapeOverlayCache.bytes();
+#endif
+#if NICE_GFX_UI_TEXT_MASK_PPA || NICE_GFX_UI_TEXT_MASK_NATIVE
+  m.cacheBytes+=s.textMaskCache.bytes();
+#endif
+  m.tileBytes=s.capacity*s.tileCount*sizeof(uint16_t);m.scratchBytes=(s.underlay.capacity()+s.transitionUnderlay.capacity()+s.mediaRow.capacity())*sizeof(uint16_t)+s.ppaFade.stats().scratchBytes+s.jpegCache.stats().outputBytes+s.jpegCache.stats().inputBytes;
 #if defined(CONFIG_IDF_TARGET_ESP32S31) && NICE_GFX_S31_MOTION_TEXTURE_BUDGET > 0
   m.scratchBytes+=s.motionTextureCache.bytes();
 #endif
@@ -3496,11 +4325,11 @@ bool View::playAnimation(Id id){auto &s=*impl_;if(s.transition.active&&(s.transi
 bool View::playAnimation(Id id,uint32_t now){auto &s=*impl_;if(s.transition.active&&(s.transition.phase==Impl::TransitionPhase::Components||s.transition.phase==Impl::TransitionPhase::Exit))return false;return s.startAnimation(s.find(id),now);}
 bool View::stopAnimation(Id id){auto &s=*impl_;if(s.transition.active&&(s.transition.phase==Impl::TransitionPhase::Components||s.transition.phase==Impl::TransitionPhase::Exit))return false;int i=s.find(id);if(i<0)return false;s.invalidateSubtree(i);auto &v=s.state()[i];v.animating=v.animationPending=false;v.animationX=v.animationY=0;v.opacity=255;s.resetMotion(i);s.invalidateSubtree(i);return true;}
 bool View::animationRunning(Id id)const{int i=impl_->find(id);return i>=0&&impl_->state()[i].animating&&impl_->visible(impl_->page(),impl_->state(),i);}
-void View::pointerDown(int32_t x,int32_t y,uint32_t now){auto &s=*impl_;if(s.processing)return;s.setKeyInput(false);if(s.softInput.visible){
+void View::pointerDown(int32_t x,int32_t y,uint32_t now){auto &s=*impl_;if(s.processing||s.behaviorInputBlocked())return;s.processing=true;const bool consumed=s.dismissInputToasts();s.endProcessing();if(consumed)return;s.setKeyInput(false);if(s.softInput.visible){
   s.processing=true;s.releaseKeyboardPointer();s.cancel();++s.inputEpoch;if(s.buildKeyboard(s.softInput))s.invalidateKeyboardKeys();s.keyboardPointer=true;s.keyboardTrackpad=false;s.keyboardSpacePointer=false;s.keyboardPickerPointer=false;s.keyboardPickerVertical=false;s.keyboardFieldPointer=contains(s.softInput.fieldRect,x,y);s.keyboardPointerX=x;s.keyboardPointerY=y;
   s.invalidateKeyboardKey(s.softInput.keyFocus);const int i=s.keyboardFieldPointer?-1:s.keyboardHit(s.softInput,x,y);s.keyboardPressed=i<0?"":(*s.softInput.keys)[i].id;if(i>=0){const bool choice=!s.softInput.picker||i+2<int(s.softInput.keys->size());if(choice)s.softInput.keyFocus=i;else s.invalidateKeyboardKey(i);s.keyboardPickerPointer=s.softInput.picker&&choice;s.keyboardSpacePointer=s.keyboardPressed=="space";}
   if(s.keyboardFieldPointer)s.softPlaceCursor(x);s.keyboardPointerCursor=s.softInput.cursor;s.keyboardPointerCell=s.keyboardCursorCell();s.invalidateKeyboardKey(s.softInput.keyFocus);if(s.keyboardPressed=="backspace")s.beginKeyboardBackspace(now);s.endProcessing();return;
-  }s.keyboardPointer=false;s.keyboardFieldPointer=s.keyboardSpacePointer=s.keyboardTrackpad=s.keyboardPickerPointer=false;if(!s.backAnimation.active&&!s.transition.active&&!s.groupMotion.settling)s.pointerDown(x,y,now);}
+  }s.keyboardPointer=false;s.keyboardFieldPointer=s.keyboardSpacePointer=s.keyboardTrackpad=s.keyboardPickerPointer=false;if(!s.backAnimation.active&&(!s.transition.active||s.sharedNavigationHit(x,y)>=0)&&!s.groupMotion.settling)s.pointerDown(x,y,now);}
 void View::pointerMove(int32_t x,int32_t y,uint32_t now){auto &s=*impl_;if(s.processing)return;if(s.keyboardPointer){
   if(!s.softInput.visible)return;const int32_t dx=x-s.keyboardPointerX,dy=y-s.keyboardPointerY;
   if(s.keyboardPickerPointer&&!s.keyboardSpacePointer){
@@ -3511,17 +4340,18 @@ void View::pointerMove(int32_t x,int32_t y,uint32_t now){auto &s=*impl_;if(s.pro
   if((s.keyboardFieldPointer||s.keyboardSpacePointer)&&!s.keyboardTrackpad&&abs(dx)>=8&&abs(dx)>=abs(dy)){s.keyboardTrackpad=true;s.keyboardPressed.clear();s.invalidateKeyboardKey(s.softInput.keyFocus);}
   if(s.keyboardTrackpad){s.softPointerCursor(dx);return;}if(s.keyboardFieldPointer)return;
   const int i=s.keyboardHit(s.softInput,x,y);if(!s.keyboardPressed.empty()&&(i<0||(*s.softInput.keys)[i].id!=s.keyboardPressed)){s.keyboardBackspaceRepeat=false;s.invalidateKeyboardPressed();s.keyboardPressed.clear();s.keyboardSpacePointer=false;s.invalidateKeyboardKey(s.softInput.keyFocus);}return;
-  }if(!s.backAnimation.active&&!s.transition.active&&!s.groupMotion.settling)s.pointerMove(x,y,now);}
+  }if(!s.backAnimation.active&&(!s.transition.active||(s.sharedComponentDeparture()&&s.down))&&!s.groupMotion.settling)s.pointerMove(x,y,now);}
 void View::pointerUp(int32_t x,int32_t y,uint32_t now){auto &s=*impl_;if(s.processing)return;if(s.keyboardPointer){
   // A final release coordinate can activate the trackpad even without moves.
   pointerMove(x,y,now);s.processing=true;s.keyboardPointer=s.keyboardBackspaceRepeat=s.keyboardBackspacePaused=false;const bool trackpad=s.keyboardTrackpad,field=s.keyboardFieldPointer;s.keyboardFieldPointer=s.keyboardSpacePointer=s.keyboardTrackpad=s.keyboardPickerPointer=false;const int i=s.softInput.visible?s.keyboardHit(s.softInput,x,y):-1;const std::string pressed=s.keyboardPressed;s.invalidateKeyboardPressed();s.keyboardPressed.clear();s.invalidateKeyboardKey(s.softInput.keyFocus);
   if(s.softInput.visible&&!trackpad&&!field&&i>=0&&(*s.softInput.keys)[i].id==pressed&&pressed!="backspace")s.softPress((*s.softInput.keys)[i]);s.endProcessing();return;
-  }if(!s.backAnimation.active&&!s.transition.active&&!s.groupMotion.settling)s.pointerUp(x,y,now);}
+  }if(!s.backAnimation.active&&(!s.transition.active||(s.sharedComponentDeparture()&&s.down))&&!s.groupMotion.settling)s.pointerUp(x,y,now);}
 void View::pointerCancel(){Impl &s=*impl_;bool nested=s.processing;s.processing=true;s.releaseKeyboardPointer();s.cancel(true);if(s.backAnimation.active){s.backAnimation.active=false;s.backOffset=0;s.backPrepared=false;s.refresh->invalidateAll();s.routeEvent(EventType::NavigationCancel,s.page().path,s.project->pages[s.history[s.history.size()-2]].path,RouteAction::Back);}if(!nested)s.endProcessing();}
 void View::stopPointerRepeat(){impl_->keyboardBackspaceRepeat=impl_->keyboardBackspacePaused=false;}
 void View::pausePointerRepeat(bool paused){impl_->keyboardBackspacePaused=paused;}
 Status View::tick(uint32_t now){
   Impl &s=*impl_;if(!s.project)return Status::NotInitialized;if(s.processing)return Status::Busy;
+  s.processing=true;s.advanceBehaviors(now);s.endProcessing();
   // Slow-refresh policy can change at runtime (for example, partial updates
   // disabled for cleanup). Keep its cadence current without adding capability
   // queries to the unchanged immediate/color hot path.
@@ -3584,8 +4414,8 @@ Status View::tick(uint32_t now){
   if(s.down&&!s.canceled&&(!s.coordinated()||!s.defaultsBlocked)&&!s.longPressed&&!s.moved&&s.drag==Impl::Drag::None&&uint32_t(now-s.downAt)>=600){s.processing=true;s.longPressed=true;s.dispatch(s.target,EventType::LongPress);s.endProcessing();}
   const bool departing=s.transition.active&&(s.transition.phase==Impl::TransitionPhase::Components||s.transition.phase==Impl::TransitionPhase::Exit);
   s.ensureTickNodes();
-  if(!departing)s.advanceMediaTweens(now);
-  if(!departing&&!s.displayPolicy.slowRefresh)for(uint16_t i:s.mediaNodes) {
+  if(!departing||s.sharedComponentDeparture())s.advanceMediaTweens(now);
+  if((!departing||s.sharedComponentDeparture())&&!s.displayPolicy.slowRefresh)for(uint16_t i:s.mediaNodes) {
     const MediaDesc *m=s.media(s.page().nodes[i],s.state()[i]);if(!m||m->frames<2||!s.visible(s.page(),s.state(),i))continue;
     auto &v=s.state()[i];if(v.mediaPaused)continue;
     if(v.mediaPending){v.mediaAt=now-uint32_t((uint32_t(v.mediaFrame)*1000+m->fps-1)/m->fps);v.mediaPending=false;}
@@ -3596,6 +4426,7 @@ Status View::tick(uint32_t now){
   if(!departing){s.advanceAnimations(now);}
   s.ensureInputAvailable();
   s.repeatKeyboardBackspace(now);
+  s.processing=true;s.stepMenuMotion(now);s.endProcessing();
   // A failed display must not stop menu timers, callbacks or logical state.
   // Preserve pending damage for recovery and report the physical error without
   // attempting another raster submission against the faulted backend.
@@ -3603,15 +4434,17 @@ Status View::tick(uint32_t now){
   // Slow displays receive the latest logical state after their active waveform
   // completes. Input, callbacks and clocks above remain responsive throughout.
   const bool rasterActive=s.refresh->busy();
-  const bool cadenceReady=!s.displayFrameStarted||!s.displayPolicy.frameIntervalMs||
-    uint32_t(now-s.lastDisplayFrameAt)>=s.displayPolicy.frameIntervalMs;
+  const bool movingFrame=s.menuMoving()||s.behaviorMoving()||s.animationsRunning()||s.transition.active;
+  const uint32_t motionInterval=s.menuMotionConfigured&&movingFrame?(1000u+s.menuMotionConfig.maxFps-1)/s.menuMotionConfig.maxFps:0;
+  const uint32_t frameInterval=std::max(s.displayPolicy.frameIntervalMs,motionInterval);
+  const bool cadenceReady=!s.displayFrameStarted||!frameInterval||uint32_t(now-s.lastDisplayFrameAt)>=frameInterval;
   const bool mayStart=rasterActive||(!s.display.displayRefreshing()&&cadenceReady);
   const bool starting=mayStart&&!rasterActive&&s.refresh->dirty()&&!s.updateDepth;
   Status status=mayStart?s.start():Status::Ok;const bool frameActive=s.refresh->busy();
   if(starting&&status==Status::Ok){s.lastDisplayFrameAt=now;s.displayFrameStarted=true;}
   const uint64_t submitBefore=s.refresh->stats().submitMicros;
   const auto beforeDirect=s.refresh->stats();
-  if(status==Status::Ok)status=s.refresh->step();
+  {Impl::ProfileTimer refreshTimer(s,&RuntimeStats::refreshStepMicros);if(status==Status::Ok)status=s.refresh->step();}
   s.stats.submitMicros+=s.refresh->stats().submitMicros-submitBefore;
   s.stats.directBlits+=s.refresh->stats().directBlits-beforeDirect.directBlits;
   s.stats.directPixels+=s.refresh->stats().directPixels-beforeDirect.directPixels;
@@ -3621,7 +4454,7 @@ Status View::tick(uint32_t now){
     if(timer.expired()||(s.renderBudget.maxPixelsPerTick&&s.stats.renderedTiles!=rasterBefore))++s.stats.budgetDeferrals;
     else s.warmSurfaceTile(now);
   }
-  return status;
+  const Status result=s.mediaDecodeStatus!=Status::Ok?s.mediaDecodeStatus:status;s.mediaDecodeStatus=Status::Ok;return result;
 }
 Status View::finish(){
   Impl &s=*impl_;Status status=s.start();if(status!=Status::Ok)return status;
@@ -3630,9 +4463,9 @@ Status View::finish(){
   s.stats.submitMicros+=after.submitMicros-before.submitMicros;
   s.stats.directBlits+=after.directBlits-before.directBlits;s.stats.directPixels+=after.directPixels-before.directPixels;
   if(frameActive&&!s.refresh->busy()&&status==Status::Ok)s.completedFrame();
-  if(status==Status::Ok){s.settleMotions();s.settleTransition();}s.releaseSnapshot();return status;
+  if(status==Status::Ok){s.settleMotions();s.settleTransition();}s.releaseSnapshot();const Status result=s.mediaDecodeStatus!=Status::Ok?s.mediaDecodeStatus:status;s.mediaDecodeStatus=Status::Ok;return result;
 }
-bool View::busy()const{return impl_->refresh->busy()||impl_->animationsRunning()||impl_->motionsPending()||!impl_->mediaTweens.empty()||impl_->animation.active||impl_->inertia.active||impl_->backAnimation.active||impl_->transition.active||impl_->groupMotion.active;}
+bool View::busy()const{return impl_->refresh->busy()||impl_->animationsRunning()||impl_->motionsPending()||!impl_->mediaTweens.empty()||impl_->animation.active||impl_->inertia.active||impl_->backAnimation.active||impl_->transition.active||impl_->groupMotion.active||impl_->menuMoving()||impl_->behaviorMoving();}
 bool View::refreshing()const{return impl_->display.displayRefreshing()||impl_->refresh->busy();}
 bool View::dirty()const{return impl_->refresh->dirty();}
 void View::invalidate(){impl_->refresh->invalidateAll();}

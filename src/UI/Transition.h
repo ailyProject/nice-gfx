@@ -5,7 +5,7 @@ namespace nice_gfx { namespace htmlui {
 struct TransitionSample { int32_t outX, outY, inX, inY; uint8_t opacity; bool active; };
 struct TransitionPhaseSample { int32_t x, y; uint8_t opacity; bool active; };
 inline bool validTransition(const TransitionDesc &a) {
-  return uint8_t(a.effect)<=uint8_t(TransitionEffect::Fade) &&
+  return uint8_t(a.effect)<=uint8_t(TransitionEffect::Dissolve) && a.grain>=1&&a.grain<=8&&
     uint8_t(a.easing)<=uint8_t(AnimationEasing::EaseInOut) &&
     (a.effect==TransitionEffect::None || (a.duration>=1 && a.duration<=60000));
 }
@@ -16,7 +16,7 @@ inline TransitionSample sampleTransition(const TransitionDesc &a,uint32_t elapse
   const uint32_t progress=elapsed>=a.duration?1024:(elapsed<<10)/a.duration;
   const int32_t q=int32_t(animation_detail::easeQ10(progress,a.easing));
   s.active=elapsed<a.duration;
-  if(a.effect==TransitionEffect::Fade)s.opacity=uint8_t(255*q/1024);
+  if(a.effect==TransitionEffect::Fade||a.effect==TransitionEffect::Dissolve)s.opacity=uint8_t(255*q/1024);
   else {
     const bool vertical=a.effect==TransitionEffect::SlideUp||a.effect==TransitionEffect::SlideDown;
     const int32_t distance=vertical?height:width;
@@ -34,6 +34,14 @@ inline TransitionSample sampleTransition(const TransitionDesc &a,uint32_t elapse
 inline TransitionPhaseSample sampleTransitionPhase(const TransitionDesc &a,uint32_t elapsed,int32_t width,int32_t height,bool entering,bool reverse=false) {
   const TransitionSample s=sampleTransition(a,elapsed,width,height,reverse);
   return {entering?s.inX:s.outX,entering?s.inY:s.outY,
-    uint8_t(!entering&&a.effect==TransitionEffect::Fade?255-s.opacity:s.opacity),s.active};
+    uint8_t(!entering&&(a.effect==TransitionEffect::Fade||a.effect==TransitionEffect::Dissolve)?255-s.opacity:s.opacity),s.active};
+}
+// Stateless spatial random order: stable across tiles/cache/frame cadence and
+// deterministic for replay when the same seed is authored. Grain groups pixels.
+inline bool dissolveIncoming(int32_t x,int32_t y,uint8_t coverage,uint32_t seed,uint8_t grain=1) {
+  if(!coverage)return false;if(coverage==255)return true;
+  uint32_t value=seed^(uint32_t(x/grain)*0x9e3779b9u)^(uint32_t(y/grain)*0x85ebca6bu);
+  value^=value>>16;value*=0x7feb352du;value^=value>>15;value*=0x846ca68bu;value^=value>>16;
+  return (value>>24)<coverage;
 }
 } }

@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <string.h>
 #include "../../Display/Transport.h"
+#include "../Common/Overlay.h"
 #if defined(ESP32) || defined(ARDUINO_ARCH_ESP32) || defined(ESP_PLATFORM)
 #include <soc/soc_caps.h>
 #endif
@@ -17,7 +18,18 @@
 #include <driver/ppa.h>
 #include <esp_cache.h>
 #include <esp_heap_caps.h>
+#include <esp_memory_utils.h>
+#include <esp_idf_version.h>
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6,1,0)
+#include <esp_private/dma2d.h>
+#endif
 #include <esp_timer.h>
+#ifndef NICE_GFX_S31_OVERLAY_DRIVER_CACHE_SYNC
+// IDF 6.1 ppa_do_blend synchronizes the BG/FG extended row windows and
+// invalidates the matching OUT window itself. BG == OUT is supported. Avoid
+// repeating those same cache operations for every small UI overlay.
+#define NICE_GFX_S31_OVERLAY_DRIVER_CACHE_SYNC (ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6,1,0))
+#endif
 #else
 #define NICE_GFX_S31_PPA_BLEND_AVAILABLE 0
 #endif
@@ -26,6 +38,8 @@ namespace nice_gfx { namespace platform { namespace rgb565_ppa {
 struct Stats {
   uint64_t completed=0,driverMicros=0,conversionMicros=0;
   uint64_t copyCompleted=0,copyDriverMicros=0;
+  uint64_t overlayPreflightMicros=0,overlayDriverMicros=0,overlaySyncMicros=0;
+  uint64_t overlayPreflightCalls=0,overlaySyncCalls=0,overlaySyncedBytes=0;
   uint32_t rejected=0,failures=0;
   int lastError=0;
   size_t scratchBytes=0;
@@ -42,6 +56,10 @@ class Context {
   ~Context(){close();}
   static constexpr bool available(){return NICE_GFX_S31_PPA_BLEND_AVAILABLE;}
   const Stats &stats()const{return stats_;}
+  void resetOverlayStats(){
+    stats_.overlayPreflightMicros=stats_.overlayDriverMicros=stats_.overlaySyncMicros=0;
+    stats_.overlayPreflightCalls=stats_.overlaySyncCalls=stats_.overlaySyncedBytes=0;
+  }
   bool blend(uint16_t *foreground,size_t foregroundStride,const uint16_t *background,
              size_t backgroundStride,size_t width,size_t height,uint8_t alpha){
     if(!processNative(foreground,foregroundStride,background,backgroundStride,width,height,alpha))return false;
@@ -147,6 +165,86 @@ class Context {
     const auto sync=esp_cache_msync(region,end-begin,ESP_CACHE_MSYNC_FLAG_DIR_M2C);
     if(sync!=ESP_OK){stats_.lastError=sync;++stats_.failures;return Status::IoError;}
     ++stats_.copyCompleted;stats_.lastError=ESP_OK;return Status::Ok;
+#else
+    return Status::Unsupported;
+#endif
+  }
+  bool canBlendOverlayIntoNative(const NativeFramebuffer &target,int32_t x,int32_t y,const OverlayView &source,
+             size_t sourceX,size_t sourceY,size_t width,size_t height)const{
+#if NICE_GFX_S31_PPA_BLEND_AVAILABLE
+    struct Timer {Stats &stats;int64_t started;
+      ~Timer(){stats.overlayPreflightMicros+=uint64_t(esp_timer_get_time()-started);}} timer{stats_,esp_timer_get_time()};
+    ++stats_.overlayPreflightCalls;
+    if(!target.pixels||!validOverlayRegion(target,x,y,source,sourceX,sourceY,width,height,esp_cache_get_line_size_by_addr(target.pixels)))return false;
+    const auto ram=[](const void *first,size_t bytes){const auto *last=static_cast<const uint8_t *>(first)+bytes-1;
+      return (esp_ptr_external_ram(first)&&esp_ptr_external_ram(last))||(esp_ptr_internal(first)&&esp_ptr_internal(last));};
+    if(!ram(target.pixels,target.stride*target.height*2)||!ram(source.data,source.stride*source.height*overlayPixelBytes(source.format)))return false;
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6,1,0)
+    return dma2d_check_transaction_alignment_constraint(target.pixels,target.stride,width,size_t(x),16)&&
+      dma2d_check_transaction_alignment_constraint(source.data,source.stride,width,sourceX,uint32_t(overlayPixelBytes(source.format)*8));
+#else
+    // Older SDKs do not expose the runtime MSPI/ECC alignment query. Keep a
+    // conservative complete 16-byte window instead of risking DMA rejection.
+    return !((target.stride*2|size_t(x)*2|width*2|source.stride*overlayPixelBytes(source.format)|
+      sourceX*overlayPixelBytes(source.format)|width*overlayPixelBytes(source.format))&15);
+#endif
+#else
+    (void)target;(void)x;(void)y;(void)source;(void)sourceX;(void)sourceY;(void)width;(void)height;return false;
+#endif
+  }
+  // S31 BLEND explicitly permits BG and OUT to share a picture. Keep their
+  // blocks identical and preserve foreground storage until the blocking DMA
+  // completes. Unsupported preflight never touches any destination pixel.
+  Status blendOverlayIntoNative(const NativeFramebuffer &target,int32_t x,int32_t y,const OverlayView &source,
+             size_t sourceX,size_t sourceY,size_t width,size_t height){
+    if(!canBlendOverlayIntoNative(target,x,y,source,sourceX,sourceY,width,height))return Status::Unsupported;
+#if NICE_GFX_S31_PPA_BLEND_AVAILABLE
+    if(!source.alpha)return Status::Ok;
+    if(!client_){ppa_client_config_t config={};config.oper_type=PPA_OPERATION_BLEND;config.max_pending_trans_num=1;
+      config.data_burst_length=NICE_GFX_S31_PPA_BLEND_BURST==128?PPA_DATA_BURST_LENGTH_128:PPA_DATA_BURST_LENGTH_64;
+      const auto error=ppa_register_client(&config,&client_);if(error!=ESP_OK){stats_.lastError=error;++stats_.failures;return Status::Unsupported;}}
+    const size_t outBytes=target.stride*target.height*2;
+#if !NICE_GFX_S31_OVERLAY_DRIVER_CACHE_SYNC
+    const size_t line=esp_cache_get_line_size_by_addr(target.pixels);
+    const size_t begin=(size_t(y)*target.stride*2)&~(line-1),end=((size_t(y)+height)*target.stride*2+line-1)&~(line-1);
+    auto *region=reinterpret_cast<uint8_t *>(target.pixels)+begin;
+    // Whole rows include dirty CPU overlays immediately beside the ROI. Write
+    // them back before DMA and invalidate exactly those owned rows afterwards.
+    auto error=overlaySynchronize(region,end-begin,ESP_CACHE_MSYNC_FLAG_DIR_C2M);
+    if(error==ESP_OK)error=overlaySynchronize(const_cast<uint8_t *>(source.data),source.stride*source.height*overlayPixelBytes(source.format),ESP_CACHE_MSYNC_FLAG_DIR_C2M);
+    if(error!=ESP_OK){stats_.lastError=error;++stats_.failures;return Status::IoError;}
+#else
+    esp_err_t error=ESP_OK;
+#endif
+    ppa_blend_oper_config_t op={};
+    op.in_bg.buffer=target.pixels;op.in_bg.pic_w=target.stride;op.in_bg.pic_h=target.height;
+    op.in_bg.block_w=width;op.in_bg.block_h=height;op.in_bg.block_offset_x=x;op.in_bg.block_offset_y=y;op.in_bg.blend_cm=PPA_BLEND_COLOR_MODE_RGB565;
+    op.bg_alpha_update_mode=PPA_ALPHA_FIX_VALUE;op.bg_alpha_fix_val=255;
+    op.in_fg.buffer=source.data;op.in_fg.pic_w=source.stride;op.in_fg.pic_h=source.height;
+    op.in_fg.block_w=width;op.in_fg.block_h=height;op.in_fg.block_offset_x=sourceX;op.in_fg.block_offset_y=sourceY;
+    op.in_fg.blend_cm=source.format==OverlayFormat::Rgb565?PPA_BLEND_COLOR_MODE_RGB565:
+      source.format==OverlayFormat::Alpha8?PPA_BLEND_COLOR_MODE_A8:PPA_BLEND_COLOR_MODE_ARGB8888;
+    if(source.format==OverlayFormat::Rgb565){op.fg_alpha_update_mode=PPA_ALPHA_FIX_VALUE;op.fg_alpha_fix_val=source.alpha;}
+    else if(source.alpha==255)op.fg_alpha_update_mode=PPA_ALPHA_NO_CHANGE;
+    else {op.fg_alpha_update_mode=PPA_ALPHA_SCALE;
+      // The engine multiplies by an 8-bit factor then shifts by eight. Use
+      // alpha+1 so an opaque (255) texel becomes exactly the requested alpha.
+      op.fg_alpha_scale_ratio=float(overlayAlphaFactor(source.alpha))/256.0f;}
+    const auto rgb=[](uint32_t color){color_pixel_rgb888_data_t value={};value.r=uint8_t(color>>16);value.g=uint8_t(color>>8);value.b=uint8_t(color);return value;};
+    if(source.format==OverlayFormat::Alpha8)op.fg_fix_rgb_val=rgb(overlayRgb565Rgb888(source.color));
+    if(source.colorKey){op.fg_ck_en=true;op.fg_ck_rgb_low_thres=rgb(overlayRgb565Rgb888(source.key));
+      // A 5/6-bit component may expand by zero fill or bit replication. Its
+      // complete RGB888 bucket matches exactly one original RGB565 component.
+      op.fg_ck_rgb_high_thres=rgb(overlayRgb565KeyHigh(source.key));}
+    op.out.buffer=target.pixels;op.out.buffer_size=outBytes;op.out.pic_w=target.stride;op.out.pic_h=target.height;
+    op.out.block_offset_x=x;op.out.block_offset_y=y;op.out.blend_cm=PPA_BLEND_COLOR_MODE_RGB565;op.mode=PPA_TRANS_MODE_BLOCKING;
+    const int64_t started=esp_timer_get_time();error=ppa_do_blend(client_,&op);
+    const uint64_t elapsed=uint64_t(esp_timer_get_time()-started);stats_.driverMicros+=elapsed;stats_.overlayDriverMicros+=elapsed;
+#if !NICE_GFX_S31_OVERLAY_DRIVER_CACHE_SYNC
+    if(error==ESP_OK)error=overlaySynchronize(region,end-begin,ESP_CACHE_MSYNC_FLAG_DIR_M2C);
+#endif
+    if(error!=ESP_OK){stats_.lastError=error;++stats_.failures;return Status::IoError;}
+    stats_.lastError=ESP_OK;++stats_.completed;return Status::Ok;
 #else
     return Status::Unsupported;
 #endif
@@ -320,8 +418,12 @@ class Context {
     stats_.lastError=ESP_OK;++stats_.completed;
   }
 #endif
-  Stats stats_;
+  mutable Stats stats_;
 #if NICE_GFX_S31_PPA_BLEND_AVAILABLE
+  esp_err_t overlaySynchronize(void *pixels,size_t bytes,int flags){
+    const int64_t started=esp_timer_get_time();const esp_err_t result=esp_cache_msync(pixels,bytes,flags);
+    stats_.overlaySyncMicros+=uint64_t(esp_timer_get_time()-started);++stats_.overlaySyncCalls;stats_.overlaySyncedBytes+=bytes;return result;
+  }
   ppa_client_handle_t client_=nullptr;
   ppa_client_handle_t copyClient_=nullptr;
   uint16_t *scratch_=nullptr;

@@ -6,6 +6,7 @@
 
 ## 01_Basics
 
+- [CI130X_SSD1306](01_Basics/CI130X_SSD1306/CI130X_SSD1306.ino)
 - [Hello_Display](01_Basics/Hello_Display/Hello_Display.ino)
 
 ## 02_Graphics

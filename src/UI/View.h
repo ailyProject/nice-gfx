@@ -2,34 +2,47 @@
 #include "../Graphics/Gfx.h"
 #include "Compiled.h"
 #include "Keys.h"
+#include "MenuMotion.h"
+#include "MonochromeEffects.h"
+#include "Behaviors.h"
 #include "Dynamic.h"
 #include "Image.h"
 #include "Components.h"
 #include "Navigation.h"
 #include "Interaction.h"
 #include "MediaPlayback.h"
+#include "JpegDecoder.h"
+#define NICE_GFX_UI_JPEG_MEDIA_VERSION 1
 #define NICE_GFX_UI_MEDIA_PLAYBACK_VERSION 1
 #define NICE_GFX_UI_MEDIA_PLAYBACK_CONFIG_VERSION 1
+#define NICE_GFX_UI_SHARED_MEDIA_VERSION 1
 #define NICE_GFX_UI_INTERACTION_VERSION 1
 #define NICE_GFX_UI_STATS_VERSION 5
 #define NICE_GFX_UI_RESOURCE_CACHE_VERSION 1
 #define NICE_GFX_UI_RENDER_CACHE_VERSION 3
 #define NICE_GFX_UI_CIRCULAR_CLIP_VERSION 1
 #define NICE_GFX_UI_ACTIONS_VERSION 1
+#define NICE_GFX_UI_FOCUS_STYLES_VERSION 1
 #define NICE_GFX_UI_NAVIGATION_VERSION 5
 #define NICE_GFX_UI_SHAPES_VERSION 1
 #define NICE_GFX_UI_TEXT_INPUT_VERSION 1
 #define NICE_GFX_UI_DYNAMIC_IMAGE_VERSION 1
-#define NICE_GFX_UI_COMPONENTS_VERSION 1
+#define NICE_GFX_UI_COMPONENTS_VERSION 2
+#define NICE_GFX_UI_SCROLL_READING_VERSION 1
+#define NICE_GFX_UI_COMPACT_PAGER_VERSION 1
 #define NICE_GFX_UI_MOTION_VERSION 1
 #define NICE_GFX_UI_CHECKED_MEMORY_VERSION 1
 #define NICE_GFX_UI_RENDER_BUDGET_VERSION 1
+#define NICE_GFX_UI_MONO_THEME_VERSION 1
+#define NICE_GFX_UI_DISSOLVE_VERSION 1
+#define NICE_GFX_UI_FOCUSABLE_VERSION 1
 
 namespace nice_gfx { namespace htmlui {
 
 enum class EventType : uint8_t { PointerDown, PointerMove, PointerUp, PointerCancel, Click, Input, Change, LongPress,
   Scroll, PageChange, BeforeNavigate, RouteChange, NavigationCancel, KeyAction, Focus, Blur, Submit, Cancel, AnimationEnd,
-  GestureStart, GestureUpdate, GestureEnd, GestureCancel };
+  GestureStart, GestureUpdate, GestureEnd, GestureCancel,
+  Timer, TaskStart, TaskTick, TaskEnd, EditStart, EditCommit, EditCancel, Shown, Hidden };
 enum class EventPhase : uint8_t { Capture, Target, Bubble };
 struct Event {
   EventType type;
@@ -65,6 +78,26 @@ struct RuntimeStats {
   // conversion; hardware channel rounding can differ from CPU by one step.
   uint64_t ppaBlendCalls=0,ppaBlendPixels=0,ppaBlendMicros=0;
   uint32_t ppaBlendFailures=0;
+  uint64_t keyedGpuBlits=0,shapeGpuBlits=0,textGpuBlits=0;
+  uint64_t fixedChromeBlits=0,fixedChromeNodesSkipped=0,fixedChromeCacheHits=0,fixedChromeCacheMisses=0,fixedChromeBuilds=0;
+  uint64_t fixedChromeRejects=0,fixedChromeBytes=0;
+  uint64_t textNativeBlits=0,shapeNativeBlits=0;
+  uint64_t jpegPrefetchBlits=0,jpegPrefetchHits=0,jpegPrefetchMisses=0,jpegPrefetchRequests=0;
+  uint64_t jpegPrefetchDecoded=0,jpegPrefetchFailures=0,jpegPrefetchDecodeMicros=0,jpegPrefetchBytes=0;
+  uint64_t jpegPrefetchCopyMicros=0;
+  uint64_t shapeResolveMicros=0,shapeCompositeMicros=0,shapeFinishMicros=0;
+  uint64_t animationMicros=0,snapshotMicros=0,framePrepareMicros=0,refreshStepMicros=0;
+  uint64_t subtreeRangeBuilds=0,subtreeRangeHits=0,subtreeRangeFallbacks=0,subtreeVisitedNodes=0,subtreeFullSkips=0;
+  uint64_t textResolveMicros=0,textCompositeMicros=0,textFinishMicros=0;
+  uint64_t textMaskHits=0,textMaskBuilds=0,textMaskRejects=0,textMaskBytes=0;
+  uint64_t textMaskRoiPixels=0,textMaskCompositePixels=0,textMaskBoundsClips=0,textMaskEmptySkips=0;
+  size_t controlBytes=0;
+  bool controlInternal=false;
+  // Overlay driver timing includes SDK-owned synchronization and blocking
+  // DMA wait. Sync timing/count/bytes concern additional library msync only.
+  uint64_t overlayPreflightMicros=0,overlayDriverMicros=0,overlaySyncMicros=0;
+  uint64_t overlayPreflightCalls=0,overlaySyncCalls=0,overlaySyncedBytes=0;
+  uint64_t shapeTextureHits=0,shapeTextureMisses=0,shapeTextureEvictions=0,shapeTextureBytes=0;
   uint64_t geometryReuses=0,textLayoutReuses=0,componentIndexBuilds=0;
   uint64_t tickMicros=0,budgetDeferrals=0;
   uint32_t maxTickMicros=0;
@@ -139,6 +172,7 @@ class View {
   bool onOnce(Id id, EventType event, EventHandler handler, void *context = nullptr, bool capture = false);
   // Click actions run after veto listeners in Coordinated mode; legacy stays additive.
   bool onDefault(Id id, EventType event, EventHandler handler, void *context = nullptr);
+  bool onUi(Id id, EventType event, EventHandler handler, void *context = nullptr);
   bool onScoped(Id id, EventType event, EventHandler handler, void *context = nullptr);
   bool configureInteraction(InteractionVersion version, const InteractionDesc *policies = nullptr, size_t count = 0);
   InteractionVersion interactionVersion() const;
@@ -179,6 +213,12 @@ class View {
   // idle tick; pointer contact pauses it. A one-slot cache temporarily yields
   // the live slot to finish a pending request before restoring the live route.
   bool prewarmRenderCache(const char *path);
+  // Optional startup-only native shape/text/chrome preparation on the UI
+  // owner task after mount(), before input is enabled. Uses an independent
+  // bounded scratch framebuffer; never submits LCD pixels or advances clocks.
+  // Returns false when busy, unsupported, budget-limited or optional allocation
+  // fails. As with other mutators, exception-free STL exhaustion may terminate.
+  bool prewarmNativeResources();
   // Optional idle maintenance, independent of animation sampling. Performs at
   // most one bounded cache tile; never navigates or advances animation clocks.
   // Busy refreshes, pointer contact and transitions defer the work. Call only
@@ -237,10 +277,21 @@ class View {
   // states, snapshots and cache keys release them. Never use mutable RAM here;
   // use setImage/copy/adopt for decoded or downloaded buffers instead.
   Status setMediaResource(Id id, const MediaDesc &resource);
+  // S31/P4 uses the hardware JPEG decoder by default. An optional caller codec
+  // supports other platforms and deterministic host tests; context outlives View.
+  bool configureJpegDecoder(JpegDecodeHandler handler,void *context=nullptr);
+  JpegMediaStats jpegMediaStats() const;
   // Copied sparse node policies. Call after mount; null/zero restores automatic
   // looping. A scrub source and its Media target must belong to the same page.
   // Reconfiguration is rejected during pointer contact or event dispatch.
   bool configureMediaPlayback(const MediaPlaybackDesc *policies, size_t count);
+  // Copied cross-route media policies; install after mount()/playback policies.
+  // Members of one group must share their authored MediaDesc. The first entry
+  // holds its target frame; route changes within the group move from the current
+  // frame to the new target in either direction, then pause. Fast route changes
+  // retarget from the displayed frame. Nonmember entry resets to its target.
+  // Invalid tables leave the active configuration/playback unchanged.
+  bool configureSharedMedia(const SharedMediaDesc *policies, size_t count);
   // Per-node playback, independent of other nodes sharing the same pixels.
   // Frame numbers are zero-based. Invalid frames/durations leave state intact.
   // Seek pauses; timed playback may run backwards and pauses at its target.
@@ -298,15 +349,37 @@ class View {
   bool show(Id id);
   bool hide(Id id);
   bool setEnabled(Id id, bool enabled);
+  bool setFocusable(Id id, bool focusable);
   bool scrollTo(Id id, int32_t x, int32_t y);
   bool setPage(Id id, int32_t index);
   int32_t pageIndex(Id id) const;
   void setEdgeBackEnabled(bool enabled);
   void setSwipeHomeEnabled(bool enabled);
   void configureInput(const InputConfig &config);
+  // Explicit monochrome menu behavior. Configuration is copied, validated and
+  // reset by mount(); existing projects keep legacy focus/scroll behavior.
+  bool configureMenuMotion(const MenuMotionConfig &config);
+  bool setMenuMotionPreset(MenuPreset preset);
+  bool setMenuIndicator(MenuIndicator indicator);
+  bool setLightMode(bool enabled);
+  bool lightMode() const;
+  // Opt-in final-scanout dithering for immediate monochrome displays.
+  // Configuration is reset by mount(); cached surfaces retain RGB565 pixels.
+  bool configureMonochromeEffects(MonochromeEffects effects);
+  bool configureBehaviors(const BehaviorDesc *descriptions,size_t count);
+  bool startBehavior(Id id);
+  bool pauseBehavior(Id id,bool paused);
+  bool finishBehavior(Id id,bool commit=true);
+  bool behaviorRunning(Id id)const;
+  bool setNavigationLimit(uint16_t depth);
+  // Borrowed sorted paint descriptors. Rejected while a raster frame borrows them.
+  bool configureFocusStyles(const FocusStyleDesc *styles, size_t count);
   bool hasKeyBinding(Id key, KeyGesture gesture) const;
   // Physical key entry points reveal focus decoration until the next pointer
   // down. Navigation retains the last input mode; mount starts with it hidden.
+  // Confirm on an overflowing Scroll with no focusable children enters reading:
+  // directions advance one glyph row/column; Confirm or Back returns to focus
+  // navigation before dismissing a modal. Explicit scroll actions retain a 24px step.
   bool inputButton(Id key, KeyGesture gesture, uint32_t now = 0);
   bool inputAction(InputAction action, Id target = 0, const char *route = nullptr, uint32_t now = 0);
   // Programmatic focus preserves the input mode and still emits Focus/Blur.

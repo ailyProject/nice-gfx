@@ -120,8 +120,8 @@ class U8g2Panel:private detail::U8g2NullStorage,public PackedMonoPanel {
     if(!frameOpen_&&dirty_)pending_=true;
     return record(Status::Ok);
   }
-  Status setContrast(uint8_t value){return control(NGFX_U8X8_MSG_DISPLAY_SET_CONTRAST,value);}
-  Status powerSave(bool sleep){return control(NGFX_U8X8_MSG_DISPLAY_SET_POWER_SAVE,sleep?1:0);}
+  Status setContrast(uint8_t value) override {return control(NGFX_U8X8_MSG_DISPLAY_SET_CONTRAST,value);}
+  Status powerSave(bool sleep) override {return control(NGFX_U8X8_MSG_DISPLAY_SET_POWER_SAVE,sleep?1:0);}
   Status poll(uint32_t nowMs)override{
     if(!ready_)return record(Status::NotInitialized);
     if(fault_!=Status::Ok)return fault_;

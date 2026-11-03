@@ -1,5 +1,6 @@
 #pragma once
 #include "Compiled.h"
+#include "DisplayPolicy.h"
 #include <vector>
 #include <memory>
 #include <algorithm>
@@ -93,7 +94,7 @@ template<class Canvas> void instrumentArc(Canvas &c,int x,int y,int radius,int w
 }
 #include "ChartRendering.inc.h"
 
-template<class Canvas> void renderInstrument(Canvas &c,const NodeDesc &n,const InstrumentState &state,int32_t value,Rect r) {
+template<class Canvas> void renderInstrument(Canvas &c,const NodeDesc &n,const InstrumentState &state,int32_t value,Rect r,bool monochrome=false) {
   const auto &a=*n.instrument;const auto &s=n.style;const int fh=s.font->height*s.fontSize;
   c.setAntialiasing(!(n.flags&NoAntialias));
   c.setFont(s.font);c.setTextSize(s.fontSize);c.setTextColor(s.color);c.setTextDatum(TL_DATUM);c.setTextPadding(0);
@@ -105,21 +106,42 @@ template<class Canvas> void renderInstrument(Canvas &c,const NodeDesc &n,const I
     const auto g=spinboxGeometry(r,a);const int button=g.button,cy=r.y+r.height/2,half=std::max(2,std::min(6,button/5));
     if(a.buttonLayout){c.drawRoundRect(g.minusX+4,r.y+4,button-8,r.height-8,2,s.trackColor);c.drawRoundRect(g.plusX+4,r.y+4,button-8,r.height-8,2,s.trackColor);}
     else {c.drawFastVLine(g.minusX+button,r.y+8,std::max<int32_t>(0,r.height-16),s.trackColor);c.drawFastVLine(g.plusX,r.y+8,std::max<int32_t>(0,r.height-16),s.trackColor);}
-    c.fillRect(g.minusX+button/2-half,cy-1,half*2,2,value<=n.minimum?s.trackColor:s.fillColor);
-    const uint16_t plus=value>=n.maximum?s.trackColor:s.fillColor;c.fillRect(g.plusX+button/2-half,cy-1,half*2,2,plus);c.fillRect(g.plusX+button/2-1,cy-half,2,half*2,plus);
+    const uint16_t ink=monochrome?DisplayPolicy::foregroundOn(s.background):s.fillColor;
+    // At a boundary retain the sign's outline rather than using an RGB gray
+    // which quantizes to exactly the same color as an enabled sign.
+    if(monochrome&&value<=n.minimum)c.drawFastHLine(g.minusX+button/2-half,cy,half*2,ink);
+    else c.fillRect(g.minusX+button/2-half,cy-1,half*2,2,value<=n.minimum?s.trackColor:ink);
+    const uint16_t plus=monochrome?ink:value>=n.maximum?s.trackColor:s.fillColor;
+    if(monochrome&&value>=n.maximum){c.drawFastHLine(g.plusX+button/2-half,cy,half*2,plus);c.drawFastVLine(g.plusX+button/2,cy-half,half*2,plus);}
+    else{c.fillRect(g.plusX+button/2-half,cy-1,half*2,2,plus);c.fillRect(g.plusX+button/2-1,cy-half,2,half*2,plus);}
     label(formatted,g.textX,r.y+(r.height-fh)/2,g.textWidth,a.buttonLayout?0:1);return;
   }
   if(n.kind==Kind::Gauge||n.kind==Kind::Ring) {
-    const int cx=r.x+r.width/2,cy=r.y+r.height/2,radius=std::max<int32_t>(1,std::min(r.width,r.height)/2-3),width=std::min(radius,int(a.thickness));
-    instrumentArc(c,cx,cy,radius,width,a.start,a.sweep,s.trackColor);
-    if(a.zoneCount){int begin=0,limit=n.kind==Kind::Ring?fraction(state.visual,a.sweep):a.sweep;for(int i=0;i<a.zoneCount;++i){int end=std::min<int32_t>(limit,fraction(a.zones[i].to,a.sweep));if(end>begin)instrumentArc(c,cx,cy,radius,width,a.start+begin,end-begin,a.zones[i].color,false);begin=end;}if(n.kind==Kind::Ring&&limit>begin)instrumentArc(c,cx,cy,radius,width,a.start+begin,limit-begin,s.fillColor,false);}
+    // Short mono dials keep text outside the arc; scaling glyphs into a tiny hole loses readability.
+    const bool compact=monochrome&&r.height<2*fh+12;const int dialWidth=compact?std::min(r.width,r.height):r.width;
+    const int cx=r.x+dialWidth/2,cy=r.y+r.height/2,radius=std::max<int32_t>(1,std::min<int32_t>(dialWidth,r.height)/2-3),width=std::min(radius,compact?std::min(std::max(3,int(a.thickness)),std::max(3,radius/3)):std::max(monochrome?3:1,int(a.thickness)));
+    const uint16_t ink=monochrome?DisplayPolicy::foregroundOn(s.background):s.color;
+    if(monochrome){
+      // Empty is a hollow band, occupied is solid. Color identity never erases
+      // progress, and all angles are sampled in display coordinates per tile.
+      instrumentArc(c,cx,cy,radius,1,a.start,a.sweep,ink,false);
+      if(radius>width)instrumentArc(c,cx,cy,radius-width+1,1,a.start,a.sweep,ink,false);
+      instrumentArc(c,cx,cy,radius,width,a.start,fraction(state.visual,a.sweep),ink,false);
+    }else instrumentArc(c,cx,cy,radius,width,a.start,a.sweep,s.trackColor);
+    if(!monochrome&&a.zoneCount){int begin=0,limit=n.kind==Kind::Ring?fraction(state.visual,a.sweep):a.sweep;for(int i=0;i<a.zoneCount;++i){int end=std::min<int32_t>(limit,fraction(a.zones[i].to,a.sweep));if(end>begin)instrumentArc(c,cx,cy,radius,width,a.start+begin,end-begin,a.zones[i].color,false);begin=end;}if(n.kind==Kind::Ring&&limit>begin)instrumentArc(c,cx,cy,radius,width,a.start+begin,limit-begin,s.fillColor,false);}
     const int angle=a.start+fraction(state.visual,a.sweep);
-    if(!a.zoneCount)instrumentArc(c,cx,cy,radius,width,a.start,angle-a.start,s.fillColor);
-    for(int i=0;i<a.ticks;++i){int deg=a.start+(a.ticks>1?int(a.sweep)*i/(a.ticks-1):0);c.drawLine(instrumentX(cx,radius-width-3,deg),instrumentY(cy,radius-width-3,deg),instrumentX(cx,radius-width-7,deg),instrumentY(cy,radius-width-7,deg),s.color);}
-    if(n.kind==Kind::Gauge){const int length=std::max(1,radius-width-10);c.fillTriangle(instrumentX(cx,3,angle-90),instrumentY(cy,3,angle-90),instrumentX(cx,3,angle+90),instrumentY(cy,3,angle+90),instrumentX(cx,length,angle),instrumentY(cy,length,angle),s.thumbColor);c.fillCircle(cx,cy,3,s.thumbColor);}
-    instrumentFormat(formatted,sizeof(formatted),state.visual,a.decimals,a.unit);label(formatted,r.x,cy+(n.kind==Kind::Gauge?radius/3:-fh/2),r.width,1);
+    if(!monochrome&&!a.zoneCount)instrumentArc(c,cx,cy,radius,width,a.start,angle-a.start,s.fillColor);
+    const int ticks=compact?std::min<int>(a.ticks,3):a.ticks;for(int i=0;i<ticks;++i){int deg=a.start+(ticks>1?int(a.sweep)*i/(ticks-1):0);c.drawLine(instrumentX(cx,radius-width-(compact?1:3),deg),instrumentY(cy,radius-width-(compact?1:3),deg),instrumentX(cx,radius-width-(compact?3:7),deg),instrumentY(cy,radius-width-(compact?3:7),deg),s.color);}
+    if(n.kind==Kind::Gauge){const int length=std::max(1,radius-width-(compact?1:monochrome?3:10)),hub=compact?2:3;const uint16_t needle=monochrome?ink:s.thumbColor;c.fillTriangle(instrumentX(cx,hub,angle-90),instrumentY(cy,hub,angle-90),instrumentX(cx,hub,angle+90),instrumentY(cy,hub,angle+90),instrumentX(cx,length,angle),instrumentY(cy,length,angle),needle);c.fillCircle(cx,cy,hub,needle);}
+    if(compact){
+      const int x=r.x+dialWidth+4,w=std::max<int32_t>(0,r.x+r.width-x),y=r.y+std::max<int32_t>(0,(r.height-(n.kind==Kind::Gauge?2*fh+2:fh))/2);
+      instrumentFormat(formatted,sizeof(formatted),state.visual,a.decimals,a.unit);label(formatted,x,y,w,0);
+      if(n.kind==Kind::Gauge){char low[40],high[40];instrumentFormat(low,sizeof(low),n.minimum,a.decimals);instrumentFormat(high,sizeof(high),n.maximum,a.decimals);std::snprintf(formatted,sizeof(formatted),"%s-%s",low,high);label(formatted,x,y+fh+2,w,0);}return;
+    }
+    const int valueY=std::min<int>(cy+(n.kind==Kind::Gauge?radius/3:-fh/2),r.y+r.height-fh);
+    instrumentFormat(formatted,sizeof(formatted),state.visual,a.decimals,a.unit);label(formatted,r.x,valueY,r.width,1);
     if(n.kind==Kind::Gauge){instrumentFormat(formatted,sizeof(formatted),n.minimum,a.decimals);label(formatted,r.x,r.y+r.height-fh,r.width/2,0);instrumentFormat(formatted,sizeof(formatted),n.maximum,a.decimals);label(formatted,r.x+r.width/2,r.y+r.height-fh,r.width/2,2);}return;
   }
-  renderChart(c,n,state,r);
+  renderChart(c,n,state,r,monochrome);
 }
 } }

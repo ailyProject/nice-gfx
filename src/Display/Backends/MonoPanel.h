@@ -46,7 +46,8 @@ class MonoPanel : public PackedMonoPanel {
     if(!ready_)return record(Status::NotInitialized);
     const uint8_t value=enabled?0xA7:0xA6;return record(bus_.commands(&value,1));
   }
-  Status setContrast(uint8_t contrast){if(!ready_)return record(Status::NotInitialized);
+  Status powerSave(bool sleep) override {if(!ready_)return record(Status::NotInitialized);if(frameOpen_||busy())return record(Status::Busy);const uint8_t value=sleep?0xAE:0xAF;return record(bus_.commands(&value,1));}
+  Status setContrast(uint8_t contrast) override {if(!ready_)return record(Status::NotInitialized);
     const uint8_t values[]={0x81,contrast};return record(bus_.commands(values,2));}
   Status finish() override {
     if(!ready_)return record(Status::NotInitialized);

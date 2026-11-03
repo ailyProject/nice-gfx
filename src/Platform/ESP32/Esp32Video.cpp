@@ -54,6 +54,22 @@ bool IRAM_ATTR VideoTransport::rgbVsync(esp_lcd_panel_handle_t,
 bool IRAM_ATTR VideoTransport::rgbFrameDone(esp_lcd_panel_handle_t,
                                       const esp_lcd_rgb_panel_event_data_t *,void *context){
   auto &s=*static_cast<VideoTransport*>(context);
+#if NICE_GFX_S31_PIPELINED_FRAMEBUFFERS_AVAILABLE
+  if(s.framePipelined_){
+    const uint32_t sequence=s.pipelineArmed_.load(std::memory_order_acquire);
+    uint32_t previous=s.pipelineAcknowledged_.load(std::memory_order_relaxed);
+    if(!sequence||!s.flipPending_.load(std::memory_order_acquire)||previous==sequence||
+       !s.pipelineAcknowledged_.compare_exchange_strong(previous,sequence,std::memory_order_acq_rel))return false;
+    auto &stamp=s.presentationHistory_[sequence%PresentationHistory];
+    stamp.sequence.store(0,std::memory_order_release);
+    stamp.micros.store(uint32_t(esp_timer_get_time()),std::memory_order_relaxed);
+    stamp.sequence.store(sequence,std::memory_order_release);
+    s.pipelinePublished_.store(sequence,std::memory_order_release);
+    if(s.copyStats_)__atomic_add_fetch(&s.copyStats_->frameSwitches,1u,__ATOMIC_RELAXED);
+    // Publish all ownership/timestamp evidence before waking the producer.
+    return s.frameCompleted_?complete(s.frameCompleted_):false;
+  }
+#endif
   // S31 reports the AXI GDMA link switch; S3 reports the bounce engine's
   // end-of-frame source latch. Both have stopped reading the old framebuffer.
   // S3 submission is serialized against this callback on the interrupt core.
@@ -111,6 +127,9 @@ Status VideoTransport::beginFrame(const DirtyRect *regions,size_t count){
 Status VideoTransport::commitFrame(){
 #if defined(CONFIG_IDF_TARGET_ESP32S31) || defined(CONFIG_IDF_TARGET_ESP32S3)
   if(frameAtomic_){
+#if NICE_GFX_S31_PIPELINED_FRAMEBUFFERS_AVAILABLE
+    if(framePipelined_)return commitPipelineFrame();
+#endif
     const Status s=wait();if(s!=Status::Ok)return s;
     if(!frameOpen_)return result_;
     if(!panel_||!frameCompleted_||flipPending_.load(std::memory_order_acquire))return result_=Status::Busy;
@@ -148,13 +167,20 @@ Status VideoTransport::commitFrame(){
 Status VideoTransport::abortFrame(){
   const Status s=wait();
 #if defined(CONFIG_IDF_TARGET_ESP32S31) || defined(CONFIG_IDF_TARGET_ESP32S3)
-  if(frameAtomic_&&frameOpen_){frameOpen_=frameExplicit_=false;staleFull_=true;staleCount_=0;if(copyStats_)++copyStats_->frameAborts;}
+  if(frameAtomic_&&frameOpen_){
+#if NICE_GFX_S31_PIPELINED_FRAMEBUFFERS_AVAILABLE
+    if(framePipelined_)pipeline_.abort();
+#endif
+    frameOpen_=frameExplicit_=false;staleFull_=true;staleCount_=0;if(copyStats_)++copyStats_->frameAborts;}
 #endif
   return s;
 }
 
 #if defined(CONFIG_IDF_TARGET_ESP32S31) || defined(CONFIG_IDF_TARGET_ESP32S3)
 Status VideoTransport::waitAtomicFlip(){
+#if NICE_GFX_S31_PIPELINED_FRAMEBUFFERS_AVAILABLE
+  if(framePipelined_)return waitPipelineFlip(true);
+#endif
   if(!flipPending_.load(std::memory_order_acquire))return Status::Ok;
   const int64_t started=esp_timer_get_time();
   const bool done=frameCompleted_&&xSemaphoreTake(frameCompleted_,pdMS_TO_TICKS(250))==pdTRUE;
@@ -167,7 +193,11 @@ Status VideoTransport::waitAtomicFlip(){
 }
 Status VideoTransport::inheritAtomicRect(const DirtyRect &r){
   const int64_t started=esp_timer_get_time();
-  const auto *front=rgbFrames_[frontIndex_]+size_t(r.y)*rasterWidth()+size_t(r.x);
+  const uint16_t *base=rgbFrames_[frontIndex_];
+#if NICE_GFX_S31_PIPELINED_FRAMEBUFFERS_AVAILABLE
+  if(framePipelined_)base=pipelineBuffer(pipeline_.latest());
+#endif
+  const auto *front=base+size_t(r.y)*rasterWidth()+size_t(r.x);
   const PixelView view(front,size_t(r.width),size_t(r.height),rasterWidth(),PixelOrder::Native);
 #if SOC_PPA_SUPPORTED
   // Front already contains the panel's channel order. The ordinary PPA copy
@@ -188,10 +218,16 @@ Status VideoTransport::beginAtomicFrame(const DirtyRect *regions,size_t count,bo
   if(bounded)for(size_t i=0;i<count;++i){const auto &r=regions[i];
     if(r.x<0||r.y<0||r.width<=0||r.height<=0||int64_t(r.x)+r.width>rasterWidth()||int64_t(r.y)+r.height>rasterHeight())return Status::InvalidArgument;
   }
+#if NICE_GFX_S31_PIPELINED_FRAMEBUFFERS_AVAILABLE
+  DirtyRect needed[AtomicMaxInherit],next[AtomicMaxInherit];
+  if(framePipelined_)return beginPipelineFrame(regions,bounded?count:0,explicitFrame,needed,next);
+#else
+  DirtyRect needed[AtomicMaxInherit],next[AtomicMaxInherit];
+#endif
   Status s=wait();if(s==Status::Ok)s=waitAtomicFlip();if(s!=Status::Ok)return s;
   frameDamageFull_=!bounded;frameDamageCount_=bounded?count:0;
   for(size_t i=0;i<frameDamageCount_;++i)frameDamage_[i]=regions[i];
-  DirtyRect needed[AtomicMaxInherit],next[AtomicMaxInherit];size_t neededCount=0;
+  size_t neededCount=0;
   const DirtyRect full(0,0,int32_t(rasterWidth()),int32_t(rasterHeight()));
   if(staleFull_)needed[neededCount++]=full;
   else for(size_t i=0;i<staleCount_;++i)needed[neededCount++]=staleDamage_[i];
@@ -219,6 +255,72 @@ Status VideoTransport::beginAtomicFrame(const DirtyRect *regions,size_t count,bo
   frameOpen_=true;frameExplicit_=explicitFrame;return result_=Status::Ok;
 }
 Status VideoTransport::ensureAtomicFrame(){return !frameAtomic_||frameOpen_?Status::Ok:beginAtomicFrame(nullptr,0,false);}
+#endif
+
+uint32_t VideoTransport::presentationSequence()const{
+#if NICE_GFX_S31_PIPELINED_FRAMEBUFFERS_AVAILABLE
+  return framePipelined_?pipelinePublished_.load(std::memory_order_acquire):0;
+#else
+  return 0;
+#endif
+}
+bool VideoTransport::presentationTimestamp(uint32_t sequence,uint32_t &micros)const{
+#if NICE_GFX_S31_PIPELINED_FRAMEBUFFERS_AVAILABLE
+  if(!framePipelined_||!sequence)return false;
+  const auto &stamp=presentationHistory_[sequence%PresentationHistory];
+  if(stamp.sequence.load(std::memory_order_acquire)!=sequence)return false;
+  const uint32_t time=stamp.micros.load(std::memory_order_relaxed);
+  if(stamp.sequence.load(std::memory_order_acquire)!=sequence)return false;
+  micros=time;return true;
+#else
+  (void)sequence;(void)micros;return false;
+#endif
+}
+
+#if NICE_GFX_S31_PIPELINED_FRAMEBUFFERS_AVAILABLE
+Status VideoTransport::waitPipelineFlip(bool block){
+  if(pipeline_.faulted())return result_=Status::IoError;
+  if(!flipPending_.load(std::memory_order_acquire))return Status::Ok;
+  const int64_t started=esp_timer_get_time();
+  const bool done=frameCompleted_&&xSemaphoreTake(frameCompleted_,block?pdMS_TO_TICKS(250):0)==pdTRUE;
+  if(block&&copyStats_)copyStats_->linkWaitMicros+=uint64_t(esp_timer_get_time()-started);
+  if(!done){if(!block)return Status::Ok;if(copyStats_)++copyStats_->linkTimeouts;pipeline_.poison();return result_=Status::IoError;}
+  if(pipelineAcknowledged_.load(std::memory_order_acquire)!=pipeline_.generation()||!pipeline_.acknowledge()){
+    pipeline_.poison();return result_=Status::IoError;
+  }
+  frontIndex_=pipeline_.front();flipPending_.store(false,std::memory_order_release);
+  // A third buffer may already be under CPU paint. Its mapped pointer must
+  // not change when the older pending frame becomes the new displayed front.
+  return result_=Status::Ok;
+}
+Status VideoTransport::beginPipelineFrame(const DirtyRect *regions,size_t count,bool explicitFrame,
+    DirtyRect (&needed)[AtomicMaxInherit],DirtyRect (&next)[AtomicMaxInherit]){
+  Status status=wait();if(status==Status::Ok)status=waitPipelineFlip(false);if(status!=Status::Ok)return status;
+  if(!pipelineThird_||!pipeline_.acquire())return result_=Status::IoError;
+  rgbFramebuffer_=pipelineBuffer(pipeline_.drawing());
+  frameDamageFull_=!count;frameDamageCount_=count;
+  for(size_t i=0;i<count;++i)frameDamage_[i]=regions[i];
+  const DirtyRect full(0,0,int32_t(rasterWidth()),int32_t(rasterHeight()));
+  const size_t inherit=detail::RgbAtomicPipeline::inheritance(full,regions,count,needed,next);
+  for(size_t i=0;i<inherit;++i)if((status=inheritAtomicRect(needed[i]))!=Status::Ok){pipeline_.abort();return status;}
+  frameOpen_=true;frameExplicit_=explicitFrame;return result_=Status::Ok;
+}
+Status VideoTransport::commitPipelineFrame(){
+  Status status=wait();if(status!=Status::Ok)return status;if(!frameOpen_)return result_;
+  // The SDK exposes one pending DMA-link request, not a multi-frame queue.
+  // Only this final submission fence waits; painting used the free third FB.
+  status=waitPipelineFlip(true);if(status!=Status::Ok)return status;
+  if(!panel_||!frameCompleted_||!pipeline_.canSubmit())return result_=Status::Busy;
+  while(xSemaphoreTake(frameCompleted_,0)==pdTRUE){}
+  if(!pipeline_.submit())return result_=Status::Busy;
+  pipelineArmed_.store(pipeline_.generation(),std::memory_order_release);
+  flipPending_.store(true,std::memory_order_release);
+  const esp_err_t error=esp_lcd_panel_draw_bitmap(panel_,0,0,int(rasterWidth()),int(rasterHeight()),rgbFramebuffer_);
+  frameOpen_=frameExplicit_=false;
+  if(error!=ESP_OK){pipeline_.poison();return result_=convert(error);} // Uncertain DMA ownership: never recycle.
+  if(copyStats_)++copyStats_->frameCommits;
+  return result_=Status::Ok;
+}
 #endif
 
 Status VideoTransport::mapNativeFramebuffer(NativeFramebuffer &frame) {
@@ -262,9 +364,17 @@ Status VideoTransport::shutdown() {
     if (s != Status::Ok) return result_ = first == Status::Ok ? s : first;
     panel_ = nullptr; rgbFramebuffer_ = nullptr;
   }
+#if SOC_LCD_RGB_SUPPORTED
+  if(copyStats_){copyStats_->presentationContext=nullptr;copyStats_->presentationSequenceReader=nullptr;copyStats_->presentationTimestampReader=nullptr;}
+#endif
 #if defined(CONFIG_IDF_TARGET_ESP32S31) || defined(CONFIG_IDF_TARGET_ESP32S3)
   frameAtomic_=frameOpen_=frameExplicit_=false;flipPending_.store(false,std::memory_order_release);
   rgbFrames_[0]=rgbFrames_[1]=nullptr;frontIndex_=0;staleFull_=true;staleCount_=frameDamageCount_=0;
+#if NICE_GFX_S31_PIPELINED_FRAMEBUFFERS_AVAILABLE
+  framePipelined_=false;pipelineThird_=nullptr;pipeline_=detail::RgbAtomicPipeline{};
+  pipelineArmed_.store(0);pipelineAcknowledged_.store(0);pipelinePublished_.store(0);
+  for(auto &stamp:presentationHistory_){stamp.sequence.store(0);stamp.micros.store(0);}
+#endif
   if(frameCompleted_){vSemaphoreDelete(frameCompleted_);frameCompleted_=nullptr;}
 #endif
   if (io_) {
@@ -687,15 +797,25 @@ bool VideoTransport::copyWithPpa(int x,int y,PixelView view){
   operation.in.buffer=view.data;operation.in.pic_w=view.stride;operation.in.pic_h=view.height;
   operation.in.block_w=view.width;operation.in.block_h=view.height;operation.in.srm_cm=PPA_SRM_COLOR_MODE_RGB565;
   if(frameAtomic_&&view.order==PixelOrder::Native&&view.stride==rasterWidth()){
-    const uintptr_t begin=reinterpret_cast<uintptr_t>(rgbFrames_[frontIndex_]),source=reinterpret_cast<uintptr_t>(view.data);
-    if(source>=begin&&source-begin<bytes&&!(source&1)){
+    const uintptr_t source=reinterpret_cast<uintptr_t>(view.data);
+    uint8_t buffers=2;
+#if NICE_GFX_S31_PIPELINED_FRAMEBUFFERS_AVAILABLE
+    if(framePipelined_)buffers=3;
+#endif
+    for(uint8_t i=0;i<buffers;++i){const uint16_t *base=rgbFrames_[i<2?i:0];
+#if NICE_GFX_S31_PIPELINED_FRAMEBUFFERS_AVAILABLE
+      if(i==2)base=pipelineThird_;
+#endif
+      const uintptr_t begin=reinterpret_cast<uintptr_t>(base);
+      if(source<begin||source-begin>=bytes||(source&1))continue;
       const size_t offset=(source-begin)/2,sx=offset%rasterWidth(),sy=offset/rasterWidth();
       if(view.width<=rasterWidth()-sx&&view.height<=rasterHeight()-sy){
         // Give the SDK the complete allocation, not an interior pointer whose
         // declared pic_w*pic_h could run past the final cropped scanline.
-        operation.in.buffer=rgbFrames_[frontIndex_];operation.in.pic_w=rasterWidth();operation.in.pic_h=rasterHeight();
+        operation.in.buffer=base;operation.in.pic_w=rasterWidth();operation.in.pic_h=rasterHeight();
         operation.in.block_offset_x=sx;operation.in.block_offset_y=sy;
       }
+      break;
     }
   }
   operation.out.buffer=rgbFramebuffer_;operation.out.buffer_size=bytes;
@@ -856,24 +976,39 @@ Status Esp32Rgb::beginConfigured() {
     if(rgb.flags.refresh_on_demand||rgb.bounce_buffer_size_px)return fail(Status::Unsupported);
 #endif
     rgb.num_fbs=2;rgb.flags.double_fb=false;
+#if NICE_GFX_S31_PIPELINED_FRAMEBUFFERS_AVAILABLE
+    if(ESP_RGB_LCD_PANEL_MAX_FB_NUM>=3)rgb.num_fbs=3;
+#endif
   }
 #else
   if(config_.frameAtomic)return fail(Status::Unsupported);
 #endif
   esp_lcd_panel_handle_t created = nullptr;
-  const esp_err_t error = esp_lcd_new_rgb_panel(&rgb, &created);
+  esp_err_t error = esp_lcd_new_rgb_panel(&rgb, &created);
+#if NICE_GFX_S31_PIPELINED_FRAMEBUFFERS_AVAILABLE
+  // Allocation failure is the only safe automatic downgrade. Other driver
+  // failures retain their original error and must not hide ownership faults.
+  if(error==ESP_ERR_NO_MEM&&rgb.num_fbs==3){rgb.num_fbs=2;created=nullptr;error=esp_lcd_new_rgb_panel(&rgb,&created);}
+#endif
   if (error != ESP_OK) return fail(error);
   if (!created) return fail(Status::Busy);
   panel_ = created; refreshOnDemand_ = config_.rgb.flags.refresh_on_demand;
 #if defined(CONFIG_IDF_TARGET_ESP32S31) || defined(CONFIG_IDF_TARGET_ESP32S3)
   if(config_.frameAtomic){
     frameCompleted_=xSemaphoreCreateBinary();if(!frameCompleted_)return fail(ESP_ERR_NO_MEM);
-    void *first=nullptr,*second=nullptr;
-    const auto acquired=esp_lcd_rgb_panel_get_frame_buffer(panel_,2,&first,&second);
+    void *first=nullptr,*second=nullptr,*third=nullptr;
+    const auto acquired=rgb.num_fbs==3?esp_lcd_rgb_panel_get_frame_buffer(panel_,3,&first,&second,&third):
+      esp_lcd_rgb_panel_get_frame_buffer(panel_,2,&first,&second);
     if(acquired!=ESP_OK)return fail(acquired);
     if(!first||!second||first==second)return fail(Status::InvalidArgument);
     rgbFrames_[0]=static_cast<uint16_t*>(first);rgbFrames_[1]=static_cast<uint16_t*>(second);
     frontIndex_=0;rgbFramebuffer_=rgbFrames_[1];frameAtomic_=true;staleFull_=true;staleCount_=0;
+#if NICE_GFX_S31_PIPELINED_FRAMEBUFFERS_AVAILABLE
+    if(rgb.num_fbs==3){
+      if(!third||third==first||third==second)return fail(Status::InvalidArgument);
+      pipelineThird_=static_cast<uint16_t*>(third);framePipelined_=true;
+    }
+#endif
 #if defined(CONFIG_IDF_TARGET_ESP32S3)
     atomicCore_=xPortGetCoreID();
 #endif
@@ -889,7 +1024,15 @@ Status Esp32Rgb::beginConfigured() {
       rgbFramebuffer_ = static_cast<uint16_t *>(frame);
   }
   copyStats_=config_.copyStats;
-  if(copyStats_)*copyStats_=VideoCopyStats{};
+  if(copyStats_){
+    *copyStats_=VideoCopyStats{};copyStats_->framebufferCount=uint8_t(rgb.num_fbs?rgb.num_fbs:1);
+#if NICE_GFX_S31_PIPELINED_FRAMEBUFFERS_AVAILABLE
+    copyStats_->pipelinedFramebuffers=framePipelined_;
+#endif
+    copyStats_->presentationContext=this;
+    copyStats_->presentationSequenceReader=+[](const void *context){return static_cast<const VideoTransport*>(context)->presentationSequence();};
+    copyStats_->presentationTimestampReader=+[](const void *context,uint32_t sequence,uint32_t &micros){return static_cast<const VideoTransport*>(context)->presentationTimestamp(sequence,micros);};
+  }
   scanStats_=config_.scanStats;if(scanStats_)scanStats_->reset();
 #if SOC_PPA_SUPPORTED && defined(CONFIG_IDF_TARGET_ESP32S31)
   if(initialized==Status::Ok&&rgbFramebuffer_&&config_.usePpa){

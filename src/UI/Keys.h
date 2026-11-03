@@ -7,7 +7,18 @@ enum class KeyGesture : uint8_t { Press, Short, Long, Repeat, None };
 enum class InputAction : uint8_t { None, Previous, Next, Up, Down, Left, Right, Confirm, Back, Home, Push, Replace, Activate, Focus, Increment, Decrement, ScrollPrevious, ScrollNext, PagePrevious, PageNext, Callback };
 struct KeyBinding { uint32_t key; KeyGesture gesture; InputAction action; uint32_t target; const char *route; const char *page; };
 struct FocusDesc { uint32_t id; int16_t order; bool enabled; uint32_t up, down, left, right; };
-struct InputPage { const char *path; uint32_t initial; bool spatial; };
+struct MenuMotionConfig;
+struct InputPage { const char *path; uint32_t initial; bool spatial; const KeyBinding *bindings=nullptr;size_t bindingCount=0; const MenuMotionConfig *menuMotion=nullptr;bool menuPresetOverride=false;bool wrapNavigation=true;uint8_t menuDynamicsOverride=0; };
+#define NICE_GFX_UI_PAGE_INPUT_VERSION 1
+#define NICE_GFX_UI_PAGE_MENU_VERSION 1
+// Sorted by target id, then focused owner id; immutable and borrowed by View.
+enum FocusStyleFlags : uint16_t { FocusBackground=1, FocusColor=2, FocusBorder=4,
+  FocusFill=8, FocusStroke=16, FocusTransparent=32, FocusFillNone=64,
+  FocusStrokeNone=128, FocusActiveBackground=256, FocusActiveTransparent=512 };
+struct FocusStyleDesc {
+  uint32_t target, owner; uint16_t flags;
+  uint16_t background, color, borderColor, fillColor, strokeColor, activeBackground;
+};
 struct InputConfig { const KeyBinding *bindings; size_t count; const FocusDesc *focus; size_t focusCount; const InputPage *pages; size_t pageCount; uint16_t color; uint8_t width; };
 // Allocation-free, wrap-safe and nonblocking. Call from the UI task.
 class KeyInput {

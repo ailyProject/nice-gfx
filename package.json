@@ -9,6 +9,8 @@
     "check": "node tools/check-library.mjs",
     "test": "node tests/run.mjs",
     "test:arduino": "node tests/compile-arduino.mjs",
+    "test:ci13xx": "node tests/ci13xx/run.mjs",
+    "test:arduino:ci130x": "node tests/compile-ci130x.mjs",
     "test:arduino:u8g2": "node tests/compile-arduino.mjs --sketch=tests/hardware/U8g2Smoke",
     "u8g2:fetch": "node tools/sync-u8g2.mjs --fetch",
     "u8g2:generate": "node tools/generate-u8g2.mjs --generate",

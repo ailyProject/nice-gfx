@@ -465,21 +465,30 @@ struct MotionShapeFill {
 };
 
 void paintTransformedNode(int i,Rect clipped,const DirtyRect &area,uint16_t *pixels,size_t stride,uint8_t alpha) {
-  const NodeDesc &n=rasterFrame.current.page->nodes[i];const State &v=rasterFrame.current.values[i];
-  const Style &style=styleFor(*rasterFrame.current.page,rasterFrame.current.values,i);const auto &pose=motionPose(*rasterFrame.current.page,rasterFrame.current.values,i);
+  NodeDesc n=rasterFrame.current.page->nodes[i];const State &v=rasterFrame.current.values[i];
+  Style style=styleFor(*rasterFrame.current.page,rasterFrame.current.values,i);uint16_t paintFlags=v.flags;const auto *focusedStyle=focusStyle(i);applyFocusStyle(focusedStyle,style,paintFlags);
+  ShapeDesc focusedShape{};if(n.shape){focusedShape=*n.shape;applyFocusShape(focusedStyle,focusedShape);n.shape=&focusedShape;}
+  const auto &pose=motionPose(*rasterFrame.current.page,rasterFrame.current.values,i);
   Rect box=poseRect(*rasterFrame.current.page,rasterFrame.current.values,i);box.x+=paintOffsetX;box.y+=paintOffsetY;
   const Rect content=contentBox({0,0,box.width,box.height},style);
   const Rect mask=motion_geometry::reveal({0,0,box.width,box.height},pose.reveal,n.motion->flags);
   const motion_geometry::Inverse inverse(pose.scale,pose.rotation,n.motion->pivotX,n.motion->pivotY,n.kind==Kind::Shape);
   const bool disabled=(v.flags&Disabled)!=0,pressed=i==snapshotPressed;
-  const bool transparent=disabled?(v.flags&DisabledTransparent)!=0:pressed?(v.flags&ActiveTransparent)!=0:(v.flags&Transparent)!=0;
-  const bool gradient=style.gradient&&(disabled?(v.flags&GradientDisabled)!=0:pressed?(v.flags&GradientActive)!=0:true);
+  const bool transparent=disabled?(paintFlags&DisabledTransparent)!=0:pressed?(paintFlags&ActiveTransparent)!=0:(paintFlags&Transparent)!=0;
+  const bool gradient=style.gradient&&(disabled?(paintFlags&GradientDisabled)!=0:pressed?(paintFlags&GradientActive)!=0:!(focusedStyle&&(focusedStyle->flags&FocusBackground)));
   const uint16_t background=disabled?style.disabledColor:pressed?style.pressedColor:style.background;
   const int32_t radius=std::min<int32_t>(style.radius,std::min(box.width,box.height)/2),border=style.borderWidth;
   const MediaDesc *source=n.kind==Kind::Media?media(n,v):nullptr;
+  MediaDesc decodedMedia{};Image::Impl decodedImage(ImageView(),nullptr,nullptr,0);bool jpeg=false;
   const Image::Impl *image=source&&v.imageOverride?v.image.impl_:nullptr;
+  if(source&&mediaJpeg(*source)){
+    JpegDecodeTarget target;if(!decodeJpeg(*source,v.mediaFrame,target,n.id))return;
+    decodedMedia={reinterpret_cast<const uint8_t *>(target.pixels),target.width,target.height,1,1,2};
+    decodedImage.source=ImageView(target.pixels,target.width,target.height,target.capacityBytes,ImageFormat::RGB565,PixelOrder::Native,target.strideBytes);
+    decodedImage.media=decodedMedia;source=&decodedMedia;image=&decodedImage;jpeg=true;
+  }
   size_t sourceStride=source?(image?image->source.strideBytes:mediaStrideBytes(*source)):0;
-  const uint8_t *frame=source?mediaPixels(*source)+size_t(v.mediaFrame)*mediaFrameBytes(*source,sourceStride):nullptr;
+  const uint8_t *frame=source?mediaPixels(*source)+(jpeg?0:size_t(v.mediaFrame)*mediaFrameBytes(*source,sourceStride)):nullptr;
   const bool keyed=source&&mediaColorKeyed(*source);
   const uint16_t colorKey=keyed?(uint16_t(pgm_read_byte(source->pixels))<<8|pgm_read_byte(source->pixels+1)):0;
   const bool plainMedia=source&&content.x==0&&content.y==0&&content.width==box.width&&content.height==box.height;
@@ -487,7 +496,7 @@ void paintTransformedNode(int i,Rect clipped,const DirtyRect &area,uint16_t *pix
   const bool roundedMedia=source&&style.radius&&mediaClip.rounded();
   bool ram=image&&!image->flash;PixelOrder order=image?image->source.order:PixelOrder::Wire;
 #if defined(CONFIG_IDF_TARGET_ESP32S31) && NICE_GFX_S31_MOTION_TEXTURE_BUDGET > 0
-  if(source&&!v.imageOverride&&source->bytesPerPixel==2){
+  if(source&&!image&&source->bytesPerPixel==2){
     if(const uint16_t *texture=motionTextureCache.native(frame,mediaFrameBytes(*source,sourceStride),sourceStride,
         source->width,source->height,order)){
       frame=reinterpret_cast<const uint8_t *>(texture);sourceStride=size_t(source->width)*2;

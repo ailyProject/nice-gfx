@@ -1,0 +1,9 @@
+GfxMonoStrong24: renamed 4-bpp fixed-cell bitmap derivative of RobotoMono-Variable.ttf.
+Source: https://raw.githubusercontent.com/google/fonts/6157dfaa640ca5738b4d1a7070fe389c3036d7fc/ofl/robotomono/RobotoMono%5Bwght%5D.ttf
+Source SHA-256: 66a80e79d17e4c7cabd162e2916578a4cc08fd19eef6e2a643305eae9c567b2b
+Source revision: 6157dfaa640ca5738b4d1a7070fe389c3036d7fc
+Source weight: 700; native em: 24px.
+Cell 16x26; baseline 20; 96 BMP glyphs; ASCII + degree.
+Native-size Edge canvas alpha coverage quantized to 16 levels. Natural source proportions and ink bounds are retained; no horizontal compression or bitmap resampling. Every codepoint was checked against the pinned source cmap; OS fallback is not used. Fixed-cell advance is 16px for every glyph, including punctuation.
+Rebuild: node scripts/reading-fonts/generate.mjs <optional Playwright module path>
+Font software, including these bitmap derivatives, remains under SIL OFL 1.1. Preserve RobotoMono-OFL-1.1.txt. These renamed primary names do not use an upstream Reserved Font Name. Applications may use and embed the fonts commercially; the font software may not be sold by itself.

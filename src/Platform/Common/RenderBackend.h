@@ -1,5 +1,6 @@
 #pragma once
 #include "../../Display/Transport.h"
+#include "Overlay.h"
 
 // Compile-time backend selection lives in Platform. Operations are per region,
 // with no virtual calls in the pixel loop. Unsupported operations leave the
@@ -15,6 +16,8 @@ namespace nice_gfx { namespace platform { namespace render_backend {
 struct Stats {
   uint64_t completed=0,driverMicros=0,conversionMicros=0;
   uint64_t copyCompleted=0,copyDriverMicros=0;
+  uint64_t overlayPreflightMicros=0,overlayDriverMicros=0,overlaySyncMicros=0;
+  uint64_t overlayPreflightCalls=0,overlaySyncCalls=0,overlaySyncedBytes=0;
   uint32_t rejected=0,failures=0;
   int lastError=0;
   size_t scratchBytes=0;
@@ -30,14 +33,21 @@ class Context {
   Context&operator=(const Context&)=delete;
   static constexpr bool available(){return false;}
   const Stats &stats()const{return stats_;}
+  void resetOverlayStats(){
+    stats_.overlayPreflightMicros=stats_.overlayDriverMicros=stats_.overlaySyncMicros=0;
+    stats_.overlayPreflightCalls=stats_.overlaySyncCalls=stats_.overlaySyncedBytes=0;
+  }
   bool blend(uint16_t *,size_t,const uint16_t *,size_t,size_t,size_t,uint8_t){return reject();}
   const uint16_t *blendSourcesToWire(const uint16_t *,size_t,const uint16_t *,size_t,size_t,size_t,uint8_t){reject();return nullptr;}
   const uint16_t *blendSourcesToNative(const uint16_t *,size_t,const uint16_t *,size_t,size_t,size_t,uint8_t){reject();return nullptr;}
+  const uint16_t *blendSourceRegionsToNative(const uint16_t *,size_t,const uint16_t *,size_t,size_t,size_t,size_t,size_t,size_t,uint8_t){reject();return nullptr;}
   bool blendSourcesIntoNative(uint16_t *,size_t,size_t,const uint16_t *,size_t,const uint16_t *,size_t,size_t,size_t,uint8_t){return reject();}
   bool blendSolidIntoNative(uint16_t *,size_t,size_t,const uint16_t *,size_t,size_t,size_t,uint16_t,uint8_t){return reject();}
   Status blendSolidNativeIntoNative(uint16_t *,size_t,size_t,const uint16_t *,size_t,size_t,size_t,uint16_t,uint8_t){reject();return Status::Unsupported;}
   bool canCopyIntoNative(const NativeFramebuffer &,int32_t,int32_t,PixelView,size_t,size_t,size_t,size_t,size_t)const{return false;}
   Status copyIntoNative(const NativeFramebuffer &,int32_t,int32_t,PixelView,size_t,size_t,size_t,size_t,size_t){return Status::Unsupported;}
+  bool canBlendOverlayIntoNative(const NativeFramebuffer &,int32_t,int32_t,const OverlayView &,size_t,size_t,size_t,size_t)const{return false;}
+  Status blendOverlayIntoNative(const NativeFramebuffer &,int32_t,int32_t,const OverlayView &,size_t,size_t,size_t,size_t){return Status::Unsupported;}
   bool close(){return true;}
  private:
   bool reject(){++stats_.rejected;return false;}

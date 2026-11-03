@@ -31,6 +31,8 @@ class Backend {
     frame = NativeFramebuffer(); return Status::Unsupported;
   }
   virtual Status setPixelClockHz(uint32_t) { return Status::Unsupported; }
+  virtual Status powerSave(bool) { return Status::Unsupported; }
+  virtual Status setContrast(uint8_t) { return Status::Unsupported; }
   virtual Status status() const = 0;
   virtual bool asynchronous() const { return false; }
   // busy() concerns source-buffer ownership. Slow physical refresh never

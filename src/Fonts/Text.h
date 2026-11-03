@@ -330,9 +330,9 @@ void textRasterRuns(const TextGlyph &glyph, uint16_t width, uint16_t height,
 #if defined(__GNUC__) || defined(__clang__)
       __attribute__((always_inline))
 #endif
-      -> uint8_t {
+      {
     if (sx < 0 || sy < 0 || sx >= glyph.width || sy >= glyph.height ||
-        uint32_t(sx) >= uint32_t(glyph.stride) * (gray ? 2 : 8)) return 0;
+        uint32_t(sx) >= uint32_t(glyph.stride) * (gray ? 2 : 8)) return uint8_t(0);
     const uint32_t offset = uint32_t(sy) * glyph.stride + (gray ? uint32_t(sx) / 2 : uint32_t(sx) / 8);
     if (offset != cachedOffset) {
       cachedByte = read(glyph.data + offset);

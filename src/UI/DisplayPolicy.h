@@ -3,18 +3,31 @@
 #include "Compiled.h"
 #include <stddef.h>
 
+// Optional footprint profile for applications deployed only to monochrome
+// panels. Keep the generic capability-driven renderer as the default.
+#ifndef NICE_GFX_UI_MONOCHROME_ONLY
+#define NICE_GFX_UI_MONOCHROME_ONLY 0
+#endif
+
 namespace nice_gfx { namespace htmlui {
 
 // UI decisions depend on capabilities, never a controller name. All input,
 // focus, routing and business state remain live while pixels are rate limited.
 struct DisplayPolicy {
+#if NICE_GFX_UI_MONOCHROME_ONLY
+  static constexpr bool monochrome = true;
+#else
   bool monochrome = false;
+#endif
   bool slowRefresh = false;
   uint32_t frameIntervalMs = 0;
 
   static DisplayPolicy from(const DisplayCapabilities &caps) {
     DisplayPolicy result;
-    result.monochrome = caps.monochrome(); result.slowRefresh = caps.slowRefresh();
+#if !NICE_GFX_UI_MONOCHROME_ONLY
+    result.monochrome = caps.monochrome();
+#endif
+    result.slowRefresh = caps.slowRefresh();
     result.frameIntervalMs = caps.recommendedFrameMs;
     if (result.slowRefresh && result.frameIntervalMs < caps.minRefreshMs)
       result.frameIntervalMs = caps.minRefreshMs;

@@ -1,0 +1,9 @@
+GfxAegisAngle48: renamed 4-bpp bitmap derivative of RussoOne-Regular.ttf.
+Copyright (c) 2011-2012, Jovanny Lemonad (jovanny.ru).
+Source SHA256: bc0abcc660bd8b7ad3000ecb2898a27c58a29a50f7ec81652fa12e75148d09df
+Source: https://github.com/google/fonts/blob/main/ofl/russoone/RussoOne-Regular.ttf
+Cell 32x54; baseline 48; native CSS size 48px; 18 glyphs.
+44px cap height; 12-degree right slant; width-constrained fixed-cell outlines; degree scale 0.65.
+U+2212 deliberately reuses the source hyphen outline. No screenshot glyph extraction or OS fallback.
+Rebuild: node scripts/aegis-digits/generate.mjs
+Original and derivative font data remain under SIL OFL 1.1. Preserve RussoOne-OFL.txt.

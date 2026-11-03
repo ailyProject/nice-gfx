@@ -15,6 +15,15 @@
 #if SOC_LCD_RGB_SUPPORTED
 #include "esp_lcd_panel_rgb.h"
 #endif
+#ifndef NICE_GFX_S31_PIPELINED_FRAMEBUFFERS
+#define NICE_GFX_S31_PIPELINED_FRAMEBUFFERS 0
+#endif
+#if NICE_GFX_S31_PIPELINED_FRAMEBUFFERS && defined(CONFIG_IDF_TARGET_ESP32S31) && ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6,1,0)
+#define NICE_GFX_S31_PIPELINED_FRAMEBUFFERS_AVAILABLE 1
+#include "RgbAtomicPipeline.h"
+#else
+#define NICE_GFX_S31_PIPELINED_FRAMEBUFFERS_AVAILABLE 0
+#endif
 #if SOC_PPA_SUPPORTED && defined(CONFIG_IDF_TARGET_ESP32S31)
 #include "driver/ppa.h"
 #endif
@@ -70,8 +79,19 @@ struct VideoCopyStats {
   uint32_t mappedTransfers=0;
   uint64_t inheritedPixels=0,inheritMicros=0,linkWaitMicros=0;
   uint32_t frameCommits=0,frameSwitches=0,frameAborts=0,linkTimeouts=0;
+  uint8_t framebufferCount=1;
+  bool pipelinedFramebuffers=false;
   uint64_t ppaCopyDriverMicros=0,ppaCopySyncMicros=0;
   uint64_t framebufferSyncMicros=0;
+  // Lightweight bridge keeps this diagnostics record normally copyable.
+  // Readers are installed only while the originating transport is alive.
+  const void *presentationContext=nullptr;
+  uint32_t (*presentationSequenceReader)(const void *)=nullptr;
+  bool (*presentationTimestampReader)(const void *,uint32_t,uint32_t &)=nullptr;
+  uint32_t presentationSequence()const{return presentationContext&&presentationSequenceReader?
+    presentationSequenceReader(presentationContext):0;}
+  bool presentationTimestamp(uint32_t sequence,uint32_t &micros)const{return presentationContext&&presentationTimestampReader&&
+    presentationTimestampReader(presentationContext,sequence,micros);}
 };
 struct RgbConfig {
   VideoController controller = VideoController::ST7262;
@@ -139,6 +159,10 @@ class VideoTransport : public FramebufferTransport {
   Status commitFrame() override;
   Status abortFrame() override;
   Status mapNativeFramebuffer(NativeFramebuffer &frame) override;
+  // Actual S31 DMA link publications, independent of accepted submissions.
+  // The opt-in pipeline retains 256 exact ISR timestamps for diagnostics.
+  uint32_t presentationSequence()const;
+  bool presentationTimestamp(uint32_t sequence,uint32_t &micros)const;
   bool busy() const override { return pending_; }
   bool supportsFrameBlit() const override {
 #if defined(CONFIG_IDF_TARGET_ESP32S3)
@@ -189,6 +213,20 @@ class VideoTransport : public FramebufferTransport {
 #endif
   DirtyRect staleDamage_[AtomicMaxDamage],frameDamage_[AtomicMaxDamage];
   size_t staleCount_=0,frameDamageCount_=0;
+#if NICE_GFX_S31_PIPELINED_FRAMEBUFFERS_AVAILABLE
+  bool framePipelined_=false;
+  uint16_t *pipelineThird_=nullptr;
+  detail::RgbAtomicPipeline pipeline_;
+  std::atomic<uint32_t> pipelineArmed_{0},pipelineAcknowledged_{0},pipelinePublished_{0};
+  struct PresentationStamp {std::atomic<uint32_t> sequence{0},micros{0};};
+  static constexpr size_t PresentationHistory=256;
+  PresentationStamp presentationHistory_[PresentationHistory];
+  uint16_t *pipelineBuffer(uint8_t index)const{return index<2?rgbFrames_[index]:index==2?pipelineThird_:nullptr;}
+  Status waitPipelineFlip(bool block);
+  Status beginPipelineFrame(const DirtyRect *regions,size_t count,bool explicitFrame,
+    DirtyRect (&needed)[AtomicMaxInherit],DirtyRect (&next)[AtomicMaxInherit]);
+  Status commitPipelineFrame();
+#endif
 #endif
   uint16_t *rgbFramebuffer_ = nullptr;
 #if SOC_LCD_RGB_SUPPORTED

@@ -7,6 +7,8 @@
 #include <hardware/structs/sio.h>
 #elif defined(ARDUINO_ARCH_AVR)
 #include <avr/interrupt.h>
+#elif defined(ARDUINO_ARCH_CI13XX) && defined(__riscv)
+#include "../CI13XX/Gpio.h"
 #endif
 
 namespace nice_gfx {
@@ -45,6 +47,10 @@ struct FastPin {
     return pin >= 0 && pin < PINS_COUNT;
 #elif defined(ESP8266)
     return pin >= 0 && pin <= 16 && (pin < 6 || pin > 11);
+#elif defined(ARDUINO_ARCH_CI13XX)
+    // CI13XX exposes a constexpr count; some variant indices are unbonded.
+    return pin >= 0 && pin < NUM_DIGITAL_PINS &&
+           (g_APinDescription[pin].capabilities & PIN_CAP_GPIO) != 0;
 #elif defined(NUM_DIGITAL_PINS)
     return pin >= 0 && pin < NUM_DIGITAL_PINS;
 #else
@@ -99,6 +105,14 @@ struct FastPin {
     }
 #elif defined(ESP8266)
     if (pin < 16) { set = &GPOS; clear = &GPOC; mask = uint32_t(1) << pin; }
+#elif defined(ARDUINO_ARCH_CI13XX) && defined(__riscv)
+    if(valid(pin)){
+      const auto &description=g_APinDescription[pin];
+      if(description.port<4&&description.bit<8){
+        mask=uint32_t(1)<<description.bit;
+        set=clear=detail::ci13xxGpioData(description.port,mask);
+      }
+    }
 #elif defined(ARDUINO_ARCH_AVR)
     const uint8_t port = digitalPinToPort(pin);
     if (port != NOT_A_PIN) { port8 = portOutputRegister(port); mask8 = digitalPinToBitMask(pin); }
@@ -117,8 +131,12 @@ struct FastPin {
     }
 #endif
     if (set) {
+#if defined(ARDUINO_ARCH_CI13XX) && defined(__riscv)
+      *set=high?mask:0;
+#else
       if (combined) *set = high ? mask : mask << 16;
       else *(high ? set : clear) = mask;
+#endif
     } else if (number >= 0) digitalWrite(number, high ? HIGH : LOW);
   }
 };

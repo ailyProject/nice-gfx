@@ -70,7 +70,7 @@ The table below describes the backends provided by the current source. Available
 | RP2040, Arduino mbed core | Core SPI, software SPI, GPIO parallel | Uses mbed SPI mappings and the synchronous path |
 | AVR ATmega328P / ATmega2560 | Core SPI, software SPI, GPIO parallel, optimized direct PORT writes | Limited RAM, Flash, and pin count; use basic drawing, short text, and small Sprites within available capacity |
 | SAMD / Renesas | Core SPI, software SPI, GPIO parallel | Generic synchronous path; confirm capabilities for the specific core and board |
-| CI13XX | Core SPI, software SPI, GPIO parallel | The CI1302 core's SPI interface uses a software implementation |
+| [CI13XX / CI130X](docs/CI130X.md) | I2C, core software SPI, GPIO parallel | All supported arduino-ci130x profiles use software SPI up to 4 MHz, without DMA; I2C uses the variant's fixed pins and supports up to 400 kHz |
 | Other Arduino cores | Generic Arduino SPI / GPIO path | Requires compatible GPIO, SPI, Print, and timing interfaces, plus separate compilation validation |
 
 DMA capabilities and resource allocation depend on the actual object; query them with `gfx.asynchronous()`. See [Stm32Spi.h](src/Platform/STM32/Stm32Spi.h) for STM32 mappings and fallback logic, and [Rp2040Spi.h](src/Platform/RP2040/Rp2040Spi.h) and [Rp2040Pio.h](src/Platform/RP2040/Rp2040Pio.h) for the RP2040/RP2350 backends.
