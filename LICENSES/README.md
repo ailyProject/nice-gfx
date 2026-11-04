@@ -1,5 +1,8 @@
 # Bundled license and notice index
 
+The hardware QR control bundles Project Nayuki's QR Code generator in
+`src/UI/qr/`; its [MIT license](qrcodegen/LICENSE) is retained with the source.
+
 This directory indexes the license and notice files already distributed with
 NICE_GFX. It does not grant an additional license or replace the terms in those
 files. Preserve the applicable notices when redistributing their associated

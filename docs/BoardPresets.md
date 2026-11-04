@@ -106,10 +106,10 @@ ready 表示在匹配目标上可构造显示对象；pending 尚需板级适配
 源文件：`nice gfx studio/configs/boards/*.json`。在编辑器目录运行：
 
 ```powershell
-npm.cmd run boards:library:generate
-npm.cmd run boards:library:check
-npm.cmd run runtime:rebuild
-npm.cmd run runtime:check
+pnpm.cmd run boards:library:generate
+pnpm.cmd run boards:library:check
+pnpm.cmd run runtime:rebuild
+pnpm.cmd run runtime:check
 ```
 
 本页、JSON 目录、库预设头和编辑器匹配记录一起生成，请修改源配置或生成器。

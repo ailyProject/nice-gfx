@@ -5,6 +5,7 @@
 #include "MenuMotion.h"
 #include "MonochromeEffects.h"
 #include "Behaviors.h"
+#include "Controls.h"
 #include "Dynamic.h"
 #include "Image.h"
 #include "Components.h"
@@ -38,12 +39,13 @@
 #define NICE_GFX_UI_FOCUSABLE_VERSION 1
 
 namespace nice_gfx { namespace htmlui {
-
 enum class EventType : uint8_t { PointerDown, PointerMove, PointerUp, PointerCancel, Click, Input, Change, LongPress,
   Scroll, PageChange, BeforeNavigate, RouteChange, NavigationCancel, KeyAction, Focus, Blur, Submit, Cancel, AnimationEnd,
   GestureStart, GestureUpdate, GestureEnd, GestureCancel,
   Timer, TaskStart, TaskTick, TaskEnd, EditStart, EditCommit, EditCancel, Shown, Hidden };
+
 enum class EventPhase : uint8_t { Capture, Target, Bubble };
+
 struct Event {
   EventType type;
   EventPhase phase;
@@ -57,10 +59,14 @@ struct Event {
   RouteAction routeAction = RouteAction::None;
   Id component = 0; // Public authoring component containing the target, if any.
   int32_t optionIndex = -1; // Option intent; Click remains cancelable before commit.
+
   void stopPropagation() { propagationStopped = true; }
+
   void stopImmediatePropagation() { immediatePropagationStopped = propagationStopped = true; }
+
   void preventDefault() { if (cancelable) defaultPrevented = true; }
 };
+
 using EventHandler = void (*)(void *context, Event &event);
 using RouteGuard = bool (*)(void *context, const char *from, const char *to, RouteAction action);
 
@@ -106,6 +112,7 @@ struct RuntimeStats {
   uint64_t geometryMicros=0,mediaPaintMicros=0,shapePaintMicros=0,textPaintMicros=0,otherPaintMicros=0;
   uint64_t captureMicros=0,repairMicros=0;
 };
+
 struct RenderCacheStats {
   size_t capacityPages=0, readyPages=0;
   uint64_t hits=0, misses=0, warmedTiles=0;
@@ -119,12 +126,14 @@ struct RenderCacheStats {
   // changes become quiet, or an unused capacity slot, is not warming.
   bool warming=false;
 };
+
 // Capacity-based retained storage estimate; excludes allocator metadata, driver
 // storage and immutable resources in flash. External tile buffers are counted.
 struct MemoryStats {
   size_t residentPages=0, residentNodes=0, stateBytes=0, snapshotBytes=0;
   size_t geometryBytes=0, payloadBytes=0, tileBytes=0, scratchBytes=0;
   size_t cacheBytes=0;
+
   size_t totalBytes() const { return stateBytes+snapshotBytes+geometryBytes+payloadBytes+tileBytes+scratchBytes+cacheBytes; }
 };
 
@@ -152,11 +161,14 @@ class View {
   // construction allocations report NoMemory. Without exceptions, only the
   // outer View/Impl allocations are checked; STL exhaustion may terminate.
   static Status create(NICE_GFX &display, View *&output, size_t tilePixels = 0) noexcept;
+
   static Status create(NICE_GFX &display, uint16_t *first, uint16_t *second,
                        size_t tilePixels, View *&output) noexcept;
+
   ~View();
   View(const View &) = delete;
   View &operator=(const View &) = delete;
+
   // Prepare the new initial page before replacing the mounted state. With
   // exceptions enabled, allocation failure returns NoMemory and retains the
   // old project, live resources and any in-flight frame. Tiles are not copied.
@@ -176,6 +188,7 @@ class View {
   bool onScoped(Id id, EventType event, EventHandler handler, void *context = nullptr);
   bool configureInteraction(InteractionVersion version, const InteractionDesc *policies = nullptr, size_t count = 0);
   InteractionVersion interactionVersion() const;
+
   bool setGesturePolicy(Id id, const GesturePolicy &policy);
   // Request ownership synchronously from PointerDown/Move. Deepest eligible
   // request wins after propagation; mutate only in GestureStart/Update/End.
@@ -230,6 +243,7 @@ class View {
   // Logical layout/cache/input stay square. Changes require an idle view and
   // repaint the panel; other displays retain complete rectangular transfers.
   bool configureCircularClip(bool enabled);
+
   // Up to 64 history entries; push returns false at the limit. Page state is
   // initialized on first visit and retained until released, mount or destruction.
   bool push(const char *path);
@@ -237,10 +251,13 @@ class View {
   // Override the paired page effect for this navigation (None is immediate).
   bool replace(const char *path, const TransitionDesc &transition);
   bool back();
+
   // Return to ProjectDesc::initial and clear navigation history. Page data is
   // retained; route guards and the authored reverse transition still apply.
   bool home();
+
   const char *path() const;
+
   size_t historySize() const;
   // Authored project transition; pointer input is gated until its final frame.
   // A second programmatic navigation returns false while a transition runs.
@@ -262,7 +279,9 @@ class View {
   // required fields may be cleared programmatically. Active drafts are retained.
   // Spinbox text is its caption; read/write the committed number with value().
   bool setText(Id id, const char *text);
+
   const char *text(Id id) const;
+
   // animateSwitch=false restores a Switch pose immediately; other controls
   // retain their normal value semantics. Setters remain silent.
   bool setValue(Id id, int32_t value, bool animateSwitch = true);
@@ -316,7 +335,9 @@ class View {
   // One shared editing session. Text/value always return committed content;
   // draft changes emit Input, confirmation emits Change (if changed) and Submit.
   bool beginTextInput(Id id);
+
   const char *inputDraft() const;
+
   size_t inputCursor() const; // UTF-8 byte offset, always at a character boundary.
   bool inputText(const char *text);
   bool moveInputCursor(int32_t characters);
@@ -329,7 +350,9 @@ class View {
   bool hideTextInput(); // Retains draft until confirmation, cancellation or navigation.
   bool keyboardVisible() const;
   Id inputTarget() const;
+
   const char *inputError() const;
+
   Rect keyboardBounds() const;
   Rect keyboardKeyBounds(const char *key) const;
   // Override every field's keyboard theme until resetKeyboardTheme() restores
@@ -337,6 +360,7 @@ class View {
   void setKeyboardTheme(KeyboardTheme theme);
   void resetKeyboardTheme();
   KeyboardTheme keyboardTheme() const;
+
   // Instrument numbers use integer fixed point: data-decimals=1 means 235 = 23.5.
   // Chart index is chronological. INT32_MIN represents a missing sample.
   bool setChartValue(Id id, uint8_t series, uint16_t index, int32_t value);
@@ -344,6 +368,7 @@ class View {
   bool setChartSeries(Id id, uint8_t series, const int32_t *values, size_t count);
   int32_t chartValue(Id id, uint8_t series, uint16_t index) const;
   bool setVisible(Id id, bool visible);
+
   // show plays a Show/Enter preset; hide delays Hidden until an authored
   // exitAnimation's final raster frame is on the display. setVisible is immediate.
   bool show(Id id);
@@ -363,10 +388,15 @@ class View {
   bool setMenuIndicator(MenuIndicator indicator);
   bool setLightMode(bool enabled);
   bool lightMode() const;
+
   // Opt-in final-scanout dithering for immediate monochrome displays.
   // Configuration is reset by mount(); cached surfaces retain RGB565 pixels.
   bool configureMonochromeEffects(MonochromeEffects effects);
   bool configureBehaviors(const BehaviorDesc *descriptions,size_t count);
+  bool configureControls(const ControlDesc *descriptions,size_t count);
+  // Silent pair assignment. value(id) reads the lower endpoint.
+  bool setRange(Id id,int32_t lower,int32_t upper);
+  int32_t upperValue(Id id) const;
   bool startBehavior(Id id);
   bool pauseBehavior(Id id,bool paused);
   bool finishBehavior(Id id,bool commit=true);
@@ -448,8 +478,9 @@ class View {
   void invalidate();
  private:
   struct Impl;
+
   explicit View(Impl *impl) : impl_(impl) {}
+
   Impl *impl_;
 };
-
 } }
