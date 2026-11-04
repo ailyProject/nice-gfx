@@ -12,7 +12,7 @@ bool sameDynamicStyle(const Style &a,const Style &b) {
   return a.background==b.background&&a.color==b.color&&a.borderColor==b.borderColor&&
     a.trackColor==b.trackColor&&a.fillColor==b.fillColor&&a.thumbColor==b.thumbColor&&
     a.pressedColor==b.pressedColor&&a.disabledColor==b.disabledColor&&
-    a.borderWidth==b.borderWidth&&a.radius==b.radius&&sameCornerRadii(a,b)&&a.fontSize==b.fontSize&&a.textAlign==b.textAlign&&
+    a.borderWidth==b.borderWidth&&a.radius==b.radius&&a.opacity==b.opacity&&sameCornerRadii(a,b)&&a.fontSize==b.fontSize&&a.textAlign==b.textAlign&&
     a.paddingTop==b.paddingTop&&a.paddingRight==b.paddingRight&&a.paddingBottom==b.paddingBottom&&a.paddingLeft==b.paddingLeft&&
     a.trackRadius==b.trackRadius&&a.trackSize==b.trackSize&&a.thumbWidth==b.thumbWidth&&a.thumbHeight==b.thumbHeight&&a.thumbRadius==b.thumbRadius&&
     a.font==b.font&&a.gradient==b.gradient;

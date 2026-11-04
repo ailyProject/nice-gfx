@@ -917,7 +917,7 @@ struct View::Impl {
   std::unique_ptr<Style[]> compiledStyles;
   size_t compiledStyleCount=0;uint16_t compiledStyleLimit=0;bool compiledStyleAttempted=false;
   static bool sameCompiledStyle(const Style &a,const Style &b) {
-    return a.background==b.background&&a.color==b.color&&a.borderColor==b.borderColor&&a.trackColor==b.trackColor&&a.fillColor==b.fillColor&&a.thumbColor==b.thumbColor&&a.pressedColor==b.pressedColor&&a.disabledColor==b.disabledColor&&a.borderWidth==b.borderWidth&&a.radius==b.radius&&sameCornerRadii(a,b)&&a.fontSize==b.fontSize&&a.textAlign==b.textAlign&&a.paddingTop==b.paddingTop&&a.paddingRight==b.paddingRight&&a.paddingBottom==b.paddingBottom&&a.paddingLeft==b.paddingLeft&&a.trackSize==b.trackSize&&a.thumbWidth==b.thumbWidth&&a.thumbHeight==b.thumbHeight&&a.thumbRadius==b.thumbRadius&&a.font==b.font&&a.gradient==b.gradient&&a.trackRadius==b.trackRadius;
+    return a.background==b.background&&a.color==b.color&&a.borderColor==b.borderColor&&a.trackColor==b.trackColor&&a.fillColor==b.fillColor&&a.thumbColor==b.thumbColor&&a.pressedColor==b.pressedColor&&a.disabledColor==b.disabledColor&&a.borderWidth==b.borderWidth&&a.radius==b.radius&&a.opacity==b.opacity&&sameCornerRadii(a,b)&&a.fontSize==b.fontSize&&a.textAlign==b.textAlign&&a.paddingTop==b.paddingTop&&a.paddingRight==b.paddingRight&&a.paddingBottom==b.paddingBottom&&a.paddingLeft==b.paddingLeft&&a.trackSize==b.trackSize&&a.thumbWidth==b.thumbWidth&&a.thumbHeight==b.thumbHeight&&a.thumbRadius==b.thumbRadius&&a.font==b.font&&a.gradient==b.gradient&&a.trackRadius==b.trackRadius;
   }
   uint16_t cacheCompiledStyle(const Style &style) {
     if(resourceCacheBudget||displayPolicy.monochrome||displayPolicy.slowRefresh)return NoParent;
@@ -1019,7 +1019,10 @@ struct View::Impl {
   }
   uint8_t opacity(const PageDesc &p,const RetainedVector<State> &s,int i) const {
     uint32_t result=255;
-    for(int a=i;a>=0;a=s[a].parent==NoParent?-1:s[a].parent)result=result*s[a].opacity/255;
+    for(int a=i;a>=0;a=s[a].parent==NoParent?-1:s[a].parent){
+      result=result*s[a].opacity/255;
+      result=result*styleFor(p,s,a).opacity/255;
+    }
     return uint8_t(result);
   }
   bool startAnimation(int i,uint32_t now,bool pending=false) {
@@ -2130,7 +2133,7 @@ struct View::Impl {
         g.rect=motion_geometry::bounds(g.rect,m.scale,m.rotation,n.motion->pivotX,n.motion->pivotY,v.kind==Kind::Shape);
       }
       // Preserve the original descendant-to-root integer alpha rounding.
-      g.alpha=v.opacity==255&&(v.parent==NoParent||cache.nodes[v.parent].alpha==255)?255:opacity(p,s,i);g.lineCount=0;
+      g.alpha=v.opacity==255&&styleFor(p,s,i).opacity==255&&(v.parent==NoParent||cache.nodes[v.parent].alpha==255)?255:opacity(p,s,i);g.lineCount=0;
       Rect c=intersect(g.rect,g.clip);if(visibleHeight>=0)c=intersect(c,{0,0,p.width,visibleHeight});if(!g.visible||!g.alpha||c.width<=0||c.height<=0)continue;
       prepareText(cache,g,n,v,styleFor(p,s,i));
       const int first=clamp32(c.y/cache.bandHeight,0,31),last=clamp32((c.y+c.height-1)/cache.bandHeight,0,31);

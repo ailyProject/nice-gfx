@@ -15,7 +15,7 @@ namespace nice_gfx { namespace htmlui {
 // Versioned, generated C++ resource ABI. Geometry is page-relative, in physical
 // pixels at PageDesc's target size. Parents precede children. Resource pointers
 // remain valid for the lifetime of the mounted project.
-constexpr uint32_t ResourceVersion = 20;
+constexpr uint32_t ResourceVersion = 21;
 constexpr uint16_t NoParent = 0xffff;
 using Id = uint32_t;
 enum class Kind : uint8_t { Container, Text, Button, Range, Checkbox, Switch, Progress, Scroll, Pager, Label, Icon, Media, Gauge, Ring, LineChart, BarChart, Spinbox, Shape, InputField };
@@ -43,6 +43,7 @@ struct Style {
   const nice_gfx::MonoFont *font;
   const GradientDesc *gradient;
   uint16_t trackRadius = 65535; // auto pill unless ::part(track) overrides it
+  uint8_t opacity = 255; // static node alpha, multiplied with animation and ancestors
   const uint8_t *cornerRadii = nullptr; // optional flash TL, TR, BR, BL; null uses radius
 };
 enum class AnimationEffect : uint8_t { None, FadeIn, FadeOut, SlideLeft, SlideRight, SlideUp, SlideDown, Float, Bounce, Shake, Pulse, Blink, SlideOutLeft, SlideOutRight, SlideOutUp, SlideOutDown };

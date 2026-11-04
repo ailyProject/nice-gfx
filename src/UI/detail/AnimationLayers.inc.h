@@ -29,7 +29,7 @@ bool animationBackground(const Surface &surface,uint16_t root,Rect swept,uint16_
     // Moving outside an ancestor's clip would change the sprite's coverage.
     if(((state.flags&Clip)||scrolling(node.kind))&&
        !animationContains(childBox(p,surface.key,at,bounds),swept))return false;
-    if(state.opacity!=255||node.motion||state.animationX||state.animationY)return false;
+    if(state.opacity!=255||styleFor(p,surface.key,at).opacity!=255||node.motion||state.animationX||state.animationY)return false;
     const bool disabled=(state.flags&Disabled)!=0;
     const bool transparent=disabled?(state.flags&DisabledTransparent)!=0:(state.flags&Transparent)!=0;
     if(transparent||found)continue;
