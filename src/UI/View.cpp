@@ -3221,8 +3221,10 @@ struct View::Impl {
         self.underlay.data(),size_t(clipped.width),size_t(clipped.width),size_t(clipped.height),alpha);
       }
       }
-      if(!self.rotated(*self.rasterFrame.current.page,self.rasterFrame.current.values,self.snapshotFocus<0?0:self.snapshotFocus)&&!self.snapshotMenuEnabled&&!self.foregroundCapture&&self.snapshotInput&&!self.snapshotTransition&&!self.rasterFrame.preview.page&&self.snapshotFocus>=0&&cache.nodes[self.snapshotFocus].inputVisible) {
-        const Geometry &g=cache.nodes[self.snapshotFocus];const Rect r=g.rect,c=intersect(r,g.clip);
+      if(!self.snapshotMenuEnabled&&!self.foregroundCapture&&self.snapshotInput&&!self.snapshotTransition&&!self.rasterFrame.preview.page&&self.snapshotFocus>=0&&cache.nodes[self.snapshotFocus].inputVisible) {
+        if(self.rotated(*self.rasterFrame.current.page,self.rasterFrame.current.values,self.snapshotFocus))self.paintRotatedFocus(self.snapshotFocus,area,pixels,stride);
+      else {
+      const Geometry &g=cache.nodes[self.snapshotFocus];const Rect r=g.rect,c=intersect(r,g.clip);
         self.canvas.setViewport(c.x,c.y,c.width,c.height,false);
         const Style focusStyle=self.styleFor(*self.rasterFrame.current.page,self.rasterFrame.current.values,self.snapshotFocus);
         const int32_t radius=std::min<int32_t>(maxCornerRadius(focusStyle),std::min(r.width,r.height)/2);
@@ -3253,6 +3255,7 @@ struct View::Impl {
                  !(focusStyle.cornerRadii?motionCornerPixel(x-inner.x,y-inner.y,inner.width,inner.height,focusStyle,n+1):inside(x,y,inner,innerCurve)))contrast(x,y);
           }
         }else strokeCornerRect(self.canvas,r,c,focusStyle,self.snapshotFocusWidth,self.snapshotFocusColor);
+      }
       }
       }
       if(fade){

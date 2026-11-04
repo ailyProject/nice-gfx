@@ -91,9 +91,6 @@ void paintRotatedNode(int i,Rect clipped,const DirtyRect &area,uint16_t *pixels,
   // The painter continues to use the original page coordinate system.
   const int32_t oldX=paintOffsetX,oldY=paintOffsetY;paintOffsetX=paintOffsetY=0;
   paintNode(i,source);
-  if(!snapshotMenuEnabled&&snapshotInput&&snapshotFocus==i&&!snapshotTransition){
-    const Style style=styleFor(p,s,i);strokeCornerRect(canvas,poseRect(p,s,i),source,style,snapshotFocusWidth,snapshotFocusColor);
-  }
   paintOffsetX=oldX;paintOffsetY=oldY;canvas.clearTransform();
   if(alpha<255){
     for(int32_t y=0;y<clipped.height;++y)for(int32_t x=0;x<clipped.width;++x){
@@ -104,5 +101,29 @@ void paintRotatedNode(int i,Rect clipped,const DirtyRect &area,uint16_t *pixels,
       const uint16_t color=rgb565_blend::color(foreground,background,alpha);
       pixel=renderOrder==PixelOrder::Wire?rgb565_blend::toWire(color):color;
     }
+  }
+}
+
+// Focus is a final overlay, independent of node alpha and surface captures.
+void paintRotatedFocus(int i,const DirtyRect &area,uint16_t *pixels,size_t stride) {
+  const auto &p=*rasterFrame.current.page;const auto &s=rasterFrame.current.values;
+  const Rect box=poseRect(p,s,i);const Style style=styleFor(p,s,i);
+  const auto matrix=rotationMatrix(p,s,i),inverse=matrix.inverse();
+  Rect target=matrix.bounds(box);target.x+=paintOffsetX;target.y+=paintOffsetY;
+  target=intersect(target,{area.x,area.y,area.width,area.height});
+  for(int32_t y=target.y;y<target.y+target.height;++y)for(int32_t x=target.x;x<target.x+target.width;++x){
+    const double px=x-paintOffsetX+.5,py=y-paintOffsetY+.5;
+    if(!rotatedClipContains(p,s,i,px,py))continue;
+    const auto point=inverse.point(px,py);const int32_t lx=int32_t(floor(point.x))-box.x,ly=int32_t(floor(point.y))-box.y;
+    bool ring=false;
+    for(int n=0;n<snapshotFocusWidth&&2*n<std::min(box.width,box.height);++n){
+      if(motionCornerPixel(lx-n,ly-n,box.width-2*n,box.height-2*n,style,n)&&
+          !motionCornerPixel(lx-n-1,ly-n-1,box.width-2*n-2,box.height-2*n-2,style,n+1)){ring=true;break;}
+    }
+    if(!ring)continue;
+    uint16_t &pixel=pixels[size_t(y-area.y)*stride+size_t(x-area.x)];
+    const uint16_t under=renderOrder==PixelOrder::Wire?rgb565_blend::fromWire(pixel):pixel;
+    const uint16_t color=displayPolicy.monochrome?DisplayPolicy::foregroundOn(under):snapshotFocusColor;
+    pixel=renderOrder==PixelOrder::Wire?rgb565_blend::toWire(color):color;
   }
 }
