@@ -7,7 +7,7 @@ namespace nice_gfx { namespace htmlui { namespace detail {
 
 struct FrameTextLine { size_t begin,end;int32_t width; };
 struct FrameGeometry {
-  Rect rect,clip;
+  Rect rect,clip,visualRect;
   uint32_t lineFirst=0;
   uint16_t lineCount=0,children=0;
   int32_t textY=0;

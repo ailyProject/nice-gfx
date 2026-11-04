@@ -25,22 +25,23 @@ void recognizeCoordinated(int32_t dx,int32_t dy,uint32_t now) {
   // control participate in the same ranking. Explicit claims are candidates.
   for(int a=target;a>=0;a=gestureParent(a)){
     if(horizontal&&allowX&&mediaScrubTarget(a)>=0){if(edge)claimGesture(edge,now);else acquireMediaScrub(a);return;}
-    if(localCandidate(a,horizontal)){acquireOwner(a,page().nodes[a].kind==Kind::Range?Drag::Range:Drag::Custom);return;}
+    if(localCandidate(a,inputHorizontal(a,dx,dy))){acquireOwner(a,page().nodes[a].kind==Kind::Range?Drag::Range:Drag::Custom);return;}
     if(a==pointerClaim&&detail::acceptsAxis(pointerClaimAxis,horizontal)&&policy(a).ownership!=GestureOwnership::Parent){acquireOwner(a,Drag::Custom);return;}
   }
   // Label-associated controls can live outside the target's ancestor path.
-  if(localCandidate(activeControl,horizontal)){acquireOwner(activeControl,page().nodes[activeControl].kind==Kind::Range?Drag::Range:Drag::Custom);return;}
+  if(localCandidate(activeControl,inputHorizontal(activeControl,dx,dy))){acquireOwner(activeControl,page().nodes[activeControl].kind==Kind::Range?Drag::Range:Drag::Custom);return;}
   bool contained=false,chainAllowed=true;
   if(axisAllowed)for(int a=target;a>=0;a=gestureParent(a)){
     if(!scrolling(page().nodes[a].kind))continue;
     const bool axis=page().nodes[a].kind==Kind::Pager||(state()[a].flags&Horizontal);
-    if(axis!=horizontal)continue; // Containment blocks only its own axis.
+    if(axis!=inputHorizontal(a,dx,dy))continue; // Containment blocks only its own axis.
     const auto &p=policy(a);
     if(p.ownership==GestureOwnership::Parent)continue;
     if(!p.navigationChain)chainAllowed=false;
     if(!detail::acceptsAxis(p.axis,horizontal))continue;
     int32_t mx,my;extent(a,mx,my);
-    const int32_t pos=axis?state()[a].scrollX:state()[a].scrollY,maxPos=axis?mx:my,delta=axis?dx:dy;
+    const int32_t pos=axis?state()[a].scrollX:state()[a].scrollY,maxPos=axis?mx:my;
+    const auto local=inputDelta(a,dx,dy);const int32_t delta=int32_t(axis?local.x:local.y);
     if(maxPos>0&&((delta<0&&pos<maxPos)||(delta>0&&pos>0))){acquireOwner(a,page().nodes[a].kind==Kind::Pager?Drag::Pager:Drag::Scroll);return;}
     if(state()[a].flags&OverscrollContain){contained=true;break;}
   }

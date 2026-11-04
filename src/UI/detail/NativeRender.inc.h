@@ -160,6 +160,7 @@ void releaseColdFadeSurface(){
 }
 struct NativeRenderFrame {nice_gfx::NativeFramebuffer frame{};DirtyRect regions[16];uint8_t count=0;};
 bool nativeOpaquePage(const PageDesc &p,const RetainedVector<State> &values) const {
+  if(pageRotated(p))return false;
   for(uint16_t i=0;i<p.count;++i)if(p.nodes[i].motion&&visible(p,values,i)){
     // Only the sampled affine pose requires the Wire565 transform kernel.
     // Completed keyframes, translations, rectangular reveals and opacity use

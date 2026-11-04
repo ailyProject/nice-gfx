@@ -57,6 +57,7 @@ bool animationBackground(const Surface &surface,uint16_t root,Rect swept,uint16_
 }
 const Surface *findAnimationSurface() {
   snapshotAnimationSurface=nullptr;snapshotAnimationLayerCount=0;
+  if(pageRotated(*rasterFrame.current.page))return nullptr;
   if(buildingSurface||snapshotSurface||rasterFrame.preview.page||snapshotPressed>=0||snapshotInput||snapshotKeyboard.visible||
      (snapshotGroupIndex>=0&&snapshotGroup.indicatorHeight)||
      (snapshotTransition&&snapshotPhase!=TransitionPhase::Enter))return nullptr;

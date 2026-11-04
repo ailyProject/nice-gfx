@@ -64,6 +64,7 @@ bool opaqueCoverTransition() const {
     !v.x&&!v.y&&v.width==rasterFrame.current.page->width&&v.height==rasterFrame.current.page->height;
 }
 bool opaqueCoverMedia(const FrameCache &cache,size_t i) const {
+  if(pageRotated(*rasterFrame.current.page))return false;
   const auto &n=rasterFrame.current.page->nodes[i];const auto &g=cache.nodes[i];const auto &value=rasterFrame.current.values[i];
   if(n.kind!=Kind::Media||n.motion||!g.visible||g.alpha!=255)return false;
   const auto &style=styleFor(*rasterFrame.current.page,rasterFrame.current.values,int(i));

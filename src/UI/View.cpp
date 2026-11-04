@@ -4,7 +4,7 @@
 // the compiled UI requires a platform with a full C++ standard library.
 #if !defined(ARDUINO_ARCH_AVR) && !defined(__AVR__)
 #include "CornerRadius.h"
-#include "../Graphics/TileCanvas.h"
+#include "RotationCanvas.h"
 #include "DisplayPolicy.h"
 #include "Animation.h"
 #include "detail/MenuMotion.h"
@@ -362,7 +362,7 @@ struct View::Impl {
   }
   NICE_GFX &display;
   OwnedUiTile first, second;
-  TileCanvas canvas;
+  RotationCanvas canvas;
   RefreshScheduler<16> *refresh;
   size_t capacity;
   size_t tileCount=2;
@@ -1003,7 +1003,10 @@ struct View::Impl {
     for(uint16_t child=i,a=s[i].parent;a!=NoParent;child=a,a=s[a].parent) {if(viewportOverlayRoot(p,child))break;r.x+=s[a].animationX-s[a].scrollX;r.y+=s[a].animationY-s[a].scrollY;}
     return r;
   }
+  #include "detail/RotationRuntime.inc.h"
+
   Rect rect(const PageDesc &p,const RetainedVector<State> &s,int i) const {
+    if(rotated(p,s,i))return rotationMatrix(p,s,i).bounds(poseRect(p,s,i));
     const Rect r=poseRect(p,s,i);if(!p.nodes[i].motion)return r;
     const auto &m=motionPose(p,s,i);return motion_geometry::bounds(r,m.scale,m.rotation,p.nodes[i].motion->pivotX,p.nodes[i].motion->pivotY,s[i].kind==Kind::Shape);
   }
@@ -1012,9 +1015,9 @@ struct View::Impl {
   Rect clip(const PageDesc &p,const RetainedVector<State> &s,int i) const {
     Rect result{0,0,p.width,p.height};
     for(uint16_t child=i,a=s[i].parent;a!=NoParent;child=a,a=s[a].parent)
-      {if(viewportOverlayRoot(p,child))break;if((s[a].flags&Clip)||scrolling(s[a].kind))result=intersect(result,childBox(p,s,a,poseRect(p,s,a)));
-       if(p.nodes[a].motion){const auto &m=motionPose(p,s,a);if(m.reveal<1024)result=intersect(result,motion_geometry::reveal(poseRect(p,s,a),m.reveal,p.nodes[a].motion->flags));}}
-    if(p.nodes[i].motion){const auto &m=motionPose(p,s,i);if(m.reveal<1024&&m.scale==1024&&m.rotation%360==0)result=intersect(result,motion_geometry::reveal(poseRect(p,s,i),m.reveal,p.nodes[i].motion->flags));}
+      {if(viewportOverlayRoot(p,child))break;if((s[a].flags&Clip)||scrolling(s[a].kind))result=intersect(result,rotated(p,s,a)?rotationMatrix(p,s,a).bounds(childBox(p,s,a,poseRect(p,s,a))):childBox(p,s,a,poseRect(p,s,a)));
+       if(p.nodes[a].motion){const auto &m=motionPose(p,s,a);if(m.reveal<1024)result=intersect(result,rotated(p,s,a)?rotationMatrix(p,s,a).bounds(motion_geometry::reveal(poseRect(p,s,a),m.reveal,p.nodes[a].motion->flags)):motion_geometry::reveal(poseRect(p,s,a),m.reveal,p.nodes[a].motion->flags));}}
+    if(p.nodes[i].motion&&!rotated(p,s,i)){const auto &m=motionPose(p,s,i);if(m.reveal<1024&&m.scale==1024&&m.rotation%360==0)result=intersect(result,motion_geometry::reveal(poseRect(p,s,i),m.reveal,p.nodes[i].motion->flags));}
     return result;
   }
   uint8_t opacity(const PageDesc &p,const RetainedVector<State> &s,int i) const {
@@ -1154,13 +1157,15 @@ struct View::Impl {
     for(int level=viewportOverlayLevels;level>=0;--level)for(int i=int(page().count)-1;i>=0;--i)
       if(viewportOverlayDepth(page(),state(),i)==level)
       if((modal<0||descendant(i,modal))&&policy(i).pointerEvents&&visible(page(),state(),i,true)&&opacity(page(),state(),i)>0&&contains(rect(i),px,py)&&contains(clip(page(),state(),i),px,py)) {
-        if(page().nodes[i].motion){const auto &m=motionPose(page(),state(),i);if(!motion_geometry::contains(poseRect(page(),state(),i),m.scale,m.rotation,px,py,m.reveal,page().nodes[i].motion->flags,page().nodes[i].motion->pivotX,page().nodes[i].motion->pivotY,page().nodes[i].kind==Kind::Shape))continue;}
+        if(rotated(page(),state(),i)){if(!rotatedClipContains(page(),state(),i,px+.5,py+.5))continue;}
+        else if(page().nodes[i].motion){const auto &m=motionPose(page(),state(),i);if(!motion_geometry::contains(poseRect(page(),state(),i),m.scale,m.rotation,px,py,m.reveal,page().nodes[i].motion->flags,page().nodes[i].motion->pivotX,page().nodes[i].motion->pivotY,page().nodes[i].kind==Kind::Shape))continue;}
         return i;
       }
     return -1;
   }
   bool nodeContains(int i,int32_t px,int32_t py) const {
     if(i<0||!contains(rect(i),px,py)||!contains(clip(page(),state(),i),px,py))return false;
+    if(rotated(page(),state(),i))return rotatedClipContains(page(),state(),i,px+.5,py+.5);
     if(!page().nodes[i].motion)return true;
     const auto &m=motionPose(page(),state(),i);
     return motion_geometry::contains(poseRect(page(),state(),i),m.scale,m.rotation,px,py,m.reveal,page().nodes[i].motion->flags,page().nodes[i].motion->pivotX,page().nodes[i].motion->pivotY,page().nodes[i].kind==Kind::Shape);
@@ -1223,7 +1228,7 @@ struct View::Impl {
   void reveal(int i) {
     if(revealMenuFocus(i))return;
     for(int child=i,a=parent(i);a>=0;child=a,a=parent(a)){if(viewportOverlayRoot(page(),child))break;if(page().nodes[a].kind==Kind::Scroll) {
-      const Rect r=rect(i),box=contentBox(rect(a),styleFor(page(),state(),a));
+      const Rect r=poseRect(page(),state(),i),box=contentBox(poseRect(page(),state(),a),styleFor(page(),state(),a));
       const int32_t dx=r.x<box.x?r.x-box.x:r.x+r.width>box.x+box.width?r.x+r.width-box.x-box.width:0;
       const int32_t dy=r.y<box.y?r.y-box.y:r.y+r.height>box.y+box.height?r.y+r.height-box.y-box.height:0;
       scroll(a,state()[a].scrollX+dx,state()[a].scrollY+dy);
@@ -1741,11 +1746,13 @@ struct View::Impl {
     return true;
   }
   void range(int i) {
-    const NodeDesc &n=page().nodes[i];const Style &style=styleFor(page(),state(),i);Rect r=contentBox(rect(i),style);
+    const NodeDesc &n=page().nodes[i];const Style &style=styleFor(page(),state(),i);Rect r=contentBox(poseRect(page(),state(),i),style);
+    const auto local=inputPoint(i,x,y),start=inputPoint(i,startX,startY);
+    const int32_t localX=int32_t(local.x),localY=int32_t(local.y);
     const auto geometry=detail::rangeGeometry(r,style,(n.flags&VerticalRange)!=0,true,state()[i].value,n.minimum,n.maximum);
-    const int32_t length=geometry.length,px=geometry.coordinate(r,x,y,rangeGrabOffset);
+    const int32_t length=geometry.length,px=geometry.coordinate(r,localX,localY,rangeGrabOffset);
     const int64_t span=int64_t(n.maximum)-n.minimum;
-    const int32_t delta=geometry.vertical?startY-y:x-startX;
+    const int32_t delta=int32_t(geometry.vertical?start.y-local.y:local.x-start.x);
     const int64_t raw=rangeThumbContact?int64_t(startValue)+span*delta/length:int64_t(n.minimum)+span*px/length;
     int32_t next=normalized(i,int32_t(std::max<int64_t>(n.minimum,std::min<int64_t>(n.maximum,raw))));
     if(next!=state()[i].value) { state()[i].value=next;changed=true;invalidate(i);dispatch(i,EventType::Input); }
@@ -1767,10 +1774,12 @@ struct View::Impl {
     rangeGrabOffset=0;rangeThumbContact=false;
     if(activeControl>=0) startValue=state()[activeControl].value;
     if(activeControl>=0&&page().nodes[activeControl].kind==Kind::Range) {
-      const NodeDesc &n=page().nodes[activeControl];const Style &style=styleFor(page(),state(),activeControl);const Rect r=contentBox(rect(activeControl),style);
+      const NodeDesc &n=page().nodes[activeControl];const Style &style=styleFor(page(),state(),activeControl);const Rect r=contentBox(poseRect(page(),state(),activeControl),style);
+      const auto point=inputPoint(activeControl,x,y);
+      const int32_t localX=int32_t(point.x),localY=int32_t(point.y);
       const auto geometry=detail::rangeGeometry(r,style,(n.flags&VerticalRange)!=0,true,startValue,n.minimum,n.maximum);
-      rangeThumbContact=contains(geometry.thumb,x,y);
-      if(rangeThumbContact)rangeGrabOffset=geometry.vertical?y-(geometry.thumb.y+geometry.thumb.height/2):x-(geometry.thumb.x+geometry.thumb.width/2);
+      rangeThumbContact=contains(geometry.thumb,localX,localY);
+      if(rangeThumbContact)rangeGrabOffset=geometry.vertical?localY-(geometry.thumb.y+geometry.thumb.height/2):localX-(geometry.thumb.x+geometry.thumb.width/2);
     }
     for(int a=target;a>=0;a=gestureParent(a)) {
       const uint16_t f=state()[a].flags;
@@ -1831,19 +1840,19 @@ struct View::Impl {
         else { routeEvent(EventType::NavigationCancel,from,to,RouteAction::Back);allowX=false; }
       }
       else if(horizontal&&allowX&&[&](){for(int a=target;a>=0;a=gestureParent(a))if(mediaScrubTarget(a)>=0){acquireMediaScrub(a);return true;}return false;}()) {}
-      else if(activeControl>=0&&page().nodes[activeControl].kind==Kind::Range&&horizontal==!(page().nodes[activeControl].flags&VerticalRange)&&!canceled) { drag=Drag::Range;owner=activeControl; }
+      else if(activeControl>=0&&page().nodes[activeControl].kind==Kind::Range&&inputHorizontal(activeControl,dx,dy)==!(page().nodes[activeControl].flags&VerticalRange)&&!canceled) { drag=Drag::Range;owner=activeControl; }
       else if((horizontal&&allowX)||(!horizontal&&allowY)) {
         bool contained=false;
         for(int a=target;a>=0;a=gestureParent(a)) {
           if(!scrolling(page().nodes[a].kind)) continue;
           const bool axis=page().nodes[a].kind==Kind::Pager||(state()[a].flags&Horizontal);
           int32_t mx,my;extent(a,mx,my);
-          const int32_t pos=axis?state()[a].scrollX:state()[a].scrollY,maxPos=axis?mx:my,delta=axis?dx:dy;
-          if(axis==horizontal&&maxPos>0&&((delta<0&&pos<maxPos)||(delta>0&&pos>0)||(state()[a].flags&OverscrollContain))) {
+          const int32_t pos=axis?state()[a].scrollX:state()[a].scrollY,maxPos=axis?mx:my,delta=int32_t(axis?inputDelta(a,dx,dy).x:inputDelta(a,dx,dy).y);
+          if(axis==inputHorizontal(a,dx,dy)&&maxPos>0&&((delta<0&&pos<maxPos)||(delta>0&&pos>0)||(state()[a].flags&OverscrollContain))) {
             owner=a;drag=page().nodes[a].kind==Kind::Pager?Drag::Pager:Drag::Scroll;
             startScrollX=state()[a].scrollX;startScrollY=state()[a].scrollY;cancelTarget();break;
           }
-          if(axis==horizontal&&(state()[a].flags&OverscrollContain))contained=true;
+          if(axis==inputHorizontal(a,dx,dy)&&(state()[a].flags&OverscrollContain))contained=true;
           if(state()[a].flags&OverscrollContain) break;
         }
         if(drag==Drag::None&&!contained&&down&&contactModal<0) {
@@ -1876,7 +1885,7 @@ struct View::Impl {
     if(coordinated()&&(!defaultMove||defaultsBlocked)){endProcessing();return;}
     if(drag==Drag::Media)updateMediaScrub(dx);
     else if(drag==Drag::Range) range(owner);
-    else if(drag==Drag::Scroll||drag==Drag::Pager) scroll(owner,startScrollX-dx,startScrollY-dy);
+    else if(drag==Drag::Scroll||drag==Drag::Pager){const auto local=inputPoint(owner,x,y),start=inputPoint(owner,startX,startY);scroll(owner,startScrollX-int32_t(local.x-start.x),startScrollY-int32_t(local.y-start.y));}
     else if(drag==Drag::Back) { backOffset=clamp32(dx,0,page().width);refresh->invalidateAll(); }
     else if(groupMotion.active&&(drag==Drag::Group||drag==Drag::Gesture)) {
       const int32_t delta=groupMotion.vertical?dy:dx,distance=motionDistance();
@@ -1930,12 +1939,14 @@ struct View::Impl {
       if(owner<0)owner=interruptedPager;
       const int32_t w=pagerStride(owner);
       int32_t index=(state()[owner].scrollX+w/2)/w;
-      if(uint32_t(now-lastAt)<=150&&abs(velocityX)>400)index=state()[owner].value+(velocityX<0?1:-1);
+      const int32_t velocity=int32_t(inputDelta(owner,velocityX,velocityY).x);
+      if(uint32_t(now-lastAt)<=150&&abs(velocity)>400)index=state()[owner].value+(velocity<0?1:-1);
       int32_t mx,my;extent(owner,mx,my);index=clamp32(index,0,(mx+w-1)/w);
       if(displayPolicy.slowRefresh)setPage(owner,index,true);
       else animation={owner,state()[owner].scrollX,index*w,index,now,true};
     } else if(drag==Drag::Scroll) {
-      int32_t speed=(state()[owner].flags&Horizontal)?velocityX:velocityY;
+      const auto velocity=inputDelta(owner,velocityX,velocityY);
+      int32_t speed=int32_t((state()[owner].flags&Horizontal)?velocity.x:velocity.y);
       if(!displayPolicy.slowRefresh&&uint32_t(now-lastAt)<=150&&abs(speed)>80)inertia={owner,-speed,0,now,true};
     } else if(perform&&activeControl>=0&&page().nodes[activeControl].kind==Kind::Range&&(drag==Drag::Range||!moved)) {
       const int rangeControl=activeControl;if(!coordinated()||drag!=Drag::Range)range(rangeControl);
@@ -1946,7 +1957,8 @@ struct View::Impl {
     down=false;target=activeControl=owner=interruptedPager=-1;drag=Drag::None;mediaDragTarget=-1;gesture=nullptr;navigationDot=-1;navigationFooterContact=false;invalidate(oldControl);endProcessing();
   }
   void spinbox(int i,int32_t px,bool pointer) {
-    const auto &n=page().nodes[i];const Rect r=contentBox(rect(i),styleFor(page(),state(),i));const auto g=spinboxGeometry(r,*n.instrument);
+    if(pointer)px=int32_t(inputPoint(i,px,y).x);
+    const auto &n=page().nodes[i];const Rect r=contentBox(poseRect(page(),state(),i),styleFor(page(),state(),i));const auto g=spinboxGeometry(r,*n.instrument);
     const int direction=px>=g.minusX&&px<g.minusX+g.button?-1:px>=g.plusX&&px<g.plusX+g.button?1:0;if(!direction)return;
     const int32_t before=state()[i].value;setValue(i,int32_t(std::max<int64_t>(n.minimum,std::min<int64_t>(n.maximum,int64_t(before)+int64_t(direction)*n.step))));
     if(before!=state()[i].value){dispatch(i,EventType::Input);if((!pointer||down)&&visible(page(),state(),i,true))dispatch(i,EventType::Change);}
@@ -1972,7 +1984,7 @@ struct View::Impl {
     }
       const int activation=nearestControl(clickedIndex);
       if(activation>=0&&page().nodes[activation].kind==Kind::InputField){if(dispatch(clickedIndex,EventType::Click)&&(!pointer||down))softBegin(activation);return;}
-      if(activation>=0&&page().nodes[activation].kind==Kind::Spinbox){if(dispatch(clickedIndex,EventType::Click)&&(!pointer||down)&&visible(page(),state(),clickedIndex,true)&&visible(page(),state(),activation,true)){const Rect r=contentBox(rect(activation),styleFor(page(),state(),activation));const auto g=spinboxGeometry(r,*page().nodes[activation].instrument);if(!pointer||(x>=g.textX&&x<g.textX+g.textWidth))softBegin(activation);else spinbox(activation,x,pointer);}return;}
+      if(activation>=0&&page().nodes[activation].kind==Kind::Spinbox){if(dispatch(clickedIndex,EventType::Click)&&(!pointer||down)&&visible(page(),state(),clickedIndex,true)&&visible(page(),state(),activation,true)){const Rect r=contentBox(poseRect(page(),state(),activation),styleFor(page(),state(),activation));const auto point=inputPoint(activation,x,y);const auto g=spinboxGeometry(r,*page().nodes[activation].instrument);if(!pointer||(point.x>=g.textX&&point.x<g.textX+g.textWidth))softBegin(activation);else spinbox(activation,x,pointer);}return;}
       const bool toggle=activation>=0&&(page().nodes[activation].kind==Kind::Checkbox||page().nodes[activation].kind==Kind::Switch);
       const int32_t previous=toggle?state()[activation].value:0;
       if(toggle)state()[activation].value=!previous; // HTML checkbox pre-activation precedes click listeners.
@@ -1989,12 +2001,14 @@ struct View::Impl {
         if((pointer&&!down)||!visible(page(),state(),clickedIndex,true))return;
         const NodeDesc &clicked=page().nodes[clickedIndex];
         if(pointer&&clicked.kind==Kind::Pager&&clicked.pager.indicatorHeight) {
-          const Rect r=contentBox(rect(clickedIndex),styleFor(page(),state(),clickedIndex));int count=0;
+          const Rect r=contentBox(poseRect(page(),state(),clickedIndex),styleFor(page(),state(),clickedIndex));int count=0;
           for(uint16_t i=0;i<page().count;++i)if(page().nodes[i].parent==clickedIndex)++count;
+          const auto local=inputPoint(clickedIndex,x,y);
+          const int32_t px=int32_t(local.x),py=int32_t(local.y);
           const int step=clicked.pager.dotSize+clicked.pager.dotGap;
           const int left=r.x+(r.width-(count*step-clicked.pager.dotGap))/2;
-          if(y>=r.y+r.height-clicked.pager.indicatorHeight&&x>=left-clicked.pager.dotGap/2&&x<left+count*step-clicked.pager.dotGap/2) {
-            const int index=clamp32((x-left+clicked.pager.dotGap/2)/step,0,count-1);
+          if(py>=r.y+r.height-clicked.pager.indicatorHeight&&px>=left-clicked.pager.dotGap/2&&px<left+count*step-clicked.pager.dotGap/2) {
+            const int index=clamp32((px-left+clicked.pager.dotGap/2)/step,0,count-1);
             if(displayPolicy.slowRefresh)setPage(clickedIndex,index,true);
             else animation={clickedIndex,state()[clickedIndex].scrollX,index*pagerStride(clickedIndex),index,now,true};
           }
@@ -2008,7 +2022,7 @@ struct View::Impl {
   }
   Rect backgroundCover(int index,Rect clipped) const {
     Rect best{0,0,0,0};int64_t bestArea=0;
-    if(behaviorVisualMoving())return best;
+    if(pageRotated(*rasterFrame.current.page)||behaviorVisualMoving())return best;
     // Tiny backgrounds cost less to paint than scanning later occluders.
     // Returning no cover only restores normal paint order; never skip pixels.
     if(clipped.width<=0||clipped.height<=0||uint64_t(clipped.width)*clipped.height<=64)return best;
@@ -2128,13 +2142,15 @@ struct View::Impl {
         }
         g.visible=g.visible&&a.visible;g.inputVisible=g.inputVisible&&a.inputVisible;
       }
-      if(n.motion){const auto &m=motionPose(p,s,i);
+      if(n.motion&&!rotated(p,s,i)){const auto &m=motionPose(p,s,i);
         if(m.reveal<1024&&m.scale==1024&&m.rotation%360==0)g.clip=intersect(g.clip,motion_geometry::reveal(g.rect,m.reveal,n.motion->flags));
         g.rect=motion_geometry::bounds(g.rect,m.scale,m.rotation,n.motion->pivotX,n.motion->pivotY,v.kind==Kind::Shape);
       }
       // Preserve the original descendant-to-root integer alpha rounding.
       g.alpha=v.opacity==255&&styleFor(p,s,i).opacity==255&&(v.parent==NoParent||cache.nodes[v.parent].alpha==255)?255:opacity(p,s,i);g.lineCount=0;
-      Rect c=intersect(g.rect,g.clip);if(visibleHeight>=0)c=intersect(c,{0,0,p.width,visibleHeight});if(!g.visible||!g.alpha||c.width<=0||c.height<=0)continue;
+      if(rotated(p,s,i)){g.rect=poseRect(p,s,i);g.clip=clip(p,s,i);}
+      g.visualRect=rotated(p,s,i)?rotationMatrix(p,s,i).bounds(g.rect):g.rect;
+      Rect c=intersect(g.visualRect,g.clip);if(visibleHeight>=0)c=intersect(c,{0,0,p.width,visibleHeight});if(!g.visible||!g.alpha||c.width<=0||c.height<=0)continue;
       prepareText(cache,g,n,v,styleFor(p,s,i));
       const int first=clamp32(c.y/cache.bandHeight,0,31),last=clamp32((c.y+c.height-1)/cache.bandHeight,0,31);
       for(int band=first;band<=last;++band)cache.bands[size_t(band)*cache.words+i/32]|=uint32_t(1)<<(i%32);
@@ -2146,6 +2162,7 @@ struct View::Impl {
   template<class Previous> void prepareVisualCache(const PageDesc &p,const RetainedVector<State> &s,const Previous &previous,
                           const FrameCache &source,FrameCache &cache) {
     GeometryTimer geometryTimer(*this);
+    if(pageRotated(p)){prepareCache(p,s,cache,source.visibleHeight);return;}
     cache.nodes=source.nodes;cache.bands=source.bands;cache.words=source.words;cache.bandHeight=source.bandHeight;cache.visibleHeight=source.visibleHeight;cache.mediaFirst=source.mediaFirst;cache.mediaEnd=source.mediaEnd;cache.lines.clear();
     stats.geometryReuses+=p.count;
     for(uint16_t i=0;i<p.count;++i){auto &g=cache.nodes[i];const auto &old=source.nodes[i];
@@ -2842,7 +2859,7 @@ struct View::Impl {
       canvas.fillRoundRect(g.track.x,g.track.y,g.track.width,g.track.height,radius,s.trackColor);
       if(displayPolicy.monochrome)canvas.drawRoundRect(g.track.x,g.track.y,g.track.width,g.track.height,radius,DisplayPolicy::foregroundOn(s.trackColor));
       if(g.position>0){
-        if((n.flags&RangeFillGradient)&&s.gradient){const auto &fill=*s.gradient;const Rect origin=rect(i);
+        if((n.flags&RangeFillGradient)&&s.gradient){const auto &fill=*s.gradient;const Rect origin=poseRect(*rasterFrame.current.page,rasterFrame.current.values,i);
           const int32_t projection=int32_t(int64_t(fill.origin)+int64_t(g.fill.x-origin.x)*fill.stepX+int64_t(g.fill.y-origin.y)*fill.stepY);
           canvas.fillLinearGradientRoundRect(g.fill.x,g.fill.y,g.fill.width,g.fill.height,uint8_t(radius),fill.colors,projection,fill.stepX,fill.stepY,false);
         }else canvas.fillRoundRect(g.fill.x,g.fill.y,g.fill.width,g.fill.height,radius,s.fillColor);
@@ -3095,7 +3112,7 @@ struct View::Impl {
       } else {
       if(!self.buildingSurface&&!self.surfaces.empty())++self.surfaceStats.misses;
       const Rect source=self.renderingViewport?v:Rect{0,0,self.rasterFrame.current.page->width,self.rasterFrame.current.page->height};
-      const int opaqueCover=self.foregroundCapture||self.behaviorVisualMoving()||self.viewportOverlayLevels?-1:self.opaqueCover(area);
+      const int opaqueCover=self.pageRotated(*self.rasterFrame.current.page)||self.foregroundCapture||self.behaviorVisualMoving()||self.viewportOverlayLevels?-1:self.opaqueCover(area);
       int firstPaint=self.foregroundCapture?self.foregroundPrefix+1:opaqueCover;
       if(opaqueCover>=0&&self.renderOrder==PixelOrder::Native)if(auto *panel=nice_gfx::detail::DisplayAccess::panel(self.display)){
         bool painted=false;result=self.blitOpaqueCover(*panel,opaqueCover,area,painted);
@@ -3127,11 +3144,15 @@ struct View::Impl {
 #endif
       candidates&=candidates-1;const int i=int(word*32)+bit;++self.stats.candidateNodes;
       if(self.viewportOverlayDepth(*self.rasterFrame.current.page,self.rasterFrame.current.values,i)!=overlayLevel)continue;
-      const Geometry &g=cache.nodes[i];Rect clipped=self.behaviorClip(i,intersect(g.clip,g.rect));
+      const Geometry &g=cache.nodes[i];Rect clipped=self.behaviorClip(i,intersect(g.clip,g.visualRect));
       if(self.renderingViewport)clipped=intersect(clipped,v);
       clipped.x+=self.paintOffsetX;clipped.y+=self.paintOffsetY;
       clipped=intersect(clipped,{area.x,area.y,area.width,area.height});if(clipped.width<=0||clipped.height<=0)continue;
       const uint8_t alpha=g.alpha;if(!alpha)continue;
+      if(self.rotated(*self.rasterFrame.current.page,self.rasterFrame.current.values,i)){
+        self.paintRotatedNode(i,clipped,area,pixels,stride,alpha);continue;
+      }
+
 #if NICE_GFX_UI_SKIP_EMPTY_CONTAINERS
       if(self.emptyContainerPaint(i)){
         // Preserve the empty painter's canvas state for later focus/footer
@@ -3200,7 +3221,7 @@ struct View::Impl {
         self.underlay.data(),size_t(clipped.width),size_t(clipped.width),size_t(clipped.height),alpha);
       }
       }
-      if(!self.snapshotMenuEnabled&&!self.foregroundCapture&&self.snapshotInput&&!self.snapshotTransition&&!self.rasterFrame.preview.page&&self.snapshotFocus>=0&&cache.nodes[self.snapshotFocus].inputVisible) {
+      if(!self.rotated(*self.rasterFrame.current.page,self.rasterFrame.current.values,self.snapshotFocus<0?0:self.snapshotFocus)&&!self.snapshotMenuEnabled&&!self.foregroundCapture&&self.snapshotInput&&!self.snapshotTransition&&!self.rasterFrame.preview.page&&self.snapshotFocus>=0&&cache.nodes[self.snapshotFocus].inputVisible) {
         const Geometry &g=cache.nodes[self.snapshotFocus];const Rect r=g.rect,c=intersect(r,g.clip);
         self.canvas.setViewport(c.x,c.y,c.width,c.height,false);
         const Style focusStyle=self.styleFor(*self.rasterFrame.current.page,self.rasterFrame.current.values,self.snapshotFocus);
@@ -3699,7 +3720,7 @@ Status View::mount(const ProjectDesc &p) {
     for(uint16_t k=0;k<j;++k)if(strcmp(p.pages[k].path,page.path)==0)return Status::InvalidArgument;
     for(uint16_t i=0;i<page.count;++i) {
       const NodeDesc &n=page.nodes[i];
-      if(uint8_t(n.kind)>uint8_t(Kind::InputField)||!validShape(n))return Status::InvalidArgument;
+      if(n.rotation<-360||n.rotation>360||uint8_t(n.kind)>uint8_t(Kind::InputField)||!validShape(n))return Status::InvalidArgument;
       if(n.kind==Kind::InputField||(n.kind==Kind::Spinbox&&n.inputField)){const auto *d=n.inputField;if(!d||uint8_t(d->type)>uint8_t(InputFieldType::Tel)||uint8_t(d->enterAction)>uint8_t(InputEnterAction::Search)||uint8_t(d->keyboardTheme)>uint8_t(KeyboardTheme::Dark)||d->decimals>6||d->pinLength>32||d->maxBytes>512||d->maxLength>512||(d->hasMin&&d->hasMax&&d->min>d->max)||d->min<INT32_MIN||d->min>INT32_MAX||d->max<INT32_MIN||d->max>INT32_MAX||(n.kind==Kind::Spinbox&&d->type!=InputFieldType::Number))return Status::InvalidArgument;
         const char *initial=d->value?d->value:"";if(strlen(initial)>(d->maxBytes?d->maxBytes:256))return Status::InvalidArgument;int32_t initialNumber=0;if(*s.inputValidationError(initial,*d,false,initialNumber,n.kind==Kind::Spinbox?&n:nullptr))return Status::InvalidArgument;
         if(d->keyboardFont&&std::find(validatedFonts.begin(),validatedFonts.end(),d->keyboardFont)==validatedFonts.end()){if(!validFont(*d->keyboardFont))return Status::InvalidArgument;validatedFonts.push_back(d->keyboardFont);}}
@@ -4297,6 +4318,7 @@ MemoryStats View::memoryStats()const{const auto &s=*impl_;MemoryStats m;
   for(const auto *p:{&s.rasterFrame.current.values,&s.rasterFrame.preview.values,&s.transition.outgoing,&s.groupMotion.outgoing}){m.snapshotBytes+=p->capacity()*sizeof(Impl::State);payload(*p);}
   for(const auto &key:s.geometryMemoKey)if(key.dynamic&&std::find(seen.begin(),seen.end(),key.dynamic.get())==seen.end()){seen.push_back(key.dynamic.get());m.payloadBytes+=sizeof(DynamicNode);}
   m.stateBytes+=s.geometryMemoKey.capacity()*sizeof(Impl::FrameGeometryKey)+s.subtreeEndsCapacity*sizeof(uint16_t);
+  m.geometryBytes+=s.rotationClips.capacity()*sizeof(Impl::RotationClip);
   for(const auto *c:{&s.rasterFrame.current.geometry,&s.rasterFrame.preview.geometry,&s.geometryMemoCache})m.geometryBytes+=c->nodes.capacity()*sizeof(Impl::Geometry)+c->lines.capacity()*sizeof(Impl::TextLine)+c->bands.capacity()*sizeof(uint32_t);
   // Both SoftInput objects themselves are already part of sizeof(Impl).
   for(const auto *k:{&s.softInput,&s.snapshotKeyboard}){m.payloadBytes+=stringStorage(k->draft)+stringStorage(k->error)+stringStorage(k->pressed);if(k->keys&&std::find(seen.begin(),seen.end(),k->keys.get())==seen.end()){seen.push_back(k->keys.get());m.geometryBytes+=sizeof(std::vector<Impl::SoftKey>)+k->keys->capacity()*sizeof(Impl::SoftKey);for(const auto &key:*k->keys)m.payloadBytes+=stringStorage(key.id)+stringStorage(key.label)+stringStorage(key.value)+stringStorage(key.action);}}

@@ -15,7 +15,7 @@ namespace nice_gfx { namespace htmlui {
 // Versioned, generated C++ resource ABI. Geometry is page-relative, in physical
 // pixels at PageDesc's target size. Parents precede children. Resource pointers
 // remain valid for the lifetime of the mounted project.
-constexpr uint32_t ResourceVersion = 21;
+constexpr uint32_t ResourceVersion = 22;
 constexpr uint16_t NoParent = 0xffff;
 using Id = uint32_t;
 enum class Kind : uint8_t { Container, Text, Button, Range, Checkbox, Switch, Progress, Scroll, Pager, Label, Icon, Media, Gauge, Ring, LineChart, BarChart, Spinbox, Shape, InputField };
@@ -172,6 +172,7 @@ struct NodeDesc {
   const InputFieldDesc *inputField;
   const AnimationDesc *exitAnimation; // Optional one-shot Manual departure preset.
   const MotionDesc *motion; // Optional compiled keyframes/options; null keeps the legacy fast path.
+  int16_t rotation = 0; // Static clockwise degrees about the layout box center, independent of motion.
 };
 struct PageDesc {
   const char *path;
