@@ -67,7 +67,7 @@ bool opaqueCoverMedia(const FrameCache &cache,size_t i) const {
   const auto &n=rasterFrame.current.page->nodes[i];const auto &g=cache.nodes[i];const auto &value=rasterFrame.current.values[i];
   if(n.kind!=Kind::Media||n.motion||!g.visible||g.alpha!=255)return false;
   const auto &style=styleFor(*rasterFrame.current.page,rasterFrame.current.values,int(i));
-  if(style.borderWidth||style.radius||style.paddingTop||style.paddingRight||style.paddingBottom||style.paddingLeft)return false;
+  if(style.borderWidth||maxCornerRadius(style)||style.paddingTop||style.paddingRight||style.paddingBottom||style.paddingLeft)return false;
   const auto *source=media(n,value);
   if(!source||g.rect.width!=source->width||g.rect.height!=source->height)return false;
   // JPEG output is an opaque native RGB565 RAM image too. Eligibility itself

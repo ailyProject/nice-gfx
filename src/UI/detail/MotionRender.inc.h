@@ -66,6 +66,16 @@ static bool motionRoundPixel(int32_t x,int32_t y,int32_t width,int32_t height,in
   const int64_t dx=int64_t(x)*2+1-2*cx,dy=int64_t(y)*2+1-2*cy;
   return dx*dx+dy*dy<=int64_t(radius)*radius*4;
 }
+static bool motionCornerPixel(int32_t x,int32_t y,int32_t width,int32_t height,const Style &style,int32_t inset=0) {
+  if(x<0||y<0||x>=width||y>=height)return false;
+
+  const unsigned corner=y<height/2?(x<width/2?0:1):(x<width/2?3:2);
+  const int32_t outerLimit=std::max<int32_t>(0,std::min(width+2*inset,height+2*inset)/2);
+  const int32_t radius=std::max<int32_t>(0,std::min<int32_t>(cornerRadius(style,corner),outerLimit)-inset);
+
+  return motionRoundPixel(x,y,width,height,radius);
+}
+
 static uint16_t motionMediaColor(const uint8_t *p,uint8_t bytesPerPixel,bool ram,PixelOrder order) {
   if((bytesPerPixel&0x7f)==2){
     if(ram&&order==PixelOrder::Native){uint16_t color;memcpy(&color,p,2);return color;}
@@ -477,7 +487,7 @@ void paintTransformedNode(int i,Rect clipped,const DirtyRect &area,uint16_t *pix
   const bool transparent=disabled?(paintFlags&DisabledTransparent)!=0:pressed?(paintFlags&ActiveTransparent)!=0:(paintFlags&Transparent)!=0;
   const bool gradient=style.gradient&&(disabled?(paintFlags&GradientDisabled)!=0:pressed?(paintFlags&GradientActive)!=0:!(focusedStyle&&(focusedStyle->flags&FocusBackground)));
   const uint16_t background=disabled?style.disabledColor:pressed?style.pressedColor:style.background;
-  const int32_t radius=std::min<int32_t>(style.radius,std::min(box.width,box.height)/2),border=style.borderWidth;
+  const int32_t radius=std::min<int32_t>(maxCornerRadius(style),std::min(box.width,box.height)/2),border=style.borderWidth;
   const MediaDesc *source=n.kind==Kind::Media?media(n,v):nullptr;
   MediaDesc decodedMedia{};Image::Impl decodedImage(ImageView(),nullptr,nullptr,0);bool jpeg=false;
   const Image::Impl *image=source&&v.imageOverride?v.image.impl_:nullptr;
@@ -493,7 +503,7 @@ void paintTransformedNode(int i,Rect clipped,const DirtyRect &area,uint16_t *pix
   const uint16_t colorKey=keyed?(uint16_t(pgm_read_byte(source->pixels))<<8|pgm_read_byte(source->pixels+1)):0;
   const bool plainMedia=source&&content.x==0&&content.y==0&&content.width==box.width&&content.height==box.height;
   const MediaRoundClip mediaClip({0,0,box.width,box.height},style);
-  const bool roundedMedia=source&&style.radius&&mediaClip.rounded();
+  const bool roundedMedia=source&&maxCornerRadius(style)&&mediaClip.rounded();
   bool ram=image&&!image->flash;PixelOrder order=image?image->source.order:PixelOrder::Wire;
 #if defined(CONFIG_IDF_TARGET_ESP32S31) && NICE_GFX_S31_MOTION_TEXTURE_BUDGET > 0
   if(source&&!image&&source->bytesPerPixel==2){
@@ -506,7 +516,7 @@ void paintTransformedNode(int i,Rect clipped,const DirtyRect &area,uint16_t *pix
 #endif
   if(n.kind==Kind::Shape&&n.shape) {
     const Rect shapeBox{box.x+content.x,box.y+content.y,content.width,content.height};
-    const shape_raster::TransformedShape shape(*n.shape,shapeBox,box,pose.scale,pose.rotation,style.radius,n.motion->pivotX,n.motion->pivotY);
+    const shape_raster::TransformedShape shape(*n.shape,shapeBox,box,pose.scale,pose.rotation,maxCornerRadius(style),n.motion->pivotX,n.motion->pivotY,style.cornerRadii);
     if(transparent&&!border&&!gradient&&shape.closed&&(n.shape->flags&ShapeFill)&&shape.stroke<=0){
       MotionShapeFill target{pixels,area,stride,alpha};shape.paint(target,clipped);return;
     }
@@ -520,11 +530,11 @@ void paintTransformedNode(int i,Rect clipped,const DirtyRect &area,uint16_t *pix
         int64_t localX,localY;inverse.point(box,x,y,localX,localY);
         for(int32_t at=0;at<width;++at,localX+=inverse.xx,localY+=inverse.yx) {
           const int32_t lx=int32_t(localX>>16),ly=int32_t(localY>>16);
-          const bool outer=motionRoundPixel(lx,ly,box.width,box.height,radius);
+          const bool outer=motionCornerPixel(lx,ly,box.width,box.height,style);
           uint16_t color=background;bool painted=outer&&!transparent;
           if(painted&&gradient){const auto &g=*style.gradient;int64_t q=(int64_t(g.origin)+int64_t(lx)*g.stepX+int64_t(ly)*g.stepY+32768)>>16;
             q=std::max<int64_t>(0,std::min<int64_t>(255,q));const size_t index=g.dither?size_t(q)*4+size_t((ly&1)*2+(lx&1)):size_t(q);color=pgm_read_word(g.colors+index);}
-          if(outer&&border&&!motionRoundPixel(lx-border,ly-border,box.width-2*border,box.height-2*border,std::max<int32_t>(0,radius-border))){color=style.borderColor;painted=true;}
+          if(outer&&border&&!motionCornerPixel(lx-border,ly-border,box.width-2*border,box.height-2*border,style,border)){color=style.borderColor;painted=true;}
           if(painted)row.fillRect(x+at,y,1,1,color);
         }
       }
@@ -634,13 +644,13 @@ void paintTransformedNode(int i,Rect clipped,const DirtyRect &area,uint16_t *pix
         *target=rgb565_blend::toWire(alpha==255?color:rgb565_blend::color(color,rgb565_blend::fromWire(*target),alpha));continue;
       }
       const uint16_t under=rgb565_blend::fromWire(*target);uint16_t color=under;bool painted=false;
-      const bool outer=motionRoundPixel(lx,ly,box.width,box.height,radius);
+      const bool outer=motionCornerPixel(lx,ly,box.width,box.height,style);
       if(outer&&!transparent){
         color=background;painted=true;
         if(gradient){const auto &g=*style.gradient;int64_t q=(int64_t(g.origin)+int64_t(lx)*g.stepX+int64_t(ly)*g.stepY+32768)>>16;
           q=std::max<int64_t>(0,std::min<int64_t>(255,q));const size_t index=g.dither?size_t(q)*4+size_t((ly&1)*2+(lx&1)):size_t(q);color=pgm_read_word(g.colors+index);}
       }
-      if(outer&&border&&!motionRoundPixel(lx-border,ly-border,box.width-2*border,box.height-2*border,std::max<int32_t>(0,radius-border))){color=style.borderColor;painted=true;}
+      if(outer&&border&&!motionCornerPixel(lx-border,ly-border,box.width-2*border,box.height-2*border,style,border)){color=style.borderColor;painted=true;}
       if(source&&insideMedia&&content.width>0&&content.height>0&&lx>=content.x&&ly>=content.y&&lx<content.x+content.width&&ly<content.y+content.height&&
          textureX>=0&&textureY>=0&&textureX<int64_t(source->width)*65536&&textureY<int64_t(source->height)*65536){
         uint16_t sample;

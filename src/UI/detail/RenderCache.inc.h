@@ -73,7 +73,7 @@ bool fastSurfaceImageRepair(uint16_t index,const Geometry &geometry) const {
   const auto &image=*value.image.impl_;const auto &style=styleFor(*rasterFrame.current.page,rasterFrame.current.values,index);
   return !image.flash&&image.source.format==ImageFormat::RGB565&&!(image.source.strideBytes&1)&&
     image.media.width==geometry.rect.width&&image.media.height==geometry.rect.height&&
-    !style.borderWidth&&!style.radius&&!style.paddingTop&&!style.paddingRight&&!style.paddingBottom&&!style.paddingLeft;
+    !style.borderWidth&&!maxCornerRadius(style)&&!style.paddingTop&&!style.paddingRight&&!style.paddingBottom&&!style.paddingLeft;
 }
 
 // Repair visual changes without discarding a retained page's static content.

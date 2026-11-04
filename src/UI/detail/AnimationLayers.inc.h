@@ -34,7 +34,7 @@ bool animationBackground(const Surface &surface,uint16_t root,Rect swept,uint16_
     const bool transparent=disabled?(state.flags&DisabledTransparent)!=0:(state.flags&Transparent)!=0;
     if(transparent||found)continue;
     const auto &style=styleFor(p,surface.key,at);
-    if(node.kind!=Kind::Container||style.gradient||style.borderWidth||style.radius||
+    if(node.kind!=Kind::Container||style.gradient||style.borderWidth||maxCornerRadius(style)||
        !animationContains(bounds,swept))return false;
     color=disabled?style.disabledColor:style.background;found=true;
   }
@@ -50,7 +50,7 @@ bool animationBackground(const Surface &surface,uint16_t root,Rect swept,uint16_
     const bool disabled=(state.flags&Disabled)!=0;
     if(disabled?(state.flags&DisabledTransparent)!=0:(state.flags&Transparent)!=0)continue;
     const auto &style=styleFor(p,surface.key,at);
-    if(style.gradient||style.borderWidth||style.radius)continue;
+    if(style.gradient||style.borderWidth||maxCornerRadius(style))continue;
     color=disabled?style.disabledColor:style.background;owner=at;
   }
   return true;

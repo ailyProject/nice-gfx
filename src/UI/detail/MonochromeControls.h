@@ -1,5 +1,6 @@
 #pragma once
 #include "../DisplayPolicy.h"
+#include "../CornerRadius.h"
 #include "RangeGeometry.h"
 
 namespace nice_gfx { namespace htmlui { namespace detail {
@@ -35,11 +36,13 @@ template<class Canvas> void monoRange(Canvas &c,const RangeGeometry &g,const Sty
   c.drawRoundRect(t.x,t.y,t.width,t.height,r,ink);
  }
 }
-template<class Canvas> void monoCheckbox(Canvas &c,Rect box,const Style &s,bool checked,uint16_t background){
+template<class Canvas> void monoCheckbox(Canvas &c,Rect box,const Style &s,bool checked,uint16_t background,Rect clip){
  const uint16_t ink=DisplayPolicy::foregroundOn(background),fill=monoContrast(s.fillColor,background);
  const int32_t radius=std::min<int32_t>(s.radius,std::min(box.width,box.height)/2);
- c.fillRoundRect(box.x,box.y,box.width,box.height,radius,checked?fill:background);
- c.drawRoundRect(box.x,box.y,box.width,box.height,radius,ink);
+ const auto paint=[&](int32_t curve){c.fillRoundRect(box.x,box.y,box.width,box.height,curve,checked?fill:background);};
+ if(s.cornerRadii)paintCornerQuadrants(c,box,clip,s,paint);
+ else paint(radius);
+ strokeCornerRect(c,box,clip,s,1,ink);
  if(checked&&box.width>5&&box.height>5){const uint16_t mark=monoContrast(s.thumbColor,fill);
   const int32_t x0=box.x+box.width*25/100,y0=box.y+box.height/2,x1=box.x+box.width*44/100,y1=box.y+box.height*70/100,x2=box.x+box.width*78/100,y2=box.y+box.height*28/100;
   c.drawWideLine(x0,y0,x1,y1,2,mark);c.drawWideLine(x1,y1,x2,y2,2,mark);

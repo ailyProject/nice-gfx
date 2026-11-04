@@ -3,6 +3,7 @@
 // whose toolchains have no STL containers. Keep basic display use available;
 // the compiled UI requires a platform with a full C++ standard library.
 #if !defined(ARDUINO_ARCH_AVR) && !defined(__AVR__)
+#include "CornerRadius.h"
 #include "../Graphics/TileCanvas.h"
 #include "DisplayPolicy.h"
 #include "Animation.h"
@@ -207,12 +208,14 @@ struct MediaRoundClip {
   Rect content;
   int32_t numerator=1,denominator=1;
   MediaRoundClip(Rect box,const Style &style):content(contentBox(box,style)) {
-    const int32_t radius=std::max<int32_t>(0,std::min<int32_t>(style.radius,std::min(box.width,box.height)/2));
-    const int32_t left=std::max<int32_t>(0,radius-style.borderWidth-style.paddingLeft);
-    const int32_t right=std::max<int32_t>(0,radius-style.borderWidth-style.paddingRight);
-    const int32_t top=std::max<int32_t>(0,radius-style.borderWidth-style.paddingTop);
-    const int32_t bottom=std::max<int32_t>(0,radius-style.borderWidth-style.paddingBottom);
-    corners[0]={left,top};corners[1]={right,top};corners[2]={right,bottom};corners[3]={left,bottom};
+    const int32_t limit=std::max<int32_t>(0,std::min(box.width,box.height)/2);
+    const int32_t horizontal[]={style.paddingLeft,style.paddingRight,style.paddingRight,style.paddingLeft};
+    const int32_t vertical[]={style.paddingTop,style.paddingTop,style.paddingBottom,style.paddingBottom};
+
+    for(unsigned corner=0;corner<4;++corner){
+      const int32_t radius=std::min<int32_t>(cornerRadius(style,corner),limit);
+      corners[corner]={std::max<int32_t>(0,radius-style.borderWidth-horizontal[corner]),std::max<int32_t>(0,radius-style.borderWidth-vertical[corner])};
+    }
     for(auto &corner:corners)if(!corner.rx||!corner.ry)corner={0,0};
     reduce(content.width,corners[0].rx+corners[1].rx);
     reduce(content.width,corners[3].rx+corners[2].rx);
@@ -914,7 +917,7 @@ struct View::Impl {
   std::unique_ptr<Style[]> compiledStyles;
   size_t compiledStyleCount=0;uint16_t compiledStyleLimit=0;bool compiledStyleAttempted=false;
   static bool sameCompiledStyle(const Style &a,const Style &b) {
-    return a.background==b.background&&a.color==b.color&&a.borderColor==b.borderColor&&a.trackColor==b.trackColor&&a.fillColor==b.fillColor&&a.thumbColor==b.thumbColor&&a.pressedColor==b.pressedColor&&a.disabledColor==b.disabledColor&&a.borderWidth==b.borderWidth&&a.radius==b.radius&&a.fontSize==b.fontSize&&a.textAlign==b.textAlign&&a.paddingTop==b.paddingTop&&a.paddingRight==b.paddingRight&&a.paddingBottom==b.paddingBottom&&a.paddingLeft==b.paddingLeft&&a.trackSize==b.trackSize&&a.thumbWidth==b.thumbWidth&&a.thumbHeight==b.thumbHeight&&a.thumbRadius==b.thumbRadius&&a.font==b.font&&a.gradient==b.gradient&&a.trackRadius==b.trackRadius;
+    return a.background==b.background&&a.color==b.color&&a.borderColor==b.borderColor&&a.trackColor==b.trackColor&&a.fillColor==b.fillColor&&a.thumbColor==b.thumbColor&&a.pressedColor==b.pressedColor&&a.disabledColor==b.disabledColor&&a.borderWidth==b.borderWidth&&a.radius==b.radius&&sameCornerRadii(a,b)&&a.fontSize==b.fontSize&&a.textAlign==b.textAlign&&a.paddingTop==b.paddingTop&&a.paddingRight==b.paddingRight&&a.paddingBottom==b.paddingBottom&&a.paddingLeft==b.paddingLeft&&a.trackSize==b.trackSize&&a.thumbWidth==b.thumbWidth&&a.thumbHeight==b.thumbHeight&&a.thumbRadius==b.thumbRadius&&a.font==b.font&&a.gradient==b.gradient&&a.trackRadius==b.trackRadius;
   }
   uint16_t cacheCompiledStyle(const Style &style) {
     if(resourceCacheBudget||displayPolicy.monochrome||displayPolicy.slowRefresh)return NoParent;
@@ -2034,7 +2037,7 @@ struct View::Impl {
         Rect clip=g.clip;clip.x+=paintOffsetX;clip.y+=paintOffsetY;
         const Rect visible=intersect(clipped,intersect(r,clip));if(visible.width<=0||visible.height<=0)continue;
         const Style &style=styleFor(*rasterFrame.current.page,rasterFrame.current.values,i);
-        const int32_t radius=std::min<int32_t>(style.radius,std::min<int32_t>(r.width,r.height)/2);
+        const int32_t radius=std::min<int32_t>(maxCornerRadius(style),std::min<int32_t>(r.width,r.height)/2);
         const Rect cover=raster_occlusion::interior(r,radius,visible);
         const int64_t area=int64_t(cover.width)*cover.height;
         if(area>bestArea){best=cover;bestArea=area;}
@@ -2047,19 +2050,23 @@ struct View::Impl {
   }
   void rounded(Rect r,uint16_t color,uint16_t border,const Style &s,bool gradient=false,int index=-1,Rect clipped={0,0,0,0}) {
     if(r.width<=0||r.height<=0)return;
-    const int radius=std::min<int32_t>(s.radius,std::min<int32_t>(r.width,r.height)/2);
+    const int radius=std::min<int32_t>(maxCornerRadius(s),std::min<int32_t>(r.width,r.height)/2);
     const Rect cover=backgroundCover(index,clipped);
     Rect visible[4];const int count=index>=0?raster_occlusion::strips(clipped,cover,visible):1;
     for(int part=0;part<count;++part) {
       if(index>=0&&cover.width>0)canvas.setViewport(visible[part].x,visible[part].y,visible[part].width,visible[part].height,false);
-      if(gradient&&s.gradient) {
-        const GradientDesc &g=*s.gradient;
-        canvas.fillLinearGradientRoundRect(r.x,r.y,r.width,r.height,uint8_t(radius),g.colors,g.origin,g.stepX,g.stepY,g.dither!=0);
-      } else canvas.fillRoundRect(r.x,r.y,r.width,r.height,radius,color);
+      const auto fill=[&](int32_t curve){
+        if(gradient&&s.gradient){
+          const GradientDesc &g=*s.gradient;
+          canvas.fillLinearGradientRoundRect(r.x,r.y,r.width,r.height,uint8_t(curve),g.colors,g.origin,g.stepX,g.stepY,g.dither!=0);
+        }else canvas.fillRoundRect(r.x,r.y,r.width,r.height,curve,color);
+      };
+
+      if(s.cornerRadii)paintCornerQuadrants(canvas,r,index>=0&&cover.width>0?visible[part]:clipped,s,fill);
+      else fill(radius);
     }
     if(index>=0&&cover.width>0)canvas.setViewport(clipped.x,clipped.y,clipped.width,clipped.height,false);
-    for(int i=0;i<s.borderWidth&&2*i<std::min<int32_t>(r.width,r.height);++i)
-      canvas.drawRoundRect(r.x+i,r.y+i,r.width-2*i,r.height-2*i,std::max<int32_t>(0,radius-i),border);
+    strokeCornerRect(canvas,r,clipped,s,s.borderWidth,border);
   }
   uint16_t nextCode(const char *s,size_t &i,size_t end) {
     uint16_t n=0;const uint16_t code=canvas.decodeUTF8(reinterpret_cast<uint8_t *>(const_cast<char *>(s+i)),&n,uint16_t(std::min<size_t>(end-i,4)));i+=n;return code;
@@ -2172,7 +2179,7 @@ struct View::Impl {
     for(int at=index;at>=0;at=values[at].parent==NoParent?-1:values[at].parent)
       if((values[at].flags&Disabled)||page.nodes[at].motion)return Status::Unsupported;
     const auto &style=styleFor(page,values,index);
-    if(!style.font||style.borderWidth||style.radius||style.gradient)return Status::Unsupported;
+    if(!style.font||style.borderWidth||maxCornerRadius(style)||style.gradient)return Status::Unsupported;
     const auto &geometry=paintCache->nodes[index];
     Rect box=textBox(geometry.rect,n,style);box.x+=paintOffsetX;box.y+=paintOffsetY;
     clipped=intersect(clipped,box);if(clipped.width<=0||clipped.height<=0||!geometry.lineCount)return Status::Ok;
@@ -2219,7 +2226,7 @@ struct View::Impl {
     for(int at=index;at>=0;at=values[at].parent==NoParent?-1:values[at].parent)
       if((values[at].flags&Disabled)||page.nodes[at].motion)return Status::Unsupported;
     const auto &style=styleFor(page,values,index);
-    if(!style.font||style.borderWidth||style.radius||style.gradient)return Status::Unsupported;
+    if(!style.font||style.borderWidth||maxCornerRadius(style)||style.gradient)return Status::Unsupported;
     const auto &geometry=paintCache->nodes[index];
     Rect box=textBox(geometry.rect,n,style);box.x+=paintOffsetX;box.y+=paintOffsetY;
     clipped=intersect(clipped,box);if(clipped.width<=0||clipped.height<=0||!geometry.lineCount)return Status::Ok;
@@ -2310,12 +2317,12 @@ struct View::Impl {
     for(uint16_t parent=v.parent;parent!=NoParent;parent=rasterFrame.current.values[parent].parent)
       if(rasterFrame.current.values[parent].flags&Disabled)return Status::Unsupported;
     const auto &style=styleFor(*rasterFrame.current.page,rasterFrame.current.values,index);
-    if(style.radius||style.borderWidth||style.gradient||style.paddingTop||style.paddingRight||style.paddingBottom||style.paddingLeft)return Status::Unsupported;
+    if(maxCornerRadius(style)||style.borderWidth||style.gradient||style.paddingTop||style.paddingRight||style.paddingBottom||style.paddingLeft)return Status::Unsupported;
     Rect box=paintCache->nodes[index].rect;box.x+=paintOffsetX;box.y+=paintOffsetY;
     clipped=intersect(box,clipped);if(clipped.width<=0||clipped.height<=0)return Status::Ok;
     detail::ShapeOverlayCache::NativeTexture texture;
     const uint32_t resolveStarted=profilingClock?profilingClock():0;
-    const bool resolved=shapeOverlayCache.resolveNative(*n.shape,box,style.radius,texture);
+    const bool resolved=shapeOverlayCache.resolveNative(*n.shape,box,maxCornerRadius(style),texture);
     if(profilingClock)stats.shapeResolveMicros+=profilingClock()-resolveStarted;
     if(!resolved)return Status::Unsupported;
     const uint32_t compositeStarted=profilingClock?profilingClock():0;
@@ -2336,11 +2343,11 @@ struct View::Impl {
     for(uint16_t parent=v.parent;parent!=NoParent;parent=rasterFrame.current.values[parent].parent)
       if(rasterFrame.current.values[parent].flags&Disabled)return Status::Unsupported;
     const auto &style=styleFor(*rasterFrame.current.page,rasterFrame.current.values,index);
-    if(style.radius||style.borderWidth||style.gradient||style.paddingTop||style.paddingRight||style.paddingBottom||style.paddingLeft)return Status::Unsupported;
+    if(maxCornerRadius(style)||style.borderWidth||style.gradient||style.paddingTop||style.paddingRight||style.paddingBottom||style.paddingLeft)return Status::Unsupported;
     Rect box=paintCache->nodes[index].rect;box.x+=paintOffsetX;box.y+=paintOffsetY;
     clipped=intersect(box,clipped);if(clipped.width<=0||clipped.height<=0)return Status::Ok;
     ShapeDesc shape=*n.shape;detail::ShapeOverlayCache::Texture texture;
-    if(!shapeOverlayCache.resolve(shape,box,style.radius,texture))return Status::Unsupported;
+    if(!shapeOverlayCache.resolve(shape,box,maxCornerRadius(style),texture))return Status::Unsupported;
     platform::OverlayView overlay;overlay.data=reinterpret_cast<const uint8_t *>(texture.pixels);
     overlay.width=texture.width;overlay.height=texture.height;overlay.stride=texture.stride;overlay.bytes=texture.bytes;
     overlay.format=platform::OverlayFormat::Argb8888;overlay.alpha=alpha;
@@ -2364,7 +2371,7 @@ struct View::Impl {
     for(uint16_t parent=v.parent;parent!=NoParent;parent=rasterFrame.current.values[parent].parent)
       if(rasterFrame.current.values[parent].flags&Disabled)return Status::Unsupported;
     const auto &style=styleFor(*rasterFrame.current.page,rasterFrame.current.values,index);
-    if(style.radius||style.borderWidth||style.gradient||style.paddingTop||style.paddingRight||style.paddingBottom||style.paddingLeft)return Status::Unsupported;
+    if(maxCornerRadius(style)||style.borderWidth||style.gradient||style.paddingTop||style.paddingRight||style.paddingBottom||style.paddingLeft)return Status::Unsupported;
     const auto &m=*n.media;Rect box=paintCache->nodes[index].rect;box.x+=paintOffsetX;box.y+=paintOffsetY;
     if(box.width!=m.width||box.height!=m.height)return Status::Unsupported;
     clipped=intersect(box,clipped);if(clipped.width<=0||clipped.height<=0)return Status::Ok;
@@ -2442,7 +2449,7 @@ struct View::Impl {
     int32_t previousY=-1;
     for(int32_t y=area.y;y<area.y+area.height;++y){
       int32_t first=area.x,end=area.x+area.width;
-      if(style.radius&&roundClip.rounded())roundClip.span(y,first,end);
+      if(maxCornerRadius(style)&&roundClip.rounded())roundClip.span(y,first,end);
       if(!mediaMasked(m)){
         // Integer upscaling often repeats the same source scanline. Expand its
         // bits once, then copy the row (including rounded/clipped subspans).
@@ -2600,7 +2607,7 @@ struct View::Impl {
     const NodeDesc &node=rasterFrame.current.page->nodes[index];
     if(focusStyle(index)||node.kind!=Kind::Media||!alpha||alpha==255||displayPolicy.monochrome)return false;
     const State &value=rasterFrame.current.values[index];const Style &style=styleFor(*rasterFrame.current.page,rasterFrame.current.values,index);
-    if(style.radius||style.borderWidth||style.gradient||style.paddingTop||style.paddingRight||style.paddingBottom||style.paddingLeft)return false;
+    if(maxCornerRadius(style)||style.borderWidth||style.gradient||style.paddingTop||style.paddingRight||style.paddingBottom||style.paddingLeft)return false;
     const MediaDesc *source=media(node,value);
     if(!source||source->bytesPerPixel!=2)return false; // keyed/packed/masked/other formats keep the ordinary painter.
     Rect rect=paintCache->nodes[index].rect;rect.x+=paintOffsetX;rect.y+=paintOffsetY;
@@ -2659,7 +2666,7 @@ struct View::Impl {
     // Opaque dynamic RGB565 completely replaces its own box background. Keep
     // clipped row copies, but omit the fill/occlusion scan it would overwrite.
     if(v.kind==Kind::Media&&paintCache->nodes[i].alpha==255&&v.imageOverride&&v.image.impl_&&
-       !v.image.impl_->flash&&!s.borderWidth&&!s.radius&&!s.paddingTop&&!s.paddingRight&&
+       !v.image.impl_->flash&&!s.borderWidth&&!maxCornerRadius(s)&&!s.paddingTop&&!s.paddingRight&&
        !s.paddingBottom&&!s.paddingLeft){
       const auto &image=*v.image.impl_;const auto &m=image.media;
       if(m.bytesPerPixel==2&&r.width==m.width&&r.height==m.height&&!(image.source.strideBytes&1)){
@@ -2703,8 +2710,7 @@ struct View::Impl {
     }
     const bool gradient=!(n.flags&RangeFillGradient)&&(!selected||focusBackground)&&(disabled?(paintFlags&GradientDisabled)!=0:pressed?(paintFlags&GradientActive)!=0:!(focusedStyle&&(focusedStyle->flags&FocusBackground)));
     if(!transparent)rounded(r,bg,s.borderColor,s,gradient,i,clipped);
-    else for(int b=0;b<s.borderWidth&&2*b<std::min<int32_t>(r.width,r.height);++b)
-      canvas.drawRoundRect(r.x+b,r.y+b,r.width-2*b,r.height-2*b,std::max<int32_t>(0,std::min<int32_t>(s.radius,std::min<int32_t>(r.width,r.height)/2)-b),s.borderColor);
+    else strokeCornerRect(canvas,r,clipped,s,s.borderWidth,s.borderColor);
     const auto *monoComponent=displayPolicy.monochrome&&v.kind==Kind::Container?componentFor(i):nullptr;
     const bool monoControl=displayPolicy.monochrome&&(v.kind==Kind::Button||v.kind==Kind::InputField||v.kind==Kind::Checkbox||v.kind==Kind::Switch||v.kind==Kind::Range||v.kind==Kind::Progress||n.instrument||(monoComponent&&monoComponent->root==i&&monoComponent->desc->kind==ComponentKind::ImageButton));
     detail::MonoControlState<nice_gfx::TileCanvas> monoState{canvas,r,clipped,monoBackground,monoControl&&disabled,monoControl&&pressed};
@@ -2724,7 +2730,7 @@ struct View::Impl {
     const Rect borderBox=r;
     r=contentBox(r,s);
     if(v.kind==Kind::InputField){paintInputField(n,v,*contentStyle,r);return;}
-    if(v.kind==Kind::Shape&&n.shape&&r.width>0&&r.height>0){ShapeDesc shape=*n.shape;applyFocusShape(focusedStyle,shape);renderShape(canvas,shape,r,clipped,s.radius);return;}
+    if(v.kind==Kind::Shape&&n.shape&&r.width>0&&r.height>0){ShapeDesc shape=*n.shape;applyFocusShape(focusedStyle,shape);renderShape(canvas,shape,r,clipped,s.radius,s.cornerRadii);return;}
     if(n.instrument&&r.width>0&&r.height>0){NodeDesc styled=n;styled.style=*contentStyle;styled.flags=v.flags|(displayPolicy.monochrome?NoAntialias:0);renderInstrument(canvas,styled,*v.instrument,v.value,r,displayPolicy.monochrome);return;}
     const MediaDesc *source=v.kind==Kind::Media?media(n,v):nullptr;
     if(source&&r.width>0&&r.height>0) {
@@ -2746,9 +2752,9 @@ struct View::Impl {
       const uint8_t *frame=mediaPixels(m)+(jpeg?0:size_t(v.mediaFrame)*mediaFrameBytes(m,stride));
       if(mediaPacked(m)){paintPackedMedia(m,image,frame,stride,r,clipped,borderBox,s);return;}
       if(mediaColorKeyed(m)){
-        const MediaRoundClip clip(borderBox,s);paintKeyedMedia(m,frame,stride,r,clipped,s.radius&&clip.rounded()?&clip:nullptr);return;
+        const MediaRoundClip clip(borderBox,s);paintKeyedMedia(m,frame,stride,r,clipped,maxCornerRadius(s)&&clip.rounded()?&clip:nullptr);return;
       }
-      if(s.radius){const MediaRoundClip clip(borderBox,s);
+      if(maxCornerRadius(s)){const MediaRoundClip clip(borderBox,s);
         if(clip.rounded()){paintRoundedMedia(m,image,frame,stride,r,clipped,clip);return;}}
       // Native-size RGB565 needs no nearest-neighbor sampling. RAM sources
       // can be cropped and copied directly, including padded even-byte rows
@@ -2843,8 +2849,8 @@ struct View::Impl {
         if(tw>2&&th>2)canvas.fillRoundRect(x+1,y+1,tw-2,th-2,std::max<int32_t>(0,radius-1),s.thumbColor);
         if(displayPolicy.monochrome)canvas.drawRoundRect(x,y,tw,th,radius,DisplayPolicy::foregroundOn(s.thumbColor));}
     } else if(v.kind==Kind::Checkbox) {
-      const int32_t w=std::min<int32_t>(r.width,s.thumbWidth),h=std::min<int32_t>(r.height,s.thumbHeight);Rect box{r.x,r.y+(r.height-h)/2,w,h};rounded(box,v.value?s.fillColor:s.trackColor,s.borderColor,s);
-      if(displayPolicy.monochrome){detail::monoCheckbox(canvas,box,s,v.value,monoBackground);text(i,n,v,*contentStyle,clipped);return;}
+      const int32_t w=std::min<int32_t>(r.width,s.thumbWidth),h=std::min<int32_t>(r.height,s.thumbHeight);Rect box{r.x,r.y+(r.height-h)/2,w,h};rounded(box,v.value?s.fillColor:s.trackColor,s.borderColor,s,false,i,intersect(box,clipped));
+      if(displayPolicy.monochrome){detail::monoCheckbox(canvas,box,s,v.value,monoBackground,intersect(box,clipped));text(i,n,v,*contentStyle,clipped);return;}
       if(v.value&&w>5&&h>5) {const int32_t x0=box.x+w*25/100,y0=box.y+h/2,x1=box.x+w*44/100,y1=box.y+h*70/100,x2=box.x+w*78/100,y2=box.y+h*28/100;
         canvas.drawWideLine(x0,y0,x1,y1,2,s.thumbColor);canvas.drawWideLine(x1,y1,x2,y2,2,s.thumbColor);}
       text(i,n,v,*contentStyle,clipped);
@@ -2869,7 +2875,7 @@ struct View::Impl {
     const auto &p=*rasterFrame.current.page;const auto &n=p.nodes[index];const auto &v=rasterFrame.current.values[index];
     if(focusStyle(index)||(n.kind!=Kind::Text&&n.kind!=Kind::Label)||displayPolicy.monochrome)return false;
     const auto &s=styleFor(p,rasterFrame.current.values,index);
-    if(!s.font||s.borderWidth||s.radius||s.gradient)return false;
+    if(!s.font||s.borderWidth||maxCornerRadius(s)||s.gradient)return false;
     bool disabled=(v.flags&Disabled)!=0;
     for(uint16_t at=n.parent;at!=NoParent&&!disabled;at=p.nodes[at].parent)disabled=(rasterFrame.current.values[at].flags&Disabled)!=0;
     const bool transparent=disabled?(v.flags&DisabledTransparent)!=0:
@@ -3194,7 +3200,8 @@ struct View::Impl {
       if(!self.snapshotMenuEnabled&&!self.foregroundCapture&&self.snapshotInput&&!self.snapshotTransition&&!self.rasterFrame.preview.page&&self.snapshotFocus>=0&&cache.nodes[self.snapshotFocus].inputVisible) {
         const Geometry &g=cache.nodes[self.snapshotFocus];const Rect r=g.rect,c=intersect(r,g.clip);
         self.canvas.setViewport(c.x,c.y,c.width,c.height,false);
-        const int32_t radius=std::min<int32_t>(self.styleFor(*self.rasterFrame.current.page,self.rasterFrame.current.values,self.snapshotFocus).radius,std::min(r.width,r.height)/2);
+        const Style focusStyle=self.styleFor(*self.rasterFrame.current.page,self.rasterFrame.current.values,self.snapshotFocus);
+        const int32_t radius=std::min<int32_t>(maxCornerRadius(focusStyle),std::min(r.width,r.height)/2);
         if(self.displayPolicy.monochrome){
           const Rect visible=intersect(c,{area.x,area.y,area.width,area.height});
           auto contrast=[&](int32_t x,int32_t y){
@@ -3218,12 +3225,10 @@ struct View::Impl {
             const int32_t innerCurve=std::min<int32_t>(std::max<int32_t>(0,curve-1),std::max<int32_t>(0,std::min(inner.width,inner.height)/2));
             const Rect clipped=intersect(ring,visible);
             for(int32_t y=clipped.y;y<clipped.y+clipped.height;++y)for(int32_t x=clipped.x;x<clipped.x+clipped.width;++x)
-              if(inside(x,y,ring,curve)&&!inside(x,y,inner,innerCurve))contrast(x,y);
+              if((focusStyle.cornerRadii?motionCornerPixel(x-ring.x,y-ring.y,ring.width,ring.height,focusStyle,n):inside(x,y,ring,curve))&&
+                 !(focusStyle.cornerRadii?motionCornerPixel(x-inner.x,y-inner.y,inner.width,inner.height,focusStyle,n+1):inside(x,y,inner,innerCurve)))contrast(x,y);
           }
-        }else for(int n=0;n<self.snapshotFocusWidth&&2*n<std::min(r.width,r.height);++n){
-          const int32_t width=r.width-2*n,height=r.height-2*n,curve=std::min<int32_t>(std::max<int32_t>(0,radius-n),std::min(width,height)/2);
-          self.canvas.drawRoundRect(r.x+n,r.y+n,width,height,curve,self.snapshotFocusColor);
-        }
+        }else strokeCornerRect(self.canvas,r,c,focusStyle,self.snapshotFocusWidth,self.snapshotFocusColor);
       }
       }
       if(fade){

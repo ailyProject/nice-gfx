@@ -536,7 +536,7 @@
   void paintKeyboard(Rect tile) {
     const SoftInput &k=snapshotKeyboard;if(!k.visible||k.node<0)return;
     const Rect keyboardClip=intersect(k.rect,tile);if(keyboardClip.width<=0||keyboardClip.height<=0)return;++stats.keyboardPaints;
-    const auto &d=k.descriptor;Style style=styleFor(*rasterFrame.current.page,rasterFrame.current.values,k.node);if(d.keyboardFont)style.font=d.keyboardFont;style.fontSize=1;style.radius=6;style.borderWidth=1;style.textAlign=1;
+    const auto &d=k.descriptor;Style style=styleFor(*rasterFrame.current.page,rasterFrame.current.values,k.node);if(d.keyboardFont)style.font=d.keyboardFont;style.fontSize=1;style.cornerRadii=nullptr;style.radius=6;style.borderWidth=1;style.textAlign=1;
     canvas.setAntialiasing(!displayPolicy.monochrome&&!(rasterFrame.current.values[k.node].flags&NoAntialias));
     // The complete theme belongs to the immutable keyboard frame snapshot.
     auto color=[](uint32_t rgb){return uint16_t(((rgb>>8)&0xf800)|((rgb>>5)&0x07e0)|((rgb>>3)&0x001f));};const bool dark=k.theme==KeyboardTheme::Dark;

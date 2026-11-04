@@ -1,5 +1,6 @@
 #pragma once
 #include "Compiled.h"
+#include "CornerRadius.h"
 #include "MotionGeometry.h"
 #include <algorithm>
 #include <math.h>
@@ -87,23 +88,42 @@ template<class Canvas> struct Raster {
       }
     }
   }
-  static bool roundedRectangleSpan(float left,float top,float right,float bottom,float radius,int32_t y,float &first,float &last) {
+  static bool roundedRectangleSpan(float left,float top,float right,float bottom,const float *radii,int32_t y,float &first,float &last) {
     if(left>right||top>bottom||y<top||y>bottom)return false;
-    radius=std::min(radius,std::min((right-left)*0.5f,(bottom-top)*0.5f));
-    const float dy=std::max(std::max(top+radius-y,y-(bottom-radius)),0.0f);
-    const float inset=dy>0?radius-sqrtf(std::max(0.0f,radius*radius-dy*dy)):0;
-    first=left+inset;last=right-inset;return true;
+
+    const float limit=std::min((right-left)*0.5f,(bottom-top)*0.5f);
+    const auto inset=[&](unsigned topCorner,unsigned bottomCorner){
+      const float upper=std::min(radii[topCorner],limit),lower=std::min(radii[bottomCorner],limit);
+      const float radius=y<top+upper?upper:y>bottom-lower?lower:0;
+      const float dy=y<top+upper?top+upper-y:y>bottom-lower?y-(bottom-lower):0;
+
+      return radius>0?radius-sqrtf(std::max(0.0f,radius*radius-dy*dy)):0;
+    };
+
+    first=left+inset(0,3);last=right-inset(1,2);return true;
   }
-  void roundedRectangle(float left,float top,float right,float bottom,float radius,const ShapeDesc &shape) {
+
+  void roundedRectangle(float left,float top,float right,float bottom,const float *radii,const ShapeDesc &shape) {
     const bool outline=(shape.flags&ShapeStroke)&&shape.strokeWidth>0,fill=(shape.flags&ShapeFill)!=0;
+
     if(!outline&&!fill)return;
-    const float stroke=outline?shape.strokeWidth:0,innerRadius=std::max(0.0f,radius-stroke);
+
+    const float stroke=outline?shape.strokeWidth:0;
+    float innerRadii[4];
+
+    for(unsigned corner=0;corner<4;++corner)innerRadii[corner]=std::max(0.0f,radii[corner]-stroke);
+
     int32_t first,last;if(!rows(top,bottom,first,last))return;
-    for(int32_t y=first;y<=last;++y) {
-      float leftEdge,rightEdge;if(!roundedRectangleSpan(left,top,right,bottom,radius,y,leftEdge,rightEdge))continue;
+
+    for(int32_t y=first;y<=last;++y){
+      float leftEdge,rightEdge;
+
+      if(!roundedRectangleSpan(left,top,right,bottom,radii,y,leftEdge,rightEdge))continue;
       if(!outline){span(y,leftEdge,rightEdge,shape.fillColor);continue;}
+
       float innerLeft,innerRight;
-      if(!roundedRectangleSpan(left+stroke,top+stroke,right-stroke,bottom-stroke,innerRadius,y,innerLeft,innerRight))span(y,leftEdge,rightEdge,shape.strokeColor);
+
+      if(!roundedRectangleSpan(left+stroke,top+stroke,right-stroke,bottom-stroke,innerRadii,y,innerLeft,innerRight))span(y,leftEdge,rightEdge,shape.strokeColor);
       else {
         span(y,leftEdge,ceilf(innerLeft-PixelEpsilon)-1,shape.strokeColor);
         if(fill)span(y,innerLeft,innerRight,shape.fillColor);
@@ -111,6 +131,7 @@ template<class Canvas> struct Raster {
       }
     }
   }
+
   void polygon(const Point *p,int count,uint16_t color) {
     float top=p[0].y,bottom=top;
     for(int i=1;i<count;++i){top=std::min(top,p[i].y);bottom=std::max(bottom,p[i].y);}
@@ -155,7 +176,7 @@ template<class Canvas> struct Raster {
 // Visible rows only, fixed-size vertex/crossing storage, no heap or framebuffer.
 // The caller supplies the actual tile/ancestor intersection rather than the
 // canvas datum getters, which intentionally retain full-screen coordinates.
-template<class Canvas> void renderShape(Canvas &canvas,const ShapeDesc &shape,Rect box,Rect clipped,uint8_t radius=0) {
+template<class Canvas> void renderShape(Canvas &canvas,const ShapeDesc &shape,Rect box,Rect clipped,uint8_t radius=0,const uint8_t *corners=nullptr) {
   clipped=shape_raster::intersection(box,clipped);if(clipped.width<=0||clipped.height<=0)return;
   shape_raster::Raster<Canvas> raster{canvas,clipped};
   const float stroke=(shape.flags&ShapeStroke)?shape.strokeWidth*0.5f:0;
@@ -167,10 +188,15 @@ template<class Canvas> void renderShape(Canvas &canvas,const ShapeDesc &shape,Re
     raster.ellipse(box.x+(box.width-1)*0.5f,box.y+(box.height-1)*0.5f,rx,ry,stroke,shape);return;
   }
   if(shape.type==ShapeType::Rect){
-    const float outerRadius=std::min(float(radius),std::min((box.width-1)*0.5f,(box.height-1)*0.5f));
+    float radii[4];float outerRadius=0;
+
+    for(unsigned corner=0;corner<4;++corner){
+      radii[corner]=std::min(float(corners?corners[corner]:radius),std::min((box.width-1)*0.5f,(box.height-1)*0.5f));
+      outerRadius=std::max(outerRadius,radii[corner]);
+    }
     // Keep radius-zero raster coverage unchanged. Rounded geometry is defined
     // on the outer box, so its full-width stroke never protrudes past corners.
-    if(outerRadius>0)raster.roundedRectangle(box.x,box.y,box.x+box.width-1,box.y+box.height-1,outerRadius,shape);
+    if(outerRadius>0)raster.roundedRectangle(box.x,box.y,box.x+box.width-1,box.y+box.height-1,radii,shape);
     else raster.rectangle(left,top,left+width,top+height,stroke,shape);
     return;
   }
@@ -189,7 +215,7 @@ namespace shape_raster {
 struct TransformedShape {
   Point points[64];uint8_t count=0;bool closed=false;
   float stroke=0;const ShapeDesc &shape;
-  TransformedShape(const ShapeDesc &source,Rect content,Rect pivot,uint16_t scale,int16_t rotation,uint8_t radius=0,int16_t pivotX=50,int16_t pivotY=50):shape(source) {
+  TransformedShape(const ShapeDesc &source,Rect content,Rect pivot,uint16_t scale,int16_t rotation,uint8_t radius=0,int16_t pivotX=50,int16_t pivotY=50,const uint8_t *corners=nullptr):shape(source) {
     if(content.width<=0||content.height<=0||!scale)return;
     const float originalStroke=(shape.flags&ShapeStroke)?shape.strokeWidth*0.5f:0;
     const float insetX=std::min(originalStroke,(content.width-1)*0.5f),insetY=std::min(originalStroke,(content.height-1)*0.5f);
@@ -199,21 +225,23 @@ struct TransformedShape {
     if(shape.type==ShapeType::Line||shape.type==ShapeType::Polyline||shape.type==ShapeType::Polygon) {
       count=shape.count;
       for(uint8_t i=0;i<count;++i)points[i]={left+float(shape.points[i].x)*width/shape.viewWidth,top+float(shape.points[i].y)*height/shape.viewHeight};
-    }else if(shape.type==ShapeType::Rect&&!radius) {
+    }else if(shape.type==ShapeType::Rect&&!radius&&!corners) {
       count=4;points[0]={left,top};points[1]={left+width,top};points[2]={left+width,top+height};points[3]={left,top+height};
     }else {
       count=64;
       const bool rounded=shape.type==ShapeType::Rect;
       const float rx=(shape.type==ShapeType::Circle?std::min(width,height):width)*0.5f;
       const float ry=shape.type==ShapeType::Circle?rx:height*0.5f;
-      const float outerRadius=std::min(float(radius),std::min((content.width-1)*0.5f,(content.height-1)*0.5f));
-      const float corner=std::max(0.0f,outerRadius-originalStroke);
+      float radii[4];
+
+      for(unsigned corner=0;corner<4;++corner)
+        radii[corner]=std::max(0.0f,std::min(float(corners?corners[corner]:radius),std::min((content.width-1)*0.5f,(content.height-1)*0.5f))-originalStroke);
       // A recurrence avoids per-vertex/device trigonometry. One revolution is
       // 64 segments; every sixteenth point starts the next rounded corner.
       float cosine=1,sine=0;
       constexpr float stepCos=0.9951847267f,stepSin=0.0980171403f;
       for(uint8_t i=0;i<count;++i) {
-        if(rounded){const uint8_t quadrant=i/16;const float cx=(quadrant==0||quadrant==3)?left+width-corner:left+corner;
+        if(rounded){const uint8_t quadrant=i/16;const unsigned cornerIndex[]={2,3,0,1};const float corner=radii[cornerIndex[quadrant]];const float cx=(quadrant==0||quadrant==3)?left+width-corner:left+corner;
           const float cy=quadrant<2?top+height-corner:top+corner;points[i]={cx+cosine*corner,cy+sine*corner};}
         else points[i]={content.x+(content.width-1)*0.5f+cosine*rx,content.y+(content.height-1)*0.5f+sine*ry};
         const float next=cosine*stepCos-sine*stepSin;sine=sine*stepCos+cosine*stepSin;cosine=next;
