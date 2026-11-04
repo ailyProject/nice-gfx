@@ -259,10 +259,8 @@ void paintControl(const ControlDesc &desc,const NodeDesc &node,const State &valu
 
     const int side=(modules+8)*scale,left=rect.x+(rect.width-side)/2,top=rect.y+(rect.height-side)/2;
 
-    canvas.fillRect(left,top,side,side,0xffff);
-
     for(int row=0;row<modules;++row)for(int column=0;column<modules;++column)
-      if(qrcodegen_getModule(control.qr.data(),column,row))canvas.fillRect(left+(column+4)*scale,top+(row+4)*scale,scale,scale,0);
+      if(qrcodegen_getModule(control.qr.data(),column,row))canvas.fillRect(left+(column+4)*scale,top+(row+4)*scale,scale,scale,style.color);
 
     return;
   }
