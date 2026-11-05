@@ -1,5 +1,6 @@
 #pragma once
 #include "../../Platform/Common/Overlay.h"
+#include "AlignedMemory.h"
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
@@ -188,14 +189,14 @@ class FixedChromeCache {
 #if defined(CONFIG_IDF_TARGET_ESP32S31)
     return heap_caps_aligned_alloc(Alignment,bytes,MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT);
 #else
-    return ::operator new(bytes,std::align_val_t(Alignment),std::nothrow);
+    return allocateAlignedMemory<Alignment>(bytes);
 #endif
   }
   static void freeMemory(void *memory){
 #if defined(CONFIG_IDF_TARGET_ESP32S31)
     heap_caps_free(memory);
 #else
-    ::operator delete(memory,std::align_val_t(Alignment));
+    freeAlignedMemory<Alignment>(memory);
 #endif
   }
   Slot slots_[SlotCount];size_t budget_=0,scratchBudget_=0,resident_=0,scratchCapacity_=0;

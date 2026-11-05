@@ -7,14 +7,14 @@ static void *allocateNativeWarmScratch(size_t bytes){
 #elif defined(CONFIG_IDF_TARGET_ESP32S31)
   return heap_caps_aligned_alloc(64,bytes,MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT);
 #else
-  return ::operator new(bytes,std::align_val_t(64),std::nothrow);
+  return detail::allocateAlignedMemory<64>(bytes);
 #endif
 }
 static void freeNativeWarmScratch(void *memory){
 #if defined(CONFIG_IDF_TARGET_ESP32S31)
   heap_caps_free(memory);
 #else
-  ::operator delete(memory,std::align_val_t(64));
+  detail::freeAlignedMemory<64>(memory);
 #endif
 }
 static bool nativeWarmMemoryAvailable(size_t required){
