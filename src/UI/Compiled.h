@@ -9,6 +9,7 @@
 #define NICE_GFX_UI_VERTICAL_RANGE_VERSION 1
 #define NICE_GFX_UI_MEDIA_COLOR_KEY_VERSION 1
 #define NICE_GFX_MEDIA_MONO1_VERSION 1
+#define NICE_GFX_TEXT_BOX_TRIM_VERSION 1
 
 namespace nice_gfx { struct MonoFont; struct MonoIcon; }
 
@@ -206,6 +207,7 @@ struct NodeDesc {
 
   int16_t rotation = 0; // Static clockwise degrees about the layout box center, independent of motion.
   uint8_t flip = 0; // Local mirrors before rotation: bit 0 horizontal, bit 1 vertical.
+  uint8_t textBoxTrim = 0; // Single-line project text uses its actual visible ink rows.
 };
 
 struct PageDesc {

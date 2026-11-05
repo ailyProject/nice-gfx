@@ -250,7 +250,7 @@ class TextMaskCache {
     if(!layout.font||!layout.font->bitmap||!layout.font->height||!layout.font->width||!layout.text||
        !layout.lines||!layout.lineCount||layout.lineCount>128||layout.width<=0||layout.height<=0||
        layout.width>INT16_MAX||layout.height>INT16_MAX||!layout.fontSize||layout.fontSize>7||
-       layout.textAlign>2||layout.textY<0)return false;
+       layout.textAlign>2||layout.textY < -int32_t(layout.font->height)*layout.fontSize)return false;
 
     while(length<=2048&&layout.text[length])++length;if(length>2048)return false;
 

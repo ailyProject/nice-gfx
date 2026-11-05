@@ -48,6 +48,40 @@ uint8_t monoAdvance(const MonoFont &font, uint16_t codepoint) {
   return width;
 }
 
+uint8_t monoTextInkTop(const MonoFont &font, const char *text, int32_t width, uint8_t scale) {
+  if (!text || !font.bitmap || !font.advances) return 0;
+
+  uint8_t top = font.height;
+  int32_t advance = 0;
+  const uint16_t stride = monoStride(font);
+
+  for (const auto *at = reinterpret_cast<const uint8_t *>(text); *at; ++at) {
+    if (*at < 32 || *at > 126) return 0;
+
+    advance += monoAdvance(font, *at) * scale;
+
+    if (advance > width) return 0;
+
+    const uint8_t *glyph = monoGlyphExact(font, *at);
+
+    if (!glyph) return 0;
+
+    for (uint8_t y = 0; y < top; ++y) {
+      bool ink = false;
+
+      for (uint8_t x = 0; x < font.width; ++x) {
+        const uint8_t byte = pgm_read_byte(glyph + y * stride + (font.bitsPerPixel == 4 ? x / 2 : x / 8));
+
+        if (font.bitsPerPixel == 4 ? ((byte >> (x & 1 ? 0 : 4)) & 15) : (byte & (128 >> (x & 7)))) { ink = true; break; }
+      }
+
+      if (ink) { top = y; break; }
+    }
+  }
+
+  return top == font.height ? 0 : top;
+}
+
 
 } // namespace detail
 } // namespace nice_gfx

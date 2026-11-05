@@ -1346,6 +1346,7 @@ struct View::Impl {
     for(uint16_t i=0;i<page().count;++i){if(page().nodes[i].kind==Kind::Pager)setPage(i,state()[i].value,false);else state()[i].value=normalized(i,state()[i].value);auto &v=state()[i];v.switchPosition=v.switchFrom=v.switchTo=v.value?1000:0;}
     for(size_t component=0;component<componentCount;++component)revealComponentSelection(page(),state(),components[component]);
     for(uint16_t i=0;i<page().count;++i)initializeControl(page().nodes[i],state()[i]);
+
     rebuildComponentFlow();
   }
 
@@ -1913,7 +1914,6 @@ struct View::Impl {
 
   bool dispatch(int index,EventType type,int32_t animationEndValue=0) {
     if(index<0||!project) return true;
-
     if(type==EventType::Input||type==EventType::Change||type==EventType::Cancel||type==EventType::Submit){const auto *link=componentFor(index);if(link&&link->query==index)rebuildComponentFlow();}
 
     const bool wasDown=down;
@@ -2966,6 +2966,8 @@ struct View::Impl {
     const char *s=v.text.c_str();Rect r=textBox(g.rect,n,style);if(r.width<=0||r.height<=0||!*s)return;
 
     ++stats.textLayouts;const int32_t h=style.font->height*style.fontSize;
+
+    if (n.textBoxTrim && (v.kind == Kind::Text || v.kind == Kind::Label)) g.textY = -int32_t(nice_gfx::detail::monoTextInkTop(*style.font, s, r.width, style.fontSize)) * style.fontSize;
 
     if(n.id==snapshotMarqueeId&&snapshotMarqueeId){
       int32_t width=0;const size_t length=strlen(s);for(size_t at=0;at<length;){const auto cp=nextCode(s,at,length);if(cp=='\n'||cp=='\r')break;width+=nice_gfx::detail::monoAdvance(*style.font,cp)*style.fontSize;}
