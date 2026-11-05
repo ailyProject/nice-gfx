@@ -472,7 +472,7 @@ struct View::Impl {
   mutable const PageDesc *lookupPage=nullptr;
   const ComponentDesc *components=nullptr;
   size_t componentCount=0;
-  struct ComponentLink {const ComponentDesc *desc;int root,value,text,pager,panel;};
+  struct ComponentLink {const ComponentDesc *desc;int root,value,text,pager,panel,query,empty;};
   std::vector<Id> viewportOverlayIds;
   uint16_t viewportOverlayLevels=0;
   mutable const PageDesc *componentsPage=nullptr;
@@ -1094,14 +1094,15 @@ struct View::Impl {
     componentLinks.clear();componentNodes.clear();componentsPage=&page();if(!componentCount)return;
 
     for(size_t c=0;c<componentCount;++c){const auto &d=components[c];const int root=find(d.id);if(root<0)continue;
-      componentLinks.push_back({&d,root,d.valueId?find(d.valueId):-1,d.textId?find(d.textId):-1,d.pageId?find(d.pageId):-1,d.expandedId?find(d.expandedId):-1});}
+      componentLinks.push_back({&d,root,d.valueId?find(d.valueId):-1,d.textId?find(d.textId):-1,d.pageId?find(d.pageId):-1,d.expandedId?find(d.expandedId):-1,d.queryId?find(d.queryId):-1,d.emptyId?find(d.emptyId):-1});}
 
     if(componentLinks.empty())return;
 
     componentNodes.assign(page().count,-1);
 
     for(size_t c=0;c<componentLinks.size();++c){const auto &link=componentLinks[c];
-      for(int index:{link.root,link.value,link.text,link.pager,link.panel})if(index>=0)componentNodes[size_t(index)]=int32_t(c);
+      if(link.desc->kind==ComponentKind::Flow)continue;
+      for(int index:{link.root,link.value,link.text,link.pager,link.panel,link.query,link.empty})if(index>=0)componentNodes[size_t(index)]=int32_t(c);
       for(uint8_t n=0;n<link.desc->optionCount;++n){const int index=find(link.desc->options[n].id);if(index>=0)componentNodes[size_t(index)]=int32_t(c);}
     }
   }
@@ -1120,7 +1121,9 @@ struct View::Impl {
     const int index=find(id);const auto *link=componentFor(index);return link&&link->root==index?link:nullptr;
   }
 
-  int valueTarget(Id id) const {const auto *link=publicComponent(id);return link?(link->value>=0?link->value:link->pager>=0?link->pager:(link->desc->kind==ComponentKind::Select||link->desc->kind==ComponentKind::Choice)?link->root:-1):find(id);}
+  #include "detail/ComponentFlow.inc.h"
+
+  int valueTarget(Id id) const {const auto *link=publicComponent(id);return link?(link->value>=0?link->value:link->pager>=0?link->pager:(link->desc->kind==ComponentKind::Select||link->desc->kind==ComponentKind::Choice||link->desc->kind==ComponentKind::Disclosure)?link->root:-1):find(id);}
 
   int textTarget(Id id) const {const auto *link=publicComponent(id);return link?link->text:find(id);}
   int pageTarget(Id id) const {const auto *link=publicComponent(id);return link&&link->pager>=0?link->pager:find(id);}
@@ -1310,13 +1313,13 @@ struct View::Impl {
   Rect baseRect(const PageDesc &p,const RetainedVector<State> &s,int i) const {
     Rect r=p.nodes[i].rect;const auto &d=s[i].dynamic;
 
-    if(d&&d->boundsOverride){r.x+=d->offsetX;r.y+=d->offsetY;r.width=d->width;r.height=d->height;}return r;
+    if(d&&d->boundsOverride){r.x+=d->offsetX;r.y+=d->offsetY;r.width=d->width;r.height=d->height;}if(d){r.y+=d->flowOffsetY;if(d->flowHeight>=0)r.height=d->flowHeight;}return r;
   }
 
   Rect layoutRect(const PageDesc &p,const RetainedVector<State> &s,int i) const {
     Rect r=baseRect(p,s,i);
 
-    for(uint16_t child=i,a=s[i].parent;a!=NoParent;child=a,a=s[a].parent){if(viewportOverlayRoot(p,child))break;if(s[a].dynamic&&s[a].dynamic->boundsOverride){r.x+=s[a].dynamic->offsetX;r.y+=s[a].dynamic->offsetY;}}return r;
+    for(uint16_t child=i,a=s[i].parent;a!=NoParent;child=a,a=s[a].parent){if(viewportOverlayRoot(p,child))break;if(s[a].dynamic){r.y+=s[a].dynamic->flowOffsetY;if(s[a].dynamic->boundsOverride){r.x+=s[a].dynamic->offsetX;r.y+=s[a].dynamic->offsetY;}}}return r;
   }
 
   Rect childBox(const PageDesc &p,const RetainedVector<State> &s,int i,Rect r) const {
@@ -1343,6 +1346,7 @@ struct View::Impl {
     for(uint16_t i=0;i<page().count;++i){if(page().nodes[i].kind==Kind::Pager)setPage(i,state()[i].value,false);else state()[i].value=normalized(i,state()[i].value);auto &v=state()[i];v.switchPosition=v.switchFrom=v.switchTo=v.value?1000:0;}
     for(size_t component=0;component<componentCount;++component)revealComponentSelection(page(),state(),components[component]);
     for(uint16_t i=0;i<page().count;++i)initializeControl(page().nodes[i],state()[i]);
+    rebuildComponentFlow();
   }
 
   bool renderingFullFrameSurface=false;
@@ -1509,7 +1513,7 @@ struct View::Impl {
 
   bool visible(const PageDesc &p,const RetainedVector<State> &s,int i,bool input=false) const {
     for(int a=i;a>=0;a=s[a].parent==NoParent?-1:s[a].parent)
-      if((s[a].flags&Hidden)||(input&&(s[a].flags&Disabled))) return false;
+      if((s[a].flags&Hidden)||(s[a].dynamic&&s[a].dynamic->flowHidden)||(input&&(s[a].flags&Disabled))) return false;
 
     return true;
   }
@@ -1910,6 +1914,8 @@ struct View::Impl {
   bool dispatch(int index,EventType type,int32_t animationEndValue=0) {
     if(index<0||!project) return true;
 
+    if(type==EventType::Input||type==EventType::Change||type==EventType::Cancel||type==EventType::Submit){const auto *link=componentFor(index);if(link&&link->query==index)rebuildComponentFlow();}
+
     const bool wasDown=down;
 
     if(eventDepth==eventPaths.size())eventPaths.emplace_back();
@@ -2030,7 +2036,7 @@ struct View::Impl {
     else if(action==RouteAction::Replace) history.back()=uint16_t(destination);
     else history.push_back(uint16_t(destination));
 
-    initializeActive();++inputEpoch;restoreFocus();enterAnimations(playEnter);enterSharedMedia();refresh->invalidateAll();
+    initializeActive();rebuildComponentFlow();++inputEpoch;restoreFocus();enterAnimations(playEnter);enterSharedMedia();refresh->invalidateAll();
 
     // Preserve loop playback, while finite entry effects stay revealed. The
     // route callback runs last so the application can still pause these loops.
@@ -2775,16 +2781,16 @@ struct View::Impl {
   void activateNode(int clickedIndex,uint32_t now,bool pointer) {
     const auto *component=componentFor(clickedIndex,true);
 
-    if(component&&(component->desc->kind==ComponentKind::Select||component->desc->kind==ComponentKind::Choice)) {
+    if(component&&(component->desc->kind==ComponentKind::Select||component->desc->kind==ComponentKind::Choice||component->desc->kind==ComponentKind::Disclosure)) {
       const int option=componentOption(*component,clickedIndex);
-      const bool opener=component->desc->kind==ComponentKind::Select&&clickedIndex==component->text;
+      const bool opener=(component->desc->kind==ComponentKind::Select||component->desc->kind==ComponentKind::Disclosure)&&clickedIndex==component->text;
 
       if(option>=0||opener) {
         if(!dispatch(clickedIndex,EventType::Click)||(pointer&&!down)||!visible(page(),state(),clickedIndex,true))return;
 
         for(int a=clickedIndex;a>=0;a=parent(a))if(page().nodes[a].animation.trigger==AnimationTrigger::Click)startAnimation(a,now);
 
-        if(opener){const int panel=component->panel;if(panel>=0){const auto *motion=liveMotion(panel);if((state()[panel].flags&Hidden)||(motion&&motion->hiding))requestShow(panel,false);else requestHide(panel,false);}return;}
+        if(opener){const int panel=component->panel;if(panel>=0){const auto *motion=liveMotion(panel);if((state()[panel].flags&Hidden)||(motion&&motion->hiding))requestShow(panel,false);else requestHide(panel,false);if(component->desc->kind==ComponentKind::Disclosure)dispatch(component->root,EventType::Change);}return;}
 
         const int root=component->root;const bool changed=state()[root].value!=option;
 
@@ -3018,7 +3024,7 @@ struct View::Impl {
     for(uint16_t i=0;i<p.count;++i){++stats.geometryNodes;auto &g=cache.nodes[i];const auto &n=p.nodes[i];const auto &v=s[i];
       if(v.kind==Kind::Media){if(cache.mediaFirst==NoParent)cache.mediaFirst=i;cache.mediaEnd=uint16_t(i+1);}
 
-      g.rect=baseRect(p,s,i);g.rect.x+=v.animationX;g.rect.y+=v.animationY;g.clip={0,0,p.width,p.height};g.visible=!(v.flags&Hidden);g.inputVisible=g.visible&&!(v.flags&Disabled);
+      g.rect=baseRect(p,s,i);g.rect.x+=v.animationX;g.rect.y+=v.animationY;g.clip={0,0,p.width,p.height};g.visible=!(v.flags&Hidden)&&!(v.dynamic&&v.dynamic->flowHidden);g.inputVisible=g.visible&&!(v.flags&Disabled);
 
       if(v.parent!=NoParent){auto &a=cache.nodes[v.parent];++a.children;const Rect b=p.nodes[v.parent].rect;
         if(!viewportOverlayRoot(p,i)){
@@ -5245,7 +5251,7 @@ Status View::mount(const ProjectDesc &p) {
       const NodeDesc &n=page.nodes[i];
 
       if(n.rotation<-360||n.rotation>360||n.flip>3||uint8_t(n.kind)>uint8_t(Kind::InputField)||!validShape(n))return Status::InvalidArgument;
-      if(n.kind==Kind::InputField||(n.kind==Kind::Spinbox&&n.inputField)){const auto *d=n.inputField;if(!d||uint8_t(d->type)>uint8_t(InputFieldType::Tel)||uint8_t(d->enterAction)>uint8_t(InputEnterAction::Search)||uint8_t(d->keyboardTheme)>uint8_t(KeyboardTheme::Dark)||d->decimals>6||d->pinLength>32||d->maxBytes>512||d->maxLength>512||(d->hasMin&&d->hasMax&&d->min>d->max)||d->min<INT32_MIN||d->min>INT32_MAX||d->max<INT32_MIN||d->max>INT32_MAX||(n.kind==Kind::Spinbox&&d->type!=InputFieldType::Number))return Status::InvalidArgument;
+      if(n.kind==Kind::InputField||(n.kind==Kind::Spinbox&&n.inputField)){const auto *d=n.inputField;if(!d||uint8_t(d->type)>uint8_t(InputFieldType::Multiline)||uint8_t(d->enterAction)>uint8_t(InputEnterAction::Search)||uint8_t(d->keyboardTheme)>uint8_t(KeyboardTheme::Dark)||d->decimals>6||d->pinLength>32||d->maxBytes>512||d->maxLength>512||(d->hasMin&&d->hasMax&&d->min>d->max)||d->min<INT32_MIN||d->min>INT32_MAX||d->max<INT32_MIN||d->max>INT32_MAX||(n.kind==Kind::Spinbox&&d->type!=InputFieldType::Number))return Status::InvalidArgument;
         const char *initial=d->value?d->value:"";if(strlen(initial)>(d->maxBytes?d->maxBytes:256))return Status::InvalidArgument;int32_t initialNumber=0;if(*s.inputValidationError(initial,*d,false,initialNumber,n.kind==Kind::Spinbox?&n:nullptr))return Status::InvalidArgument;
 
         if(d->keyboardFont&&std::find(validatedFonts.begin(),validatedFonts.end(),d->keyboardFont)==validatedFonts.end()){if(!validFont(*d->keyboardFont))return Status::InvalidArgument;validatedFonts.push_back(d->keyboardFont);}}
@@ -5489,13 +5495,15 @@ bool View::configureComponents(const ComponentDesc *config,size_t count) {
   std::vector<size_t> ordered(count);std::vector<uint8_t> found(count,0);std::vector<uint16_t> nodes;std::vector<Id> overlays;
 
   for(size_t c=0;c<count;++c){ordered[c]=c;const auto &d=config[c];
-    if(!d.id||uint8_t(d.kind)>uint8_t(ComponentKind::Confirm)||d.optionCount>12||(d.optionCount&&!d.options)||(d.flags&~ComponentViewportOverlay)||((d.flags&ComponentViewportOverlay)&&!d.expandedId))return false;
+    if(!d.id||uint8_t(d.kind)>uint8_t(ComponentKind::Flow)||(d.kind!=ComponentKind::Flow&&d.optionCount>12)||(d.optionCount&&!d.options)||(d.flags&~(ComponentViewportOverlay|ComponentSearch|ComponentAutoHeight))||((d.flags&ComponentViewportOverlay)&&!d.expandedId))return false;
+    if(bool(d.flags&ComponentSearch)!=bool(d.queryId)||bool(d.queryId)!=bool(d.emptyId)||((d.flags&ComponentSearch)&&d.kind!=ComponentKind::Select))return false;
+    if((d.flags&ComponentAutoHeight)&&d.kind!=ComponentKind::Flow&&d.kind!=ComponentKind::Disclosure)return false;
     if(d.flags&ComponentViewportOverlay)overlays.push_back(d.expandedId);
     if((d.kind==ComponentKind::Select||d.kind==ComponentKind::Choice)&&(!d.optionCount||d.valueId))return false;
 
-    const Id slots[]={d.valueId,d.textId,d.pageId,d.expandedId};
+    const Id slots[]={d.valueId,d.textId,d.pageId,d.expandedId,d.queryId,d.emptyId};
 
-    for(size_t n=0;n<4;++n)if(slots[n])for(size_t j=0;j<n;++j)if(slots[n]==slots[j])return false;
+    for(size_t n=0;n<6;++n)if(slots[n])for(size_t j=0;j<n;++j)if(slots[n]==slots[j])return false;
 
     if(d.valueFormat){const size_t length=strlen(d.valueFormat);const char *placeholder=strstr(d.valueFormat,"{value}");if(length>128||!placeholder||strstr(placeholder+7,"{value}")||!d.valueId||!d.textId)return false;}
     for(uint8_t n=0;n<d.optionCount;++n){if(!d.options[n].id||!d.options[n].label||strlen(d.options[n].label)>128)return false;for(Id slot:slots)if(slot&&slot==d.options[n].id)return false;for(uint8_t j=0;j<n;++j)if(d.options[n].id==d.options[j].id)return false;}
@@ -5517,7 +5525,7 @@ bool View::configureComponents(const ComponentDesc *config,size_t count) {
 
       const auto descendant=[&](int index){if(index<0||index==root)return false;for(uint16_t parent=page.nodes[index].parent;parent!=NoParent;parent=page.nodes[parent].parent)if(parent==root)return true;return false;};
 
-      for(Id target:{d.valueId,d.textId,d.pageId,d.expandedId})if(target&&!descendant(find(target)))return false;
+      for(Id target:{d.valueId,d.textId,d.pageId,d.expandedId,d.queryId,d.emptyId})if(target&&!descendant(find(target)))return false;
 
       if(d.textId&&!hasText(page.nodes[find(d.textId)].kind))return false;
       if(d.pageId&&page.nodes[find(d.pageId)].kind!=Kind::Pager)return false;
@@ -5526,10 +5534,12 @@ bool View::configureComponents(const ComponentDesc *config,size_t count) {
       if(d.kind==ComponentKind::SettingRow&&(!d.valueId||(page.nodes[find(d.valueId)].kind!=Kind::Switch&&page.nodes[find(d.valueId)].kind!=Kind::Checkbox)))return false;
       if(d.kind==ComponentKind::ValueSlider&&(!d.valueId||page.nodes[find(d.valueId)].kind!=Kind::Range||!d.valueFormat))return false;
       if(d.kind==ComponentKind::Tabs&&!d.pageId)return false;
+      if(d.kind==ComponentKind::Disclosure&&!d.expandedId)return false;
+      if((d.flags&ComponentSearch)&&(!d.queryId||!d.emptyId||page.nodes[find(d.queryId)].kind!=Kind::InputField))return false;
       if((d.kind==ComponentKind::Select||d.kind==ComponentKind::Popup||d.kind==ComponentKind::Confirm)&&!d.expandedId)return false;
-      if(d.kind==ComponentKind::Select&&(!d.textId||page.nodes[find(d.textId)].kind!=Kind::Button))return false;
+      if((d.kind==ComponentKind::Select||d.kind==ComponentKind::Disclosure)&&(!d.textId||page.nodes[find(d.textId)].kind!=Kind::Button))return false;
 
-      for(uint8_t n=0;n<d.optionCount;++n){const int index=find(d.options[n].id);if(!descendant(index)||page.nodes[index].kind!=Kind::Button)return false;}
+      for(uint8_t n=0;n<d.optionCount;++n){const int index=find(d.options[n].id);if(!descendant(index)||(d.kind==ComponentKind::Flow?page.nodes[index].parent!=root:page.nodes[index].kind!=Kind::Button))return false;}
       if((d.kind==ComponentKind::Select||d.kind==ComponentKind::Choice)&&(page.nodes[root].value<0||page.nodes[root].value>=d.optionCount))return false;
     }
   }
@@ -5547,7 +5557,7 @@ bool View::configureComponents(const ComponentDesc *config,size_t count) {
 
   s.componentPaintUsed[0]=s.componentPaintUsed[1]=0;s.componentPaintClock=0;
 
-  s.prepareComponents();
+  s.prepareComponents();s.rebuildComponentFlow();
 
   for(uint16_t p=0;p<s.project->count;++p)for(size_t component=0;component<count;++component)
     s.revealComponentSelection(s.project->pages[p],s.pages[p],config[component]);

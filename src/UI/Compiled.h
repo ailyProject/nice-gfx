@@ -159,7 +159,9 @@ struct InstrumentDesc {
   uint8_t buttonLayout = 0, formatFlags = 0, minDigits = 0;
 };
 
-enum class InputFieldType : uint8_t { Text, Number, Password, Pin, Tel };
+#define NICE_GFX_UI_MULTILINE_INPUT_VERSION 1
+
+enum class InputFieldType : uint8_t { Text, Number, Password, Pin, Tel, Multiline };
 enum class InputEnterAction : uint8_t { Auto, Done, Next, Search };
 enum class KeyboardTheme : uint8_t { Light, Dark };
 

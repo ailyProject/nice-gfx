@@ -28,7 +28,7 @@
 #define NICE_GFX_UI_SHAPES_VERSION 1
 #define NICE_GFX_UI_TEXT_INPUT_VERSION 1
 #define NICE_GFX_UI_DYNAMIC_IMAGE_VERSION 1
-#define NICE_GFX_UI_COMPONENTS_VERSION 2
+#define NICE_GFX_UI_COMPONENTS_VERSION 3
 #define NICE_GFX_UI_SCROLL_READING_VERSION 1
 #define NICE_GFX_UI_COMPACT_PAGER_VERSION 1
 #define NICE_GFX_UI_MOTION_VERSION 1
@@ -199,7 +199,7 @@ class View {
   // ui.h installs these links so ordinary setters/getters accept public IDs.
   // Replacement is rejected while a raster frame still borrows the links.
   bool configureComponents(const ComponentDesc *components, size_t count);
-  bool setExpanded(Id id, bool expanded); // Select, Popup or Confirm panel.
+  bool setExpanded(Id id, bool expanded); // Select, Popup, Confirm or Disclosure panel.
   bool expanded(Id id) const;
   void setRouteGuard(RouteGuard guard, void *context = nullptr);
   // Call after mount(). Invalid resources leave the existing config intact;

@@ -163,11 +163,11 @@ void commitVisibility(int i,bool shown,bool cancelPointer=true) {
   if(i<0||bool(!(state()[i].flags&Hidden))==shown)return;
   ++inputLayoutEpoch;invalidateSubtree(i);
   if(shown)state()[i].flags&=~Hidden;else {state()[i].flags|=Hidden;cancelVisibilityMotions(i,false);}
-  compactMenuRows();
+  compactMenuRows();rebuildComponentFlow();
   invalidateSubtree(i);
   cancelUnavailableEditors();
   if(cancelPointer&&down&&!pointerAvailable()){releaseKeyboardPointer();cancel(true);}
   ensureInputAvailable();
-  const auto *link=componentFor(i);if(link&&link->panel==i)expansionFocus(*link,shown);
+  const auto *link=componentFor(i);if(link&&link->panel==i){if(link->desc->kind==ComponentKind::Disclosure)state()[link->root].value=shown?1:0;expansionFocus(*link,shown);}
   if(buildKeyboard(softInput))invalidateKeyboardKeys();
 }

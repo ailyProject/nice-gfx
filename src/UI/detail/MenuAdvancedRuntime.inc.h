@@ -10,6 +10,7 @@ bool monochromeLightMode=false,snapshotLightMode=false;
 void compactMenuRows() {
   if(!project||!menuMotionEnabled()||!menuMotionConfig.compactRows)return;
   for(int parentNode=0;parentNode<int(page().count);++parentNode)if(page().nodes[parentNode].kind==Kind::Scroll){
+    bool flow=false;for(size_t index=0;index<componentCount;++index)if(components[index].kind==ComponentKind::Flow&&components[index].id==page().nodes[parentNode].id){flow=true;break;}if(flow)continue;
     const bool horizontal=state()[parentNode].flags&Horizontal;int32_t removed=0;
     for(int i=parentNode+1;i<int(page().count);++i){if(page().nodes[i].parent!=parentNode)continue;
       const Rect authored=page().nodes[i].rect;const int32_t start=horizontal?authored.x:authored.y;

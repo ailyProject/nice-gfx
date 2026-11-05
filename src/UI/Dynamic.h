@@ -2,7 +2,6 @@
 #include "Compiled.h"
 
 namespace nice_gfx { namespace htmlui {
-
 // A small explicit layout operation, independent of the offline CSS compiler.
 // layoutChildren places non-hidden direct children at the parent's content origin,
 // preserves their sizes, and moves their subtrees. resizeContainer changes only
@@ -25,8 +24,9 @@ enum class LayoutAxis : uint8_t { Horizontal, Vertical };
 struct DynamicNode {
   int32_t offsetX=0, offsetY=0, width=0, height=0;
   bool boundsOverride=false;
+  int32_t flowOffsetY=0, flowHeight=-1;
+  bool flowHidden=false;
   Style style{};
   bool styleOverride=false;
 };
-
 } }
