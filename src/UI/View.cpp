@@ -4127,7 +4127,8 @@ struct View::Impl {
       if(!row||size_t(font->count)>SIZE_MAX/font->height/row)return false;
 
       if(aliases(font->bitmap,row*font->height*font->count)||
-         (font->codepoints&&aliases(font->codepoints,size_t(font->count)*sizeof(uint16_t))))return false;
+         (font->codepoints&&aliases(font->codepoints,size_t(font->count)*sizeof(uint16_t)))||
+         (font->advances&&aliases(font->advances,font->count)))return false;
 
       font=font->fallback;
     }

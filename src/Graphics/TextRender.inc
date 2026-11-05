@@ -197,7 +197,7 @@ int16_t NICE_GFX::drawChar(uint16_t uniCode, int32_t x, int32_t y)
       renderTextGlyph(image,int32_t(glyphLeft),y,textcolor,textbgcolor,textsize,textcolor!=textbgcolor);
       _vpX=savedLeft;_vpW=savedRight;_xDatum=savedDatum;
     }
-  }else renderTextGlyph(image, x, y, textcolor, textbgcolor, textsize, textcolor != textbgcolor);
+  }else renderTextGlyph(image, x + mono->xOffset * textsize, y, textcolor, textbgcolor, textsize, textcolor != textbgcolor);
   return nice_gfx::detail::monoAdvance(*mono,uniCode) * textsize;
 }
 

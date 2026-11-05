@@ -33,6 +33,16 @@ const MonoFont *monoFallback(const MonoFont &font, uint16_t codepoint) {
 uint8_t monoAdvance(const MonoFont &font, uint16_t codepoint) {
   if (codepoint < 32 || codepoint == 127) return 0;
   if(monoFallback(font,codepoint))return font.height;
+  if (font.advances) {
+    const uint8_t *glyph = monoGlyph(font, codepoint);
+
+    if (glyph) {
+      const uint32_t index = uint32_t(glyph - font.bitmap) / (monoStride(font) * font.height);
+
+      return pgm_read_byte(font.advances + index);
+    }
+  }
+
   const uint8_t width=(font.compactPunctuation&MonoHalfAscii)&&codepoint<=126?std::max<uint8_t>(1,font.width/2):font.width;
   if(font.compactPunctuation&MonoCompactPunctuation){if(codepoint=='.'||codepoint==','||codepoint==':')return std::max<uint8_t>(1,width/3);if(codepoint==' ')return std::max<uint8_t>(1,width/2);}
   return width;
