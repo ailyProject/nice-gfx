@@ -34,6 +34,10 @@ const MonoFont *monoFallback(const MonoFont &font, uint16_t codepoint);
 uint8_t monoAdvance(const MonoFont &font, uint16_t codepoint);
 uint8_t monoTextInkTop(const MonoFont &font, const char *text, int32_t width, uint8_t scale);
 
+struct MonoTextInk { uint8_t top, height; };
+
+MonoTextInk monoTextInkBounds(const MonoFont &font, const char *text);
+
 inline uint16_t monoStride(const MonoFont &font) {
   return font.bitsPerPixel == 4 ? (font.width + 1) / 2 : (font.width + 7) / 8;
 }

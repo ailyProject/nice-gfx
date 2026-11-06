@@ -2905,6 +2905,13 @@ struct View::Impl {
         if(disabled?(v.flags&DisabledTransparent)!=0:pressed?(v.flags&ActiveTransparent)!=0:(v.flags&Transparent)!=0)continue;
 
         Rect r=g.rect;r.x+=paintOffsetX;r.y+=paintOffsetY;
+
+        if(v.kind==Kind::Button&&!disabled){
+          const auto component=componentPaint(*rasterFrame.current.page,rasterFrame.current.values,rasterFrame.current.page->nodes[i].id);
+
+          if(component.tab&&component.selected){r.x+=3;r.y+=3;r.width=std::max<int32_t>(0,r.width-6);r.height=std::max<int32_t>(0,r.height-6);}
+        }
+
         Rect clip=g.clip;clip.x+=paintOffsetX;clip.y+=paintOffsetY;
         const Rect visible=intersect(clipped,intersect(r,clip));if(visible.width<=0||visible.height<=0)continue;
         const Style &style=styleFor(*rasterFrame.current.page,rasterFrame.current.values,i);
@@ -3829,10 +3836,11 @@ struct View::Impl {
     const bool selected=component.selected&&!disabled;
     const bool focusBackground=!disabled&&focusedStyle&&(pressed||(focusedStyle->flags&FocusBackground));
     uint16_t bg=focusBackground?(pressed?s.pressedColor:s.background):selected?s.thumbColor:disabled?s.disabledColor:(pressed?s.pressedColor:s.background);
-    // RGB styles have one foreground for all states. A 1-bit selected/pressed
-    // background must choose its opposite foreground to retain readable menus.
-    Style monoStyle;
+    // Choice/select fill is the selected foreground; thumb is its backplate.
+    Style selectedStyle,monoStyle;
     const Style *contentStyle=&s;
+
+    if(selected&&!component.tab&&!(focusedStyle&&(focusedStyle->flags&FocusColor))){selectedStyle=s;selectedStyle.color=s.fillColor;contentStyle=&selectedStyle;}
 
     const bool transparent=(!selected||focusBackground)&&(disabled?(paintFlags&DisabledTransparent)!=0:
       pressed?(paintFlags&ActiveTransparent)!=0:(paintFlags&Transparent)!=0);
@@ -3867,16 +3875,29 @@ struct View::Impl {
     }
 
     const bool gradient=!(n.flags&RangeFillGradient)&&(!selected||focusBackground)&&(disabled?(paintFlags&GradientDisabled)!=0:pressed?(paintFlags&GradientActive)!=0:!(focusedStyle&&(focusedStyle->flags&FocusBackground)));
+    Rect backplate=r;
+    Style backplateStyle=s;
 
-    if(!transparent)rounded(r,bg,s.borderColor,s,gradient,i,clipped);
-    else strokeCornerRect(canvas,r,clipped,s,s.borderWidth,s.borderColor);
+    if(selected&&component.tab){
+      backplate.x+=3;backplate.y+=3;
+      backplate.width=std::max<int32_t>(0,r.width-6);backplate.height=std::max<int32_t>(0,r.height-6);
+    }
+
+    if(selected&&(component.tab||component.choice)){
+      backplateStyle.borderWidth=std::max<uint8_t>(1,s.borderWidth);
+
+      if(component.tab)backplateStyle.borderColor=s.fillColor;
+    }
+
+    if(!transparent)rounded(backplate,bg,backplateStyle.borderColor,backplateStyle,gradient,i,clipped);
+    else strokeCornerRect(canvas,backplate,clipped,backplateStyle,backplateStyle.borderWidth,backplateStyle.borderColor);
 
     const auto *monoComponent=displayPolicy.monochrome&&v.kind==Kind::Container?componentFor(i):nullptr;
     const bool monoControl=displayPolicy.monochrome&&(v.kind==Kind::Button||v.kind==Kind::InputField||v.kind==Kind::Checkbox||v.kind==Kind::Switch||v.kind==Kind::Range||v.kind==Kind::Progress||n.instrument||(monoComponent&&monoComponent->root==i&&monoComponent->desc->kind==ComponentKind::ImageButton));
     detail::MonoControlState<nice_gfx::TileCanvas> monoState{canvas,r,clipped,monoBackground,monoControl&&disabled,monoControl&&pressed};
 
     if(v.kind==Kind::Text||v.kind==Kind::Label||v.kind==Kind::Button) {
-      if((selected||(displayPolicy.monochrome&&disabled&&component.selected))&&r.width>0&&r.height>0){const int32_t inset=std::min<int32_t>(12,r.width/4);
+      if(!component.tab&&!component.choice&&(selected||(displayPolicy.monochrome&&disabled&&component.selected))&&r.width>0&&r.height>0){const int32_t inset=std::min<int32_t>(12,r.width/4);
         const bool disabledSelection=displayPolicy.monochrome&&disabled;canvas.fillRoundRect(r.x+inset,r.y+std::max<int32_t>(0,r.height-(disabledSelection?2:4)),r.width-2*inset,disabledSelection?1:std::min<int32_t>(2,r.height),disabledSelection?0:1,disabledSelection?DisplayPolicy::foregroundOn(monoBackground):s.fillColor);}
 
       text(i,n,v,*contentStyle,clipped);
@@ -4038,7 +4059,7 @@ struct View::Impl {
     } else if(v.kind==Kind::Range||v.kind==Kind::Progress) {
       const auto g=detail::rangeGeometry(r,s,(n.flags&VerticalRange)!=0,v.kind==Kind::Range,v.value,n.minimum,n.maximum);
 
-      if(displayPolicy.monochrome){detail::monoRange(canvas,g,s,v.kind==Kind::Range);return;}
+      if(displayPolicy.monochrome){detail::monoRange(canvas,g,s,v.kind==Kind::Range,clipped);return;}
 
       const int32_t track=g.vertical?g.track.width:g.track.height;
       const int32_t radius=s.trackRadius==65535?track/2:std::min<int32_t>(s.trackRadius,track/2);
@@ -4048,11 +4069,16 @@ struct View::Impl {
       if(displayPolicy.monochrome)canvas.drawRoundRect(g.track.x,g.track.y,g.track.width,g.track.height,radius,DisplayPolicy::foregroundOn(s.trackColor));
 
       if(g.position>0){
-        if((n.flags&RangeFillGradient)&&s.gradient){const auto &fill=*s.gradient;const Rect origin=poseRect(*rasterFrame.current.page,rasterFrame.current.values,i);
-          const int32_t projection=int32_t(int64_t(fill.origin)+int64_t(g.fill.x-origin.x)*fill.stepX+int64_t(g.fill.y-origin.y)*fill.stepY);
+        const auto paintFill=[&](int32_t curve){
+          if((n.flags&RangeFillGradient)&&s.gradient){const auto &fill=*s.gradient;const Rect origin=poseRect(*rasterFrame.current.page,rasterFrame.current.values,i);
+            const int32_t projection=int32_t(int64_t(fill.origin)+int64_t(g.fill.x-origin.x)*fill.stepX+int64_t(g.fill.y-origin.y)*fill.stepY);
 
-          canvas.fillLinearGradientRoundRect(g.fill.x,g.fill.y,g.fill.width,g.fill.height,uint8_t(radius),fill.colors,projection,fill.stepX,fill.stepY,false);
-        }else canvas.fillRoundRect(g.fill.x,g.fill.y,g.fill.width,g.fill.height,radius,s.fillColor);
+            canvas.fillLinearGradientRoundRect(g.fill.x,g.fill.y,g.fill.width,g.fill.height,uint8_t(curve),fill.colors,projection,fill.stepX,fill.stepY,false);
+          }else canvas.fillRoundRect(g.fill.x,g.fill.y,g.fill.width,g.fill.height,curve,s.fillColor);
+        };
+
+        if(v.kind==Kind::Progress&&s.cornerRadii&&g.position<g.length)paintCornerQuadrants(canvas,g.fill,clipped,s,paintFill);
+        else paintFill(radius);
       }
 
       if(v.kind==Kind::Range){const int32_t tw=g.thumb.width,th=g.thumb.height,x=g.thumb.x,y=g.thumb.y,radius=std::min<int32_t>(s.thumbRadius,std::min<int32_t>(tw,th)/2);

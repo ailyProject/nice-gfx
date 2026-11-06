@@ -83,5 +83,31 @@ uint8_t monoTextInkTop(const MonoFont &font, const char *text, int32_t width, ui
 }
 
 
+MonoTextInk monoTextInkBounds(const MonoFont &font, const char *text) {
+  const MonoTextInk cell{0,font.height};
+
+  if (!text || !font.bitmap || !font.advances) return cell;
+
+  uint8_t top=font.height,bottom=0;
+  const uint16_t stride=monoStride(font);
+
+  for (const auto *at=reinterpret_cast<const uint8_t *>(text); *at; ++at) {
+    if (*at<32 || *at>126) return cell;
+
+    const uint8_t *glyph=monoGlyphExact(font,*at);
+
+    if (!glyph) return cell;
+
+    for (uint8_t y=0; y<font.height; ++y) for (uint8_t x=0; x<font.width; ++x) {
+      const uint8_t byte=pgm_read_byte(glyph+y*stride+(font.bitsPerPixel==4?x/2:x/8));
+      const bool ink=font.bitsPerPixel==4?((byte>>(x&1?0:4))&15)!=0:(byte&(128>>(x&7)))!=0;
+
+      if (ink) { top=std::min(top,y);bottom=std::max<uint8_t>(bottom,y+1);break; }
+    }
+  }
+
+  return bottom?MonoTextInk{top,uint8_t(bottom-top)}:cell;
+}
+
 } // namespace detail
 } // namespace nice_gfx
