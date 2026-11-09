@@ -8,10 +8,10 @@ const exampleDir = resolve(dataDir, '..');
 const editorRoot = process.argv[2]
   ? resolve(process.argv[2])
   : resolve(dataDir, '../../../../../nice_gfx_editor');
-const load = file => import(pathToFileURL(resolve(editorRoot, 'packages/html-ui', file)).href);
-const { compileProject } = await load('src/index.js');
-const { defaultHardware, validateHardware } = await load('hardware.mjs');
-const { createArduinoPreview } = await load('arduino.mjs');
+const load = file => import(pathToFileURL(resolve(editorRoot, 'packages/compiler/dist', file)).href);
+const { compileProject } = await load('index.js');
+const { defaultHardware, validateHardware } = await load('hardware.js');
+const { createArduinoPreview } = await load('arduino.js');
 const project = {
   version: 1,
   name: 'MosaicoCameraDemo',
@@ -59,7 +59,7 @@ for (const [file, text] of Object.entries(generatedHeaders)) {
 await writeFile(resolve(dataDir, 'project.gfx.json'), JSON.stringify(project, null, 2) + '\n');
 for (const [file, text] of Object.entries(generatedHeaders)) await writeFile(resolve(exampleDir, file), text);
 await writeFile(resolve(dataDir, 'ui-build-report.json'), JSON.stringify({
-  compiler: '@nice-gfx/html-ui', hardwareErrors, diagnostics: compiled.diagnostics,
+  compiler: '@nice-gfx/compiler', hardwareErrors, diagnostics: compiled.diagnostics,
   stats: compiled.stats,
   viewport: { x: preview.x, y: preview.y, width: preview.width, height: preview.height },
   publicElements: Object.fromEntries(expected.map(id => {
