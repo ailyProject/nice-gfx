@@ -3903,9 +3903,6 @@ struct View::Impl {
     detail::MonoControlState<nice_gfx::TileCanvas> monoState{canvas,r,clipped,monoBackground,monoControl&&disabled,monoControl&&pressed};
 
     if(v.kind==Kind::Text||v.kind==Kind::Label||v.kind==Kind::Button) {
-      if(!component.tab&&!component.choice&&(selected||(displayPolicy.monochrome&&disabled&&component.selected))&&r.width>0&&r.height>0){const int32_t inset=std::min<int32_t>(12,r.width/4);
-        const bool disabledSelection=displayPolicy.monochrome&&disabled;canvas.fillRoundRect(r.x+inset,r.y+std::max<int32_t>(0,r.height-(disabledSelection?2:4)),r.width-2*inset,disabledSelection?1:std::min<int32_t>(2,r.height),disabledSelection?0:1,disabledSelection?DisplayPolicy::foregroundOn(monoBackground):s.fillColor);}
-
       text(i,n,v,*contentStyle,clipped);
 
       if(component.select&&r.width>0&&r.height>0){const float cx=r.x+r.width-18,cy=r.y+r.height/2;
@@ -4162,7 +4159,8 @@ struct View::Impl {
 
       if(aliases(font->bitmap,row*font->height*font->count)||
          (font->codepoints&&aliases(font->codepoints,size_t(font->count)*sizeof(uint16_t)))||
-         (font->advances&&aliases(font->advances,font->count)))return false;
+         (font->advances&&aliases(font->advances,font->count))||
+         (font->asciiMetrics&&aliases(font->asciiMetrics,95*sizeof(MonoAsciiMetric))))return false;
 
       font=font->fallback;
     }
@@ -5534,8 +5532,8 @@ bool View::configureComponents(const ComponentDesc *config,size_t count) {
     if(bool(d.flags&ComponentSearch)!=bool(d.queryId)||bool(d.queryId)!=bool(d.emptyId)||((d.flags&ComponentSearch)&&d.kind!=ComponentKind::Select))return false;
     if((d.flags&ComponentAutoHeight)&&d.kind!=ComponentKind::Flow&&d.kind!=ComponentKind::Disclosure)return false;
     if(d.flags&ComponentViewportOverlay)overlays.push_back(d.expandedId);
-    // Select panels stack above content while retaining their anchor geometry.
-    if((d.flags&ComponentViewportOverlay)||d.kind==ComponentKind::Select)paintOverlays.push_back(d.expandedId);
+    // Popup panels stack above content while retaining their anchor geometry.
+    if((d.flags&ComponentViewportOverlay)||d.kind==ComponentKind::Select||d.kind==ComponentKind::Popup||d.kind==ComponentKind::Confirm)paintOverlays.push_back(d.expandedId);
     if((d.kind==ComponentKind::Select||d.kind==ComponentKind::Choice)&&(!d.optionCount||d.valueId))return false;
 
     const Id slots[]={d.valueId,d.textId,d.pageId,d.expandedId,d.queryId,d.emptyId};

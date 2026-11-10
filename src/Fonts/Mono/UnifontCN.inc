@@ -15558,4 +15558,4 @@ static const uint16_t unifontCNCodepoints[] PROGMEM = {
   0xFF4F, 0xFF50, 0xFF51, 0xFF52, 0xFF53, 0xFF54, 0xFF55, 0xFF56, 0xFF57, 0xFF58, 0xFF59, 0xFF5A, 0xFF5B, 0xFF5C, 0xFF5D, 0xFF5E,
   0xFFE0, 0xFFE1, 0xFFE3, 0xFFE5,
 };
-const MonoFont UnifontCN16 = { unifontCNBitmap, unifontCNCodepoints, 7540, 16, 16, 14 };
+const MonoFont UnifontCN16 = { unifontCNBitmap, unifontCNCodepoints, 7540, 16, 16, 14, nullptr, 1, MonoHalfAscii };

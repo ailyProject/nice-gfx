@@ -33,6 +33,7 @@ const MonoFont *monoFallback(const MonoFont &font, uint16_t codepoint) {
 uint8_t monoAdvance(const MonoFont &font, uint16_t codepoint) {
   if (codepoint < 32 || codepoint == 127) return 0;
   if(monoFallback(font,codepoint))return font.height;
+  if(font.asciiMetrics&&codepoint<=126)return pgm_read_byte(&font.asciiMetrics[codepoint-32].advance);
   if (font.advances) {
     const uint8_t *glyph = monoGlyph(font, codepoint);
 

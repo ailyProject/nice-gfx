@@ -4,11 +4,13 @@
 #define NICE_GFX_MONO_COVERAGE_VERSION 1
 #define NICE_GFX_MONO_ASCII_ADVANCE_VERSION 1
 #define NICE_GFX_MONO_ADVANCES_VERSION 1
+#define NICE_GFX_MONO_ASCII_METRICS_VERSION 1
 
 namespace nice_gfx {
 // Constant descriptor; bitmap and sorted Unicode index are stored in Flash.
 // Descriptors supplied to setFont() must outlive the display's use of them.
 enum MonoAdvanceFlags : uint8_t { MonoCompactPunctuation = 1, MonoHalfAscii = 2 };
+struct MonoAsciiMetric { uint8_t advance; int8_t offset; };
 
 struct MonoFont {
   const uint8_t *bitmap;
@@ -24,6 +26,7 @@ struct MonoFont {
   uint8_t compactPunctuation = 0; // MonoAdvanceFlags; field layout and legacy 0/1 values are unchanged
   const uint8_t *advances = nullptr; // Optional advance per glyph, in codepoint-index order.
   int8_t xOffset = 0;
+  const MonoAsciiMetric *asciiMetrics = nullptr; // Printable ASCII, indexed by codepoint - 32.
 };
 
 namespace detail {

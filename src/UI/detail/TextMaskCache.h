@@ -219,7 +219,7 @@ class TextMaskCache {
   static bool sameFont(const MonoFont &a,const MonoFont &b){
     return a.bitmap==b.bitmap&&a.codepoints==b.codepoints&&a.count==b.count&&a.width==b.width&&
       a.height==b.height&&a.baseline==b.baseline&&a.fallback==b.fallback&&a.bitsPerPixel==b.bitsPerPixel&&
-      a.compactPunctuation==b.compactPunctuation&&a.advances==b.advances&&a.xOffset==b.xOffset;
+      a.compactPunctuation==b.compactPunctuation&&a.advances==b.advances&&a.xOffset==b.xOffset&&a.asciiMetrics==b.asciiMetrics;
   }
 
   struct Slot {
