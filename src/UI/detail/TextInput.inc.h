@@ -47,6 +47,16 @@
     invalidateKeyboardPressed();
     keyboardPointer=keyboardFieldPointer=keyboardSpacePointer=keyboardTrackpad=keyboardPickerPointer=keyboardBackspaceRepeat=keyboardBackspacePaused=false;keyboardPressed.clear();
   }
+  void suspendSystemInput(int panel) {
+    if(suspendedSystemInput||softInput.node<0||descendant(softInput.node,panel)){softHide();return;}
+    softHide();suspendedSystemInput.reset(new SoftInput(std::move(softInput)));suspendedSystemInputPage=history.back();softInput=SoftInput{};
+  }
+  void restoreSystemInput(int panel) {
+    if(!suspendedSystemInput)return;
+    if(softInput.node>=0&&descendant(softInput.node,panel))softCancel();
+    if(suspendedSystemInputPage==history.back()){softInput=std::move(*suspendedSystemInput);softInput.visible=false;}
+    suspendedSystemInput.reset();suspendedSystemInputPage=NoParent;++inputEpoch;refresh->invalidateAll();
+  }
   bool softBegin(int i) {
     if(!inputAvailable(i)||transition.active||groupMotion.active)return false;
     releaseKeyboardPointer();
@@ -442,7 +452,7 @@
     const bool masked=keyboardMasked(k);const size_t cursor=std::min(k.cursor,k.draft.size());size_t start=cursor;
     const int32_t reserve=keyboardCaretReserve(style,field);int32_t pixels=0;
     // Walk back only as far as this field can display. Long drafts and masked
-    // passwords no longer allocate or measure their full contents per tile.
+    // passwords need no full-content allocation or measurement per tile.
     while(start){const size_t previous=inputPrevious(k.draft,start);size_t next=previous;const uint16_t code=masked?'*':nextCode(k.draft.c_str(),next,start);const int32_t advance=inputGlyphAdvance(style,code,true);if(pixels+advance+reserve>field.width)break;pixels+=advance;start=previous;}
     pixels=0;for(size_t i=start;i<k.draft.size();){const size_t previous=i;const size_t next=inputFollowing(k.draft,i);size_t decode=i;const uint16_t code=masked?'*':nextCode(k.draft.c_str(),decode,next);const int32_t advance=inputGlyphAdvance(style,code,true);if(pixels+advance>field.width)break;
       if(previous==cursor)frame.cursor=frame.draft.size();if(masked)frame.draft+='*';else frame.draft.append(k.draft,previous,next-previous);pixels+=advance;i=next;

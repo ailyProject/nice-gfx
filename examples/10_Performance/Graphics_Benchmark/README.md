@@ -45,7 +45,7 @@ Wio Terminal 使用 `Seeeduino:samd:seeed_wio_terminal` 编译。
 | `r` | 清除本轮结果，从第一项重新开始 |
 | `d` | 切换 Sprite 场景的 DMA/同步提交，清除本轮结果并重新开始 |
 
-CH13613 等要求窗口按 2×2 像素对齐的屏幕，前五场景在一块全屏 RGB565 Sprite 中绘制，再提交完整内容区，标记为 `BUFFERED`。480×480 缓冲约占 450 KiB，建议启用 PSRAM；分配失败会报告 `BENCH_FATAL`。HUD 和汇总文字共用该缓冲，Sprite 动画的提交位置按窗口网格对齐，UI 继续使用原有分块刷新。
+CH13613 等要求窗口按 2×2 像素对齐的屏幕，前五场景在一块全屏 RGB565 Sprite 中绘制，再提交完整内容区，标记为 `BUFFERED`。480×480 缓冲约占 450 KiB，建议启用 PSRAM；分配失败会报告 `BENCH_FATAL`。HUD 和汇总文字共用该缓冲，Sprite 动画的提交位置按窗口网格对齐，UI 使用分块刷新。
 
 模式按实际路径显示：支持直接绘图时为 `DIRECT`，对齐屏幕离屏绘图为 `BUFFERED`；Sprite 的 `DMA` 只有 `initDMA()`
 成功时才显示，否则为 `SYNC`。UI 调度器自行请求异步提交，按后端能力显示

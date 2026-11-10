@@ -75,9 +75,9 @@ static const InitCommand ST7701_RGB_Init[] = {
 static constexpr VideoInitProgram ST7701_RGB_Program(ST7701_RGB_Init, sizeof(ST7701_RGB_Init) / sizeof(InitCommand));
 } } // namespace nice_gfx::video
 
-// Type-1 480x480 glass tuning, as used by Waveshare 4B. Host RGB565
-// wiring uses the panel RGB666 DPI mode (COLMOD 0x60). Board pins are not
-// part of the controller program. Reference: waveshareteam/ESP32-S3-Touch-LCD-4B.
+// Register and timing reference: ST7701 datasheet.
+// Type-1 480x480 glass tuning for Waveshare 4B. Host RGB565 wiring uses
+// the panel RGB666 DPI mode (COLMOD 0x60). Board pins are not part of the controller program.
 namespace nice_gfx { namespace video {
 static const uint8_t ST7701_RGB_Type1_data_1[] = {0x77, 0x01, 0x00, 0x00, 0x10};
 static const uint8_t ST7701_RGB_Type1_data_2[] = {0x3B, 0x00};

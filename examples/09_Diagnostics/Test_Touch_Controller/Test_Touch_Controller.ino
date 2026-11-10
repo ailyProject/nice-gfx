@@ -24,7 +24,7 @@ void setup(void) {
   Serial.println("\n\nStarting...");
 
   gfx.begin();
-  exampleAttachTouch(gfx); // Runtime XPT2046 pins in ExampleBoard.h
+  exampleAttachTouch(gfx); // Runtime XPT2046 pins in Hardware.h
 }
 
 //====================================================================

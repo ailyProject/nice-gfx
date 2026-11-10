@@ -53,6 +53,8 @@ class Image {
   struct Impl;
   Impl *impl_;
   explicit Image(Impl *storage);
+  static Status copyForView(const ImageView &source, Image &out);
+  static Status copyStorage(const ImageView &source, Image &out, PixelOrder storageOrder);
   void retain();
   void release();
   friend class View;

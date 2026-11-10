@@ -161,8 +161,8 @@ static const uint8_t ngfx_u8x8_d_gu800_128x64_init_seq[] = {
   NGFX_U8X8_C(0x40),                                 /* min (0x04f) / max (0x040) brightness */
   NGFX_U8X8_C(0x84),                                 /* x increment */
   
-  // NGFX_U8X8_CA(0x024, 0x040)              /* display on */
-  
+
+
   NGFX_U8X8_END_TRANSFER(),             	/* disable chip */
   NGFX_U8X8_END()             			/* end of sequence */
 };
@@ -239,8 +239,8 @@ static const uint8_t ngfx_u8x8_d_gu800_160x16_init_seq[] = {
   NGFX_U8X8_C(0x40),                                 /* min (0x04f) / max (0x040) brightness */
   NGFX_U8X8_C(0x84),                                 /* x increment */
   
-  // NGFX_U8X8_CA(0x024, 0x040)              /* display on */
-  
+
+
   NGFX_U8X8_END_TRANSFER(),             	/* disable chip */
   NGFX_U8X8_END()             			/* end of sequence */
 };

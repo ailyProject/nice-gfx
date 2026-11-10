@@ -11,7 +11,7 @@
   ######       TO SELECT THE FONTS AND PINS YOU USE, SEE ABOVE       ######
   #########################################################################
  
-Updated by Bodmer for variable meter size
+Variable-size meter example by Bodmer
  */
 
 // Define meter size as multiplier of 240 pixels wide 1.0 and 1.3333 work OK

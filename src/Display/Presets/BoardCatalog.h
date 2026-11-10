@@ -13,6 +13,8 @@ enum class BoardPresetId : uint8_t {
   Esp32,
   Esp32S3Ili9341,
   HeltecWiFiLoRa32V3,
+  Jc1060P470CIWY,
+  Jc4880P443CIW,
   LilygoTDisplayS3,
   Linkbit213Tricolor,
   Linkbit,
@@ -164,6 +166,30 @@ template<>struct BoardPresetTraits<BoardPresetId::HeltecWiFiLoRa32V3> {
       "{\"cs\":\"-1\",\"dc\":\"-1\",\"reset\":\"21\",\"sck\":\"-1\",\"mosi\":\"-1\",\"miso\":\"-1\",\"backlight\":\"-1\",\"dataPins\":[],\"touchIrq\":\"-1\",\"touchSda\":\"-1\",\"touchScl\":\"-1\",\"touchReset\":\"-1\",\"displaySda\":\"17\",\"displayScl\":\"18\"}",
       {"none",-1,-1,-1,-1,46},
       "当前显示目录尚未适配 SSD1306 128×64 I2C。"};
+    return value;
+  }
+};
+template<>struct BoardPresetTraits<BoardPresetId::Jc1060P470CIWY> {
+  static constexpr BoardSupport support=BoardSupport::Ready;
+  static const BoardPresetInfo &info() {
+    static const BoardPresetInfo value={"jc1060p470c-i-w-y","JC1060P470C_I_W_Y (V3)","Jc1060P470CIWYDisplay","esp32:esp32:esp32p4:ChipVariant=postv3,FlashSize=16M,PSRAM=enabled,PartitionScheme=app3M_fat9M_16MB","JD9165_1024x600_MIPI",
+      support,false,1024,600,0,40000000,
+      {-1,-1,5,-1,-1,-1,23,-1,-1,-1,-1,{-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1}},
+      "{\"cs\":\"-1\",\"dc\":\"-1\",\"reset\":\"5\",\"sck\":\"-1\",\"mosi\":\"-1\",\"miso\":\"-1\",\"backlight\":\"23\",\"dataPins\":[\"-1\",\"-1\",\"-1\",\"-1\",\"-1\",\"-1\",\"-1\",\"-1\",\"-1\",\"-1\",\"-1\",\"-1\",\"-1\",\"-1\",\"-1\",\"-1\"],\"touchIrq\":\"-1\",\"touchSda\":\"7\",\"touchScl\":\"8\",\"touchReset\":\"-1\"}",
+      {"gt911",7,8,-1,-1,93},
+      "适用于资料包P4V3X_V3 New_Panel；ESP32-P4必须选择ChipVariant=postv3。\n按V3 Arduino示例使用LCD复位GPIO5、GPIO23高有效背光、GT911地址0x5D及SDA7/SCL8；触摸RESET/INT保留-1轮询。\n资料包旧V1.0原理图/BSP标注LCD复位GPIO0，与V3新屏示例不同；本预设以V3新屏代码为准，不作为旧版预设。\n包含完整JD9165新屏初始化；音频、ESP32-C6无线、SD、以太网、相机与RS485由应用另行接入；尚未真机验证。"};
+    return value;
+  }
+};
+template<>struct BoardPresetTraits<BoardPresetId::Jc4880P443CIW> {
+  static constexpr BoardSupport support=BoardSupport::Ready;
+  static const BoardPresetInfo &info() {
+    static const BoardPresetInfo value={"jc4880p443c-i-w","JC4880P443C_I_W","Jc4880P443CIWDisplay","esp32:esp32:esp32p4:FlashSize=16M,PSRAM=enabled,PartitionScheme=app3M_fat9M_16MB","ST7701_480x800_MIPI",
+      support,false,480,800,0,40000000,
+      {-1,-1,5,-1,-1,-1,23,-1,-1,-1,-1,{-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1}},
+      "{\"cs\":\"-1\",\"dc\":\"-1\",\"reset\":\"5\",\"sck\":\"-1\",\"mosi\":\"-1\",\"miso\":\"-1\",\"backlight\":\"23\",\"dataPins\":[\"-1\",\"-1\",\"-1\",\"-1\",\"-1\",\"-1\",\"-1\",\"-1\",\"-1\",\"-1\",\"-1\",\"-1\",\"-1\",\"-1\",\"-1\",\"-1\"],\"touchIrq\":\"21\",\"touchSda\":\"7\",\"touchScl\":\"8\",\"touchReset\":\"22\"}",
+      {"gt911",7,8,22,21,93},
+      "按资料包专用ST7701初始化序列；屏幕复位GPIO5、背光GPIO23高有效。\nGT911地址0x5D，SDA7/SCL8与音频/相机控制共用；原理图触摸RESET22/INT21。\nStudio采用480×800原生竖屏、旋转0。ESP32-C6无线、音频、相机、SD与RS485由应用另行接入；尚未真机验证。"};
     return value;
   }
 };
@@ -695,7 +721,7 @@ template<>struct BoardPresetTraits<BoardPresetId::XueersiEsp32> {
     return value;
   }
 };
-constexpr size_t BoardPresetCount=53;
+constexpr size_t BoardPresetCount=55;
 inline const BoardPresetInfo *boardPresetAt(size_t index) {
   switch(index) {
     case 0:return &BoardPresetTraits<BoardPresetId::AiVox>::info();
@@ -707,50 +733,52 @@ inline const BoardPresetInfo *boardPresetAt(size_t index) {
     case 6:return &BoardPresetTraits<BoardPresetId::Esp32>::info();
     case 7:return &BoardPresetTraits<BoardPresetId::Esp32S3Ili9341>::info();
     case 8:return &BoardPresetTraits<BoardPresetId::HeltecWiFiLoRa32V3>::info();
-    case 9:return &BoardPresetTraits<BoardPresetId::LilygoTDisplayS3>::info();
-    case 10:return &BoardPresetTraits<BoardPresetId::Linkbit213Tricolor>::info();
-    case 11:return &BoardPresetTraits<BoardPresetId::Linkbit>::info();
-    case 12:return &BoardPresetTraits<BoardPresetId::M5AtomS3>::info();
-    case 13:return &BoardPresetTraits<BoardPresetId::M5Cardputer>::info();
-    case 14:return &BoardPresetTraits<BoardPresetId::M5Core>::info();
-    case 15:return &BoardPresetTraits<BoardPresetId::M5Core2>::info();
-    case 16:return &BoardPresetTraits<BoardPresetId::M5CoreInk>::info();
-    case 17:return &BoardPresetTraits<BoardPresetId::M5CoreS3>::info();
-    case 18:return &BoardPresetTraits<BoardPresetId::M5Dial>::info();
-    case 19:return &BoardPresetTraits<BoardPresetId::M5DinMeter>::info();
-    case 20:return &BoardPresetTraits<BoardPresetId::M5Fire>::info();
-    case 21:return &BoardPresetTraits<BoardPresetId::M5Paper>::info();
-    case 22:return &BoardPresetTraits<BoardPresetId::M5Station>::info();
-    case 23:return &BoardPresetTraits<BoardPresetId::M5StickCPlus>::info();
-    case 24:return &BoardPresetTraits<BoardPresetId::M5StickCPlus2>::info();
-    case 25:return &BoardPresetTraits<BoardPresetId::M5StickC>::info();
-    case 26:return &BoardPresetTraits<BoardPresetId::M5Tab5>::info();
-    case 27:return &BoardPresetTraits<BoardPresetId::M5Tough>::info();
-    case 28:return &BoardPresetTraits<BoardPresetId::MPython2>::info();
-    case 29:return &BoardPresetTraits<BoardPresetId::MPython3>::info();
-    case 30:return &BoardPresetTraits<BoardPresetId::OjBadge>::info();
-    case 31:return &BoardPresetTraits<BoardPresetId::OjEasyVoiceLab>::info();
-    case 32:return &BoardPresetTraits<BoardPresetId::OjAiotKitLcd>::info();
-    case 33:return &BoardPresetTraits<BoardPresetId::OjAiotKitOled>::info();
-    case 34:return &BoardPresetTraits<BoardPresetId::OjEsp32S3Basic>::info();
-    case 35:return &BoardPresetTraits<BoardPresetId::OjOjoy>::info();
-    case 36:return &BoardPresetTraits<BoardPresetId::Rp2040>::info();
-    case 37:return &BoardPresetTraits<BoardPresetId::SeeedGroveBeginnerKit>::info();
-    case 38:return &BoardPresetTraits<BoardPresetId::SeeedEe02Spectra133>::info();
-    case 39:return &BoardPresetTraits<BoardPresetId::SeeedEe03103>::info();
-    case 40:return &BoardPresetTraits<BoardPresetId::SeeedEe0475>::info();
-    case 41:return &BoardPresetTraits<BoardPresetId::SeeedEe0575>::info();
-    case 42:return &BoardPresetTraits<BoardPresetId::SeeedReterminalE1001>::info();
-    case 43:return &BoardPresetTraits<BoardPresetId::SeeedReterminalE1002>::info();
-    case 44:return &BoardPresetTraits<BoardPresetId::SeeedReterminalE1003>::info();
-    case 45:return &BoardPresetTraits<BoardPresetId::SeeedReterminalE1004>::info();
-    case 46:return &BoardPresetTraits<BoardPresetId::SeeedReterminalSticky>::info();
-    case 47:return &BoardPresetTraits<BoardPresetId::SeeedTrmnl75Diy>::info();
-    case 48:return &BoardPresetTraits<BoardPresetId::SeeedXiao75Panel>::info();
-    case 49:return &BoardPresetTraits<BoardPresetId::WaveshareTouchLcd4B>::info();
-    case 50:return &BoardPresetTraits<BoardPresetId::WioTerminal>::info();
-    case 51:return &BoardPresetTraits<BoardPresetId::XiaoRound>::info();
-    case 52:return &BoardPresetTraits<BoardPresetId::XueersiEsp32>::info();
+    case 9:return &BoardPresetTraits<BoardPresetId::Jc1060P470CIWY>::info();
+    case 10:return &BoardPresetTraits<BoardPresetId::Jc4880P443CIW>::info();
+    case 11:return &BoardPresetTraits<BoardPresetId::LilygoTDisplayS3>::info();
+    case 12:return &BoardPresetTraits<BoardPresetId::Linkbit213Tricolor>::info();
+    case 13:return &BoardPresetTraits<BoardPresetId::Linkbit>::info();
+    case 14:return &BoardPresetTraits<BoardPresetId::M5AtomS3>::info();
+    case 15:return &BoardPresetTraits<BoardPresetId::M5Cardputer>::info();
+    case 16:return &BoardPresetTraits<BoardPresetId::M5Core>::info();
+    case 17:return &BoardPresetTraits<BoardPresetId::M5Core2>::info();
+    case 18:return &BoardPresetTraits<BoardPresetId::M5CoreInk>::info();
+    case 19:return &BoardPresetTraits<BoardPresetId::M5CoreS3>::info();
+    case 20:return &BoardPresetTraits<BoardPresetId::M5Dial>::info();
+    case 21:return &BoardPresetTraits<BoardPresetId::M5DinMeter>::info();
+    case 22:return &BoardPresetTraits<BoardPresetId::M5Fire>::info();
+    case 23:return &BoardPresetTraits<BoardPresetId::M5Paper>::info();
+    case 24:return &BoardPresetTraits<BoardPresetId::M5Station>::info();
+    case 25:return &BoardPresetTraits<BoardPresetId::M5StickCPlus>::info();
+    case 26:return &BoardPresetTraits<BoardPresetId::M5StickCPlus2>::info();
+    case 27:return &BoardPresetTraits<BoardPresetId::M5StickC>::info();
+    case 28:return &BoardPresetTraits<BoardPresetId::M5Tab5>::info();
+    case 29:return &BoardPresetTraits<BoardPresetId::M5Tough>::info();
+    case 30:return &BoardPresetTraits<BoardPresetId::MPython2>::info();
+    case 31:return &BoardPresetTraits<BoardPresetId::MPython3>::info();
+    case 32:return &BoardPresetTraits<BoardPresetId::OjBadge>::info();
+    case 33:return &BoardPresetTraits<BoardPresetId::OjEasyVoiceLab>::info();
+    case 34:return &BoardPresetTraits<BoardPresetId::OjAiotKitLcd>::info();
+    case 35:return &BoardPresetTraits<BoardPresetId::OjAiotKitOled>::info();
+    case 36:return &BoardPresetTraits<BoardPresetId::OjEsp32S3Basic>::info();
+    case 37:return &BoardPresetTraits<BoardPresetId::OjOjoy>::info();
+    case 38:return &BoardPresetTraits<BoardPresetId::Rp2040>::info();
+    case 39:return &BoardPresetTraits<BoardPresetId::SeeedGroveBeginnerKit>::info();
+    case 40:return &BoardPresetTraits<BoardPresetId::SeeedEe02Spectra133>::info();
+    case 41:return &BoardPresetTraits<BoardPresetId::SeeedEe03103>::info();
+    case 42:return &BoardPresetTraits<BoardPresetId::SeeedEe0475>::info();
+    case 43:return &BoardPresetTraits<BoardPresetId::SeeedEe0575>::info();
+    case 44:return &BoardPresetTraits<BoardPresetId::SeeedReterminalE1001>::info();
+    case 45:return &BoardPresetTraits<BoardPresetId::SeeedReterminalE1002>::info();
+    case 46:return &BoardPresetTraits<BoardPresetId::SeeedReterminalE1003>::info();
+    case 47:return &BoardPresetTraits<BoardPresetId::SeeedReterminalE1004>::info();
+    case 48:return &BoardPresetTraits<BoardPresetId::SeeedReterminalSticky>::info();
+    case 49:return &BoardPresetTraits<BoardPresetId::SeeedTrmnl75Diy>::info();
+    case 50:return &BoardPresetTraits<BoardPresetId::SeeedXiao75Panel>::info();
+    case 51:return &BoardPresetTraits<BoardPresetId::WaveshareTouchLcd4B>::info();
+    case 52:return &BoardPresetTraits<BoardPresetId::WioTerminal>::info();
+    case 53:return &BoardPresetTraits<BoardPresetId::XiaoRound>::info();
+    case 54:return &BoardPresetTraits<BoardPresetId::XueersiEsp32>::info();
     default:return nullptr;
   }
 }

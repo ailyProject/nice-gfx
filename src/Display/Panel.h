@@ -107,6 +107,34 @@ class Panel : public Backend {
     DisplayCapabilities result;result.nativeWidth=config_.width;result.nativeHeight=config_.height;return result;
   }
   bool supportsFrameBlit() const { return bus_.supportsFrameBlit(); }
+  bool supportsNativeStage()const override{return ready_&&!rotation_&&!(profiled_?(xOffset_||yOffset_):(config_.xOffset[0]||config_.yOffset[0]))&&bus_.supportsNativeStage();}
+  NativeStageTransfer copyNativeStage(const NativeFramebuffer&target,const DirtyRect&r,const NativeStageSource&source)noexcept override{
+    if(!ready_||!frameOpen_||rotation_||(profiled_?(xOffset_||yOffset_):(config_.xOffset[0]||config_.yOffset[0])))return {Status::IoError,false,false};
+    return bus_.copyNativeStage(target,r,source);
+  }
+  NativeStageTransfer drainNativeStage()noexcept override{return bus_.drainNativeStage();}
+  NativeStageProviderStats nativeStageProviderStats()const override{return bus_.nativeStageProviderStats();}
+  Status copySurfaceRows(const NativeFramebuffer &target,int32_t y,PixelView source) override {
+    return ready_?bus_.copySurfaceRows(target,y,source):Status::NotInitialized;
+  }
+  Status cacheFrameSource(const FrameSource &source) override {return ready_?bus_.cacheFrameSource(source):Status::NotInitialized;}
+  Status composeOpaqueFrame(const OpaqueFrameComposition &composition) override {
+    if(!ready_)return Status::NotInitialized;
+    if(!frameOpen_)return Status::Unsupported;
+    const Status waited=synchronize();
+    return waited==Status::Ok?bus_.composeOpaqueFrame(composition):waited;
+  }
+  Status blitFrameSource(const DirtyRect &r,const FrameSource &source,int32_t x,int32_t y) override {
+    if(!ready_)return Status::NotInitialized;
+    if(r.x<0||r.y<0||r.width<=0||r.height<=0||int64_t(r.x)+r.width>width()||int64_t(r.y)+r.height>height())return Status::InvalidArgument;
+    const Status s=synchronize();return s==Status::Ok?bus_.blitFrameSource(r,source,x,y):s;
+  }
+  Status blendFrame(const DirtyRect &r,const FrameSource &front,const FrameSource &back,uint8_t alpha,uint16_t solid=0) override {
+    if(!ready_)return Status::NotInitialized;
+    if(r.x<0||r.y<0||r.width<=0||r.height<=0||int64_t(r.x)+r.width>width()||int64_t(r.y)+r.height>height())return Status::InvalidArgument;
+    const Status s=synchronize();if(s!=Status::Ok)return s;
+    return bus_.blendFrame(r,front,back,alpha,solid);
+  }
   bool canFrameBlit(PixelView view) const { return bus_.canFrameBlit(view); }
   Status mapNativeFramebuffer(NativeFramebuffer &frame) {
     frame = NativeFramebuffer();
@@ -136,6 +164,9 @@ class Panel : public Backend {
   bool asynchronous() const { return bus_.asynchronous(); }
   bool busy() const { return bus_.busy(); }
   bool frameOpen() const { return frameOpen_; }
+  Status beginWrite() override {
+    return record(ready_ ? bus_.beginWrite() : Status::NotInitialized);
+  }
   // A View may pre-open before native/PPA composition; Refresh later accepts
   // the same immutable dirty set. Repeating begin does not reset a back buffer.
   Status beginFrame(const DirtyRect *regions,size_t count) {
@@ -153,6 +184,40 @@ class Panel : public Backend {
     else {synchronize();bus_.abortFrame();}
     return record(s);
   }
+  Status beginRepaintFrame(const DirtyRect *regions,size_t count) override {
+    if(!ready_)return Status::NotInitialized;
+    if(frameOpen_||!count||!regions||rotation_||
+       (profiled_?(xOffset_||yOffset_):(config_.xOffset[0]||config_.yOffset[0])))return Status::Unsupported;
+    const int32_t ax=windowAlignmentX(),ay=windowAlignmentY();if(ax<=0||ay<=0)return Status::Unsupported;
+    for(size_t i=0;i<count;++i){const auto &r=regions[i];
+      if(r.x<0||r.y<0||r.width<=0||r.height<=0||int64_t(r.x)+r.width>width()||int64_t(r.y)+r.height>height()||
+         r.x%ax||r.y%ay||r.width%ax||r.height%ay)return Status::InvalidArgument;
+    }
+    const Status waited=synchronize();if(waited!=Status::Ok)return record(waited);
+    const Status status=bus_.beginRepaintFrame(regions,count);
+    if(status==Status::Ok)frameOpen_=true;
+    else if(status!=Status::Unsupported){synchronize();bus_.abortFrame();}
+    return status==Status::Unsupported?status:record(status);
+  }
+  Status beginRetainedRepaintFrame(const DirtyRect *regions,size_t count,const RetainedRepaintRequest *requests,size_t requestCount,RetainedRepaintReceipt *receipts) override {
+    if(!ready_)return Status::NotInitialized;
+    if(frameOpen_||!regions||!count||rotation_||!requests||!receipts||!requestCount||requestCount>4||
+       (profiled_?(xOffset_||yOffset_):(config_.xOffset[0]||config_.yOffset[0])))return Status::Unsupported;
+    const int32_t ax=windowAlignmentX(),ay=windowAlignmentY();if(ax<=0||ay<=0)return Status::Unsupported;
+    for(size_t i=0;i<count;++i){const auto&r=regions[i];if(r.x<0||r.y<0||r.width<=0||r.height<=0||int64_t(r.x)+r.width>width()||int64_t(r.y)+r.height>height()||r.x%ax||r.y%ay||r.width%ax||r.height%ay)return Status::InvalidArgument;}
+    const Status waited=synchronize();if(waited!=Status::Ok)return record(waited);
+    const Status s=bus_.beginRetainedRepaintFrame(regions,count,requests,requestCount,receipts);
+    if(s==Status::Ok)frameOpen_=true;else if(s!=Status::Unsupported){synchronize();bus_.abortFrame();}
+    return s==Status::Unsupported?s:record(s);
+  }
+  size_t retainedRepaintStorageBytes()const override{return bus_.retainedRepaintStorageBytes();}
+  Status validateRetainedRepaintFrame(const RetainedRepaintReceipt *receipts,size_t count) override {return frameOpen_?bus_.validateRetainedRepaintFrame(receipts,count):Status::Unsupported;}
+  Status mapRetainedRepaintFramebuffer(const RetainedRepaintReceipt *receipts,size_t count,NativeFramebuffer &frame) override {
+    frame=NativeFramebuffer{};if(!ready_||!frameOpen_||rotation_||(profiled_?(xOffset_||yOffset_):(config_.xOffset[0]||config_.yOffset[0])))return Status::Unsupported;
+    const auto s=bus_.mapRetainedRepaintFramebuffer(receipts,count,frame);if(s!=Status::Ok)return s;
+    if(frame.width!=width()||frame.height!=height()||!frame.pixels||frame.stride<frame.width||frame.height>SIZE_MAX/frame.stride/2||frame.bytes<frame.stride*frame.height*2||!frame.fencedAtomicMipiRmw){frame=NativeFramebuffer{};return Status::Unsupported;}return Status::Ok;
+  }
+  Status certifyRetainedRepaintFrame(const RetainedRepaintReceipt *receipts,size_t count) override {return frameOpen_?bus_.certifyRetainedRepaintFrame(receipts,count):Status::Unsupported;}
   Status commitFrame() {
     if(!frameOpen_)return Status::Ok;
     const Status previous=status_;Status s=synchronize();
@@ -167,6 +232,76 @@ class Panel : public Backend {
     if(frameOpen_){const Status aborted=bus_.abortFrame();if(s==Status::Ok)s=aborted;}
     frameOpen_=false;window_=false;
     record(s==Status::Ok?previous:s);return s;
+  }
+
+  bool supportsNativePresentationPipeline()const override {
+    return ready_&&bus_.supportsNativePresentationPipeline();
+  }
+  Status beginNativeDrawing(const DirtyRect *regions,size_t count,bool discard,NativeDrawingLease &lease) override {
+    lease=NativeDrawingLease{};
+    if(!ready_)return Status::NotInitialized;
+    if(frameOpen_||!count||!regions||rotation_||!bus_.supportsNativePresentationPipeline()||
+       (profiled_?(xOffset_||yOffset_):(config_.xOffset[0]||config_.yOffset[0])))return Status::Unsupported;
+    if(used_||window_)return Status::Unsupported;
+    const int32_t ax=windowAlignmentX(),ay=windowAlignmentY();
+    if(ax<=0||ay<=0)return Status::Unsupported;
+    for(size_t i=0;i<count;++i){const DirtyRect &r=regions[i];
+      if(r.x<0||r.y<0||r.width<=0||r.height<=0||int64_t(r.x)+r.width>width()||
+         int64_t(r.y)+r.height>height()||r.x%ax||r.y%ay||r.width%ax||r.height%ay)return Status::InvalidArgument;
+    }
+    Status status=synchronize();
+    if(status==Status::Ok)status=bus_.beginNativeDrawing(regions,count,discard,lease);
+    if(status==Status::Ok)frameOpen_=true;
+    return status;
+  }
+  Status mapNativeDrawing(const NativeDrawingLease &lease,NativeFramebuffer &frame) override {
+    frame=NativeFramebuffer{};
+    if(!ready_||!frameOpen_||rotation_)return Status::IoError;
+    const Status status=bus_.mapNativeDrawing(lease,frame);
+    if(status!=Status::Ok)return status;
+    if(!frame.pixels||!frame.fencedAtomicMipiRmw||frame.width!=width()||frame.height!=height()||
+       frame.stride<frame.width||frame.height>SIZE_MAX/frame.stride/2||frame.bytes!=frame.stride*frame.height*2){
+      frame=NativeFramebuffer{};return Status::IoError;
+    }
+    return Status::Ok;
+  }
+  NativeStageTransfer copyNativeDrawingStage(const NativeDrawingLease &lease,const NativeFramebuffer &frame,
+      const DirtyRect &area,const NativeStageSource &source)noexcept override {
+    if(!ready_||!frameOpen_)return {Status::IoError,false,false};
+    return bus_.copyNativeDrawingStage(lease,frame,area,source);
+  }
+#if NICE_GFX_P4_NATIVE_PRESENTATION_OPAQUE_FILL
+  NativeStageTransfer fillNativeDrawing(const NativeDrawingLease &lease,const NativeFramebuffer &frame,
+      const DirtyRect &area,uint16_t color)noexcept override {
+    if(!ready_||!frameOpen_||rotation_||(profiled_?(xOffset_||yOffset_):(config_.xOffset[0]||config_.yOffset[0])))return {Status::IoError,false,false};
+    return bus_.fillNativeDrawing(lease,frame,area,color);
+  }
+#endif
+  Status syncNativeDrawing(const NativeDrawingLease &lease)noexcept override {
+    if(!ready_||!frameOpen_)return Status::IoError;
+    const Status status=drain();
+    return status==Status::Ok?bus_.syncNativeDrawing(lease):status;
+  }
+  Status sealNativeDrawing(const NativeDrawingLease &lease)noexcept override {
+    const Status status=syncNativeDrawing(lease);
+    if(status!=Status::Ok)return status;
+    const Status sealed=bus_.sealNativeDrawing(lease);
+    if(sealed==Status::Ok){frameOpen_=false;window_=false;}
+    return sealed;
+  }
+  Status abortNativeDrawing(const NativeDrawingLease &lease)noexcept override {
+    if(!ready_)return Status::IoError;
+    const Status status=bus_.abortNativeDrawing(lease);
+    if(status==Status::Ok){frameOpen_=false;window_=false;}
+    return status;
+  }
+  NativePresentationTransfer submitNativePresentation(const NativeDrawingLease &lease)noexcept override {
+    if(!ready_||frameOpen_)return {Status::IoError};
+    return bus_.submitNativePresentation(lease);
+  }
+  NativePresentationTransfer pollNativePresentation(const NativePresentationReceipt &receipt,bool wait)noexcept override {
+    if(!ready_)return {Status::NotInitialized};
+    return bus_.pollNativePresentation(receipt,wait);
   }
 
   Status setRotation(uint8_t r) {
@@ -303,6 +438,10 @@ class Panel : public Backend {
   Status finish() {
     const Status previous=status_;
     Status s=synchronize();
+#if NICE_GFX_P4_NATIVE_PRESENTATION_PIPELINE
+    if(s==Status::Ok&&bus_.supportsNativePresentationPipeline())s=bus_.present();
+    else
+#endif
     if (s==Status::Ok&&!frameOpen_) s=bus_.present();
     // The return value describes this synchronization attempt, allowing a
     // caller to retry a drained transfer. Keep an earlier operation error in

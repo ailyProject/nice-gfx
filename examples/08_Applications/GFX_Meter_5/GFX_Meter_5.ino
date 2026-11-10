@@ -4,7 +4,7 @@
  This example uses the hardware SPI only
  Needs GfxTerm8x16 (also Spleen12x24 if using large scale label)
 
- Updated by Bodmer for variable meter size
+ Variable-size meter example by Bodmer
 */
 
 // Define meter size

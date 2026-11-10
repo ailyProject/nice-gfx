@@ -462,6 +462,9 @@ void textRasterRuns(const TextGlyph &glyph, uint16_t width, uint16_t height,
 }
 
 // Exact coverage endpoints and rounded interpolation of native RGB565 channels.
+#if defined(CONFIG_IDF_TARGET_ESP32S31) && (defined(__GNUC__) || defined(__clang__))
+__attribute__((always_inline))
+#endif
 inline uint16_t textCoverageColor(uint16_t foreground, uint16_t background, uint8_t coverage) {
   const uint32_t inverse = 15 - coverage;
   const uint16_t red = uint16_t(((foreground >> 11) * coverage + (background >> 11) * inverse + 7) / 15);

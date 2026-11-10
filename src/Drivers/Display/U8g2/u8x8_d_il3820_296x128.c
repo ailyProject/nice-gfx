@@ -127,15 +127,15 @@ static const uint8_t ngfx_u8x8_d_il3820_296x128_powersave1_seq[] = {
 };
 
 // static const uint8_t ngfx_u8x8_d_il3820_296x128_flip0_seq[] = {
-//   NGFX_U8X8_START_TRANSFER(),             	/* enable chip, delay is part of the transfer start */
-//   NGFX_U8X8_END_TRANSFER(),             	/* disable chip */
-//   NGFX_U8X8_END()             			/* end of sequence */
+
+
+
 // };
 
 // static const uint8_t ngfx_u8x8_d_il3820_296x128_flip1_seq[] = {
-//   NGFX_U8X8_START_TRANSFER(),             	/* enable chip, delay is part of the transfer start */
-//   NGFX_U8X8_END_TRANSFER(),             	/* disable chip */
-//   NGFX_U8X8_END()             			/* end of sequence */
+
+
+
 // };
 
 
@@ -150,7 +150,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_il3820_296x128_display_info =
   /* post_reset_wait_ms = */ 100, 
   /* sda_setup_time_ns = */ 50,		/* IL3820 */
   /* sck_pulse_width_ns = */ 125,	/* IL3820: 125ns, clock cycle = 250ns */
-  /* sck_clock_hz = */ 4000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
+  /* sck_clock_hz = */ 4000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,
   /* data_setup_time_ns = */ 40,
@@ -193,8 +193,8 @@ static void ngfx_u8x8_d_il3820_draw_tile(ngfx_u8x8_t *u8x8, uint8_t arg_int, voi
   x *= 8;
   x += u8x8->x_offset;
 
-  //ngfx_u8x8_cad_SendCmd(u8x8, 0x011 );	/* cursor increment mode */
-  //ngfx_u8x8_cad_SendArg(u8x8, 7);
+
+
 
   ngfx_u8x8_cad_SendCmd(u8x8, 0x04f );	/* set cursor column */
   ngfx_u8x8_cad_SendArg(u8x8, x&255);
@@ -283,14 +283,14 @@ static const uint8_t ngfx_u8x8_d_il3820_296x128_init_seq[] = {
   NGFX_U8X8_CA(0x03, 0x00), 	/* Gate Driving voltage: 15V (lowest value)*/
   NGFX_U8X8_CA(0x04, 0x0a), 	/* Source Driving voltage: 15V (mid value and POR)*/
   
-  //NGFX_U8X8_CA(0x22, 0xc0),	/* display update seq. option: enable clk, enable CP, .... todo: this is never activated */
 
-  //NGFX_U8X8_CA(0x0b, 7),	/* Set Delay of gate and source non overlap period, POR = 7 */
+
+
   NGFX_U8X8_CA(0x2c, 0xa8),	/* write vcom value*/
   NGFX_U8X8_CA(0x3a, 0x16),	/* dummy lines POR=22 (0x016) */
   NGFX_U8X8_CA(0x3b, 0x08),	/* gate time POR=0x08*/
   NGFX_U8X8_CA(0x3c, 0x33),	/* select boarder waveform */
-  //NGFX_U8X8_CA(0x22, 0xc4),	/* display update seq. option: clk -> CP -> LUT -> initial display -> pattern display */
+
 
 
   NGFX_U8X8_CA(0x11, 0x07),	/* Define data entry mode, x&y inc, x first*/
@@ -298,8 +298,8 @@ static const uint8_t ngfx_u8x8_d_il3820_296x128_init_seq[] = {
   NGFX_U8X8_CAA(0x44, 0, 29),	/* RAM x start & end, issue 920: end should be (128/8)-1=15. */
   NGFX_U8X8_CAAAA(0x45, 0, 0, 295&255, 295>>8),	/* RAM y start & end */
   
-  //NGFX_U8X8_CA(0x4e, 0),	/* set x pos, 0..29? */
-  //NGFX_U8X8_CAA(0x4f, 0, 0),	/* set y pos, 0...320??? */
+
+
 
 
   NGFX_U8X8_END_TRANSFER(),             	/* disable chip */
@@ -309,14 +309,9 @@ static const uint8_t ngfx_u8x8_d_il3820_296x128_init_seq[] = {
 
 static const uint8_t ngfx_u8x8_d_il3820_to_display_seq[] = {
   NGFX_U8X8_START_TRANSFER(),             	/* enable chip, delay is part of the transfer start */
-/*
-0x50, 0xAA, 0x55, 0xAA, 0x11, 	0x00, 0x00, 0x00, 0x00, 0x00, 
-0x00, 0x00, 0x00, 0x00, 0x00, 	0x00, 0x00, 0x00, 0x00, 0x00, 
-0xFF, 0xFF, 0x1F, 0x00, 0x00, 		0x00, 0x00, 0x00, 0x00, 0x00
-measured 1582 ms
-*/
+
   NGFX_U8X8_C(0x32),	/* write LUT register*/
-  /* original values */
+  /* LUT waveform values. */
   NGFX_U8X8_A(0x50),
   NGFX_U8X8_A(0xaa),
   NGFX_U8X8_A(0x55),
@@ -417,7 +412,7 @@ static const uint8_t ngfx_u8x8_d_il3820_v2_296x128_init_seq[] = {
     
   NGFX_U8X8_START_TRANSFER(),             	/* enable chip, delay is part of the transfer start */
 
-  // NGFX_U8X8_CA(0x10, 0x00),	/* Deep Sleep mode Control: POR: Normal mode */
+
   NGFX_U8X8_C(0x01),
   NGFX_U8X8_A(295 % 256), NGFX_U8X8_A(295/256), NGFX_U8X8_A(0),
   
@@ -444,16 +439,7 @@ static const uint8_t ngfx_u8x8_d_il3820_v2_296x128_init_seq[] = {
 static const uint8_t ngfx_u8x8_d_il3820_v2_to_display_seq[] = {
   NGFX_U8X8_START_TRANSFER(),             	/* enable chip, delay is part of the transfer start */
 
-/*
-0xaa, 0x09, 0x09, 0x19, 0x19, 
-0x11, 0x11, 0x11, 0x11, 0x00, 
-0x00, 0x00, 0x00, 0x00, 0x00, 
-0x00, 0x00, 0x00, 0x00, 0x00, 
 
-0x75, 0x77, 0x77, 0x77, 0x07, 
-0x00, 0x00, 0x00, 0x00, 0x00
-measured 1240 ms
-*/
   NGFX_U8X8_C(0x32),	/* write LUT register*/
   /* https://github.com/olikraus/u8g2/issues/347 */
   NGFX_U8X8_A(0xaa),
@@ -523,8 +509,8 @@ uint8_t ngfx_u8x8_d_il3820_v2_296x128(ngfx_u8x8_t *u8x8, uint8_t msg, uint8_t ar
 
       ngfx_u8x8_cad_SendSequence(u8x8, ngfx_u8x8_d_il3820_296x128_powersave0_seq);
       ngfx_u8x8_d_il3820_first_init(u8x8);
-      /* ngfx_u8x8_d_il3820_second_init(u8x8); */  /* not required, u8g2.begin() will also clear the display once more */
-          
+         /* not required, u8g2.begin() will also clear the display once more */
+
       /* usually the DISPLAY_INIT message leaves the display in power save state */
       /* however this is not done for e-paper devices, see: */
       /* https://github.com/olikraus/u8g2/wiki/internal#powersave-mode */

@@ -172,7 +172,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_hd44102_150x32_display_info =
   /* pixel_height = */ 32
 };
 
-//uint8_t ngfx_u8x8_d_hd44102_150x32(ngfx_u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *arg_ptr)
+
 
 uint8_t ngfx_u8x8_d_t7932_150x32(ngfx_u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *arg_ptr)
 {

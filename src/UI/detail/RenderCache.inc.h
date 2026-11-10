@@ -8,6 +8,8 @@ struct Surface {
   int32_t row=0,column=0;
   uint64_t used=0;
   uint64_t pixelsRevision=0;
+  uint64_t backendBaseRevision=0;
+  DirtyRect backendDamage[16];size_t backendDamageCount=0;
   uint64_t presentedAtFrame=UINT64_MAX;
   bool ready=false,paused=false,compressionAttempted=false;
   uint32_t pauseEpoch=0,quietAt=0;
@@ -20,6 +22,12 @@ uint32_t surfaceMutationEpoch=0;
 uint16_t *tileBuffers[2]={nullptr,nullptr};
 size_t surfacePixels=0;
 uint64_t surfaceClock=0;
+uint64_t frameSourceOwner=nextFrameSourceOwner();
+PixelOrder cacheOrder=PixelOrder::Wire;
+FrameSource backendFrameSource(const Surface &surface)const{
+  FrameSource source(PixelView(surface.pixels,surface.page?surface.page->width:display.width(),surface.page?surface.page->height:display.height(),0,cacheOrder),frameSourceOwner,surface.pixelsRevision);
+  if(surface.backendBaseRevision+1==surface.pixelsRevision){source.baseRevision=surface.backendBaseRevision;source.damage=surface.backendDamage;source.damageCount=surface.backendDamageCount;}return source;
+}
 size_t surfaceWarmNext=0;
 RenderCacheStats surfaceStats;
 const Surface *snapshotSurface=nullptr,*previewSurface=nullptr;
@@ -28,6 +36,14 @@ uint64_t seedPixels=0;
 uint64_t seedExpectedPixels=0;
 bool seedFullPage=false;
 bool buildingSurface=false;
+#include "SystemModalBase.inc.h"
+#include "SystemModalPanel.inc.h"
+// Cached page sources may be native on P4; the ordinary tile fallback still
+// produces Wire565. Preserve exact CPU /255 rounding for that fallback.
+void blendCachedRows(uint16_t *out,size_t outStride,const uint16_t *front,const uint16_t *back,size_t stride,size_t width,size_t height,uint8_t alpha,uint16_t solid){
+  if(cacheOrder==PixelOrder::Wire){if(back)rgb565_blend::wireRowsFrom(out,outStride,front,stride,back,stride,width,height,alpha);else rgb565_blend::wireRowsSolid(out,outStride,front,stride,width,height,solid,alpha);return;}
+  for(size_t y=0;y<height;++y)for(size_t x=0;x<width;++x)out[y*outStride+x]=rgb565_blend::toWire(rgb565_blend::color(front[y*stride+x],back?back[y*stride+x]:solid,alpha));
+}
 
 static bool sameSurfaceNode(const State &x,const State &y) {
     if(x.text.compiled!=y.text.compiled||x.text.revision!=y.text.revision||
@@ -58,7 +74,26 @@ static bool sameSurfaceState(const RetainedVector<State> &a,const RetainedVector
   for(size_t i=0;i<a.size();++i)if(!sameSurfaceNode(a[i],b[i]))return false;
   return true;
 }
+// Status text and battery progress occupy their own opaque system layer. A
+// background warmer may finish an immutable older status sample instead of
+// restarting the entire page at each clock tick. Drawing still uses the exact
+// key above and repairs the small chrome region before borrowing these pixels.
+bool sameSurfaceBodyState(const PageDesc &page,const RetainedVector<State> &a,const RetainedVector<State> &b) const {
+  if(a.size()!=b.size()||a.size()!=page.count)return false;
+  for(size_t i=0;i<a.size();++i){
+    if(sameSurfaceNode(a[i],b[i]))continue;
+    const Kind kind=page.nodes[i].kind;
+    if(kind!=Kind::Text&&kind!=Kind::Label&&kind!=Kind::Button&&kind!=Kind::Progress)return false;
+    bool chrome=false;for(uint16_t at=uint16_t(i);at!=NoParent;at=page.nodes[at].parent)
+      if(std::binary_search(systemBarRoots.begin(),systemBarRoots.end(),page.nodes[at].id)){chrome=true;break;}
+    if(!chrome)return false;
+    State normalized=a[i];normalized.text=b[i].text;if(kind==Kind::Progress)normalized.value=b[i].value;
+    if(!sameSurfaceNode(normalized,b[i]))return false;
+  }
+  return true;
+}
 #include "RenderCacheCompressed.inc.h"
+#include "SystemModalBaseRle.inc.h"
 static bool surfaceImageOnlyChange(State &old,const State &live) {
   if(old.image.impl_==live.image.impl_&&old.imageOverride==live.imageOverride)return false;
   Image retained=old.image;const bool overrideSource=old.imageOverride;
@@ -79,15 +114,25 @@ bool fastSurfaceImageRepair(uint16_t index,const Geometry &geometry) const {
 // Repair visual changes without discarding a retained page's static content.
 // Ordinary changes have a four-tile budget; full-size opaque RAM image updates
 // may repair at most one page through the same renderer, preserving overlays.
-Surface *patchSurface(bool &geometryPrepared,uint64_t repairBudget=0) {
+Surface *patchSurface(bool &geometryPrepared,uint64_t repairBudget=0,Surface *preferred=nullptr) {
   ProfileTimer repairTimer(*this,&RuntimeStats::repairMicros);
   // A claimed follow gesture owns immutable incoming/outgoing snapshots and
   // cancels pressed-control feedback. Repair those keys once even while the
   // physical pointer remains down; ordinary pressed/input frames stay excluded.
   const bool pairedGesture=groupMotion.active&&groupMotion.prepared&&snapshotTransition&&snapshotPhase==TransitionPhase::Paired;
-  if((down&&!pairedGesture)||snapshotInput||snapshotKeyboard.visible)return nullptr;
+  if((down&&!pairedGesture&&!systemModalBaseRepairing&&!systemModalPanelBuilding)||snapshotInput||snapshotKeyboard.visible||styledFocus()||(behaviorVisualMoving()&&!systemModalBaseRepairing&&!systemModalPanelBuilding))return nullptr;
   Surface *slot=nullptr;
-  for(auto &entry:surfaces)if(entry.page==rasterFrame.current.page&&entry.ready&&entry.key.size()==rasterFrame.current.values.size()){slot=&entry;break;}
+  // A terminal repair must validate and rewrite the exact source it inspected.
+  // Never fall through to a different cache slot after a pin/key rejection.
+  if(preferred){
+    for(auto &entry:surfaces)if(&entry==preferred){
+      if(entry.page==rasterFrame.current.page&&entry.ready&&entry.key.size()==rasterFrame.current.values.size()){
+        if(systemModalBasePinned(entry))++stats.systemModalBaseWriterPinSkips;else slot=&entry;
+      }
+      break;
+    }
+  }else for(auto &entry:surfaces)if(entry.page==rasterFrame.current.page&&entry.ready&&entry.key.size()==rasterFrame.current.values.size()){
+    if(systemModalBasePinned(entry)){++stats.systemModalBaseWriterPinSkips;continue;}slot=&entry;break;}
   if(!slot||slot==previewSurface||slot->geometry.nodes.size()!=rasterFrame.current.values.size())return nullptr;
   bool visualOnly=true;
   for(size_t i=0;i<rasterFrame.current.values.size();++i)if(!sameSurfaceGeometry(slot->key[i],rasterFrame.current.values[i])){visualOnly=false;break;}
@@ -120,7 +165,7 @@ Surface *patchSurface(bool &geometryPrepared,uint64_t repairBudget=0) {
     }
     if(unchanged)continue;
     if(visualOnly){const auto &g=slot->geometry.nodes[i];
-      if(g.visible&&g.alpha){const Rect r=intersect(g.rect,g.clip);const DirtyRect changed(r.x,r.y,r.width,r.height);
+      if(g.visible&&g.alpha){const Rect r=intersect(detail::framePaintBounds(g),g.clip);const DirtyRect changed(r.x,r.y,r.width,r.height);
         damage.add(changed,rasterFrame.current.page->width,rasterFrame.current.page->height);
         ordinaryDamage.add(changed,rasterFrame.current.page->width,rasterFrame.current.page->height);
       }continue;
@@ -129,7 +174,7 @@ Surface *patchSurface(bool &geometryPrepared,uint64_t repairBudget=0) {
       int a=k;while(a>=0&&a!=i)a=rasterFrame.current.page->nodes[a].parent==NoParent?-1:rasterFrame.current.page->nodes[a].parent;
       if(a!=i)continue;
       for(const auto *geometry:{&slot->geometry,&rasterFrame.current.geometry}){
-        const auto &g=geometry->nodes[k];const Rect r=intersect(g.rect,g.clip);
+        const auto &g=geometry->nodes[k];const Rect r=intersect(detail::framePaintBounds(g),g.clip);
         damage.add(DirtyRect(r.x,r.y,r.width,r.height),rasterFrame.current.page->width,rasterFrame.current.page->height);
         ordinaryDamage.add(DirtyRect(r.x,r.y,r.width,r.height),rasterFrame.current.page->width,rasterFrame.current.page->height);
       }
@@ -138,7 +183,15 @@ Surface *patchSurface(bool &geometryPrepared,uint64_t repairBudget=0) {
   // Selection and disclosure arrows borrow state from a component root,
   // pager or panel. Their buttons can lie outside that owner's rectangle.
   // Compare those visual dependencies before repairing the retained pixels.
-  if(componentCount)for(uint16_t i=0;i<rasterFrame.current.values.size();++i)if(rasterFrame.current.page->nodes[i].kind==Kind::Button){
+  bool componentPaintUnchanged=false;
+  if(componentCount)for(size_t index=0;index<2;++index){
+    const auto &prepared=componentPaintIndices[index];
+    if(!prepared.matches(*rasterFrame.current.page,components,componentCount))continue;
+    componentPaintUnchanged=prepared.samePaintDependencies(slot->key,rasterFrame.current.values);
+    if(componentPaintUnchanged)componentPaintUsed[index]=++componentPaintClock;
+    break;
+  }
+  if(componentCount&&!componentPaintUnchanged)for(uint16_t i=0;i<rasterFrame.current.values.size();++i)if(rasterFrame.current.page->nodes[i].kind==Kind::Button){
     const Id id=rasterFrame.current.page->nodes[i].id;
     const auto previous=componentPaint(*rasterFrame.current.page,slot->key,id),current=componentPaint(*rasterFrame.current.page,rasterFrame.current.values,id);
     if(previous.selected==current.selected&&previous.expanded==current.expanded)continue;
@@ -172,10 +225,14 @@ Surface *patchSurface(bool &geometryPrepared,uint64_t repairBudget=0) {
   const bool savedTransition=snapshotTransition;const PageDesc *savedPreview=rasterFrame.preview.page;
   snapshotTransition=false;rasterFrame.preview.page=nullptr;
   buildingSurface=true;
+  slot->backendBaseRevision=slot->pixelsRevision;slot->backendDamageCount=damage.size();
+  for(size_t i=0;i<damage.size();++i)slot->backendDamage[i]=damage[i];
   ++slot->pixelsRevision;
   slot->presentedAtFrame=UINT64_MAX;
   for(size_t i=0;i<damage.size();++i){const auto &area=damage[i];
-    if(render(this,area,slot->pixels+size_t(area.y)*rasterFrame.current.page->width+area.x,rasterFrame.current.page->width)!=Status::Ok){slot->ready=false;slot=nullptr;break;}
+    Status repaired=renderNativeCachePatch(*slot,area);
+    if(repaired==Status::Unsupported)repaired=render(this,area,slot->pixels+size_t(area.y)*rasterFrame.current.page->width+area.x,rasterFrame.current.page->width);
+    if(repaired!=Status::Ok){slot->ready=false;slot=nullptr;break;}
   }
   buildingSurface=savedBuilding;paintCache=savedPaint;snapshotTransition=savedTransition;rasterFrame.preview.page=savedPreview;
   stats.renderedTiles=savedTiles;stats.renderedPixels=savedPixels;
@@ -183,6 +240,9 @@ Surface *patchSurface(bool &geometryPrepared,uint64_t repairBudget=0) {
   return slot;
 }
 Surface *findSurface(const PageDesc &p,const RetainedVector<State> &s) {
+  // Focus styles and circular reveal are presentation state outside this key.
+  // Never borrow an otherwise-equal body with the wrong ink or clipping pose.
+  if(styledFocus()||behaviorVisualMoving())return nullptr;
   for(auto &entry:surfaces)if(entry.page==&p&&entry.ready&&sameSurfaceState(entry.key,s)){
     entry.used=++surfaceClock;return &entry;
   }
@@ -191,9 +251,10 @@ Surface *findSurface(const PageDesc &p,const RetainedVector<State> &s) {
 // Borrow an existing pixel slot for an immutable refresh frame. The caller
 // excludes every source retained by that refresh; warming cannot run while
 // Refresh owns it. No pixel allocation or cache-budget expansion is required.
-Surface *acquireFrameSurface(const Surface *a,const Surface *b,const Surface *c) {
+Surface *acquireFrameSurface(const Surface *a,const Surface *b,const Surface *c,const Surface *d=nullptr,const Surface *e=nullptr,const Surface *f=nullptr) {
   Surface *slot=nullptr;
-  for(auto &entry:surfaces)if(&entry!=a && &entry!=b && &entry!=c){
+  for(auto &entry:surfaces)if(&entry!=a && &entry!=b && &entry!=c && &entry!=d && &entry!=e && &entry!=f){
+    if(systemModalBasePinned(entry)){++stats.systemModalBaseWriterPinSkips;continue;}
     if(!entry.page){slot=&entry;break;}
     if(!slot||entry.used<slot->used)slot=&entry;
   }
@@ -214,9 +275,10 @@ Surface *captureGestureSurface(bool &geometryPrepared) {
   ProfileTimer captureTimer(*this,&RuntimeStats::captureMicros);
   const bool pairedFade=snapshotTransition&&snapshotPhase==TransitionPhase::Paired&&transition.config.effect==TransitionEffect::Fade;
   if((!pairedFade&&(!groupMotion.active||!groupMotion.prepared))||!snapshotTransition||snapshotPhase!=TransitionPhase::Paired||
-     surfaces.size()<2||snapshotPressed>=0||snapshotInput||snapshotKeyboard.visible||snapshotAnimationSurface)return nullptr;
+     surfaces.size()<2||snapshotPressed>=0||snapshotInput||snapshotKeyboard.visible||styledFocus()||behaviorVisualMoving()||snapshotAnimationSurface)return nullptr;
   Surface *slot=nullptr;
-  for(auto &candidate:surfaces)if(candidate.page==rasterFrame.current.page && &candidate!=snapshotSurface && &candidate!=previewSurface){slot=&candidate;break;}
+  for(auto &candidate:surfaces)if(candidate.page==rasterFrame.current.page && &candidate!=snapshotSurface && &candidate!=previewSurface){
+    if(systemModalBasePinned(candidate)){++stats.systemModalBaseWriterPinSkips;continue;}slot=&candidate;break;}
   if(!slot)slot=acquireFrameSurface(snapshotSurface,previewSurface,nullptr);
   if(!slot)return nullptr;
   prepareFrameGeometry(*rasterFrame.current.page,rasterFrame.current.values,rasterFrame.current.geometry);geometryPrepared=true;
@@ -226,7 +288,16 @@ Surface *captureGestureSurface(bool &geometryPrepared) {
   slot->ready=false;slot->paused=false;slot->compressionAttempted=false;slot->presentedAtFrame=UINT64_MAX;++slot->pixelsRevision;
   snapshotTransition=false;rasterFrame.preview.page=nullptr;buildingSurface=true;snapshotGroupIndex=-1;
   const auto &p=*rasterFrame.current.page;
-  const Status result=render(this,DirtyRect(0,0,p.width,p.height),slot->pixels,p.width);
+  Status result=Status::Unsupported;
+  if(cacheOrder==PixelOrder::Native)result=renderNativeCachePatch(*slot,DirtyRect(0,0,p.width,p.height));
+  else {
+#if NICE_GFX_UI_NATIVE_CAPTURE_SCRATCH
+    {ProfileTimer captureNativeTimer(*this,&RuntimeStats::nativeCaptureMicros);
+      result=renderNativeCachePatch(*slot,DirtyRect(0,0,p.width,p.height));}
+    if(result==Status::Ok){++stats.nativeCaptureCalls;stats.nativeCapturePixels+=uint64_t(p.width)*p.height;}
+#endif
+    if(result==Status::Unsupported)result=render(this,DirtyRect(0,0,p.width,p.height),slot->pixels,p.width);
+  }
   snapshotTransition=savedTransition;rasterFrame.preview.page=savedPreview;buildingSurface=savedBuilding;snapshotGroupIndex=savedGroup;paintCache=savedPaint;
   stats.renderedTiles=tiles;stats.renderedPixels=pixels;
   if(result!=Status::Ok){slot->page=nullptr;slot->key.clear();return nullptr;}
@@ -234,18 +305,31 @@ Surface *captureGestureSurface(bool &geometryPrepared) {
   slot->ready=true;slot->used=++surfaceClock;releaseSurfaceText(*slot);++surfaceStats.capturedPages;surfaceWarmPending=true;
   return slot;
 }
-bool surfaceReady(int index) const {
+bool surfaceReady(int index,bool bodyOnly=false) const {
   if(index<0||pages[size_t(index)].empty())return false;
   const auto &p=project->pages[index];
-  for(const auto &entry:surfaces)if(entry.page==&p&&entry.ready&&sameSurfaceState(entry.key,pages[index]))return true;
-  return compressedSurfaceReady(index);
+  for(const auto &entry:surfaces)if(entry.page==&p&&entry.ready&&(bodyOnly?sameSurfaceBodyState(p,entry.key,pages[index]):sameSurfaceState(entry.key,pages[index])))return true;
+  return compressedSurfaceReady(index,bodyOnly);
 }
 void clearSurfacePage(const PageDesc *p) {
+  if(project&&systemModalPanelLive.page<project->count&&&project->pages[systemModalPanelLive.page]==p)invalidateSystemModalPanelLive();
+  if(project&&systemModalBaseLive.page<project->count&&&project->pages[systemModalBaseLive.page]==p)invalidateSystemModalBaseLive();
   surfaceWarmPending=!surfaces.empty();
   clearCompressedPage(p);
-  for(auto &entry:surfaces)if(entry.page==p){++entry.pixelsRevision;entry.page=nullptr;entry.key.clear();entry.geometry=FrameCache{};entry.ready=entry.compressionAttempted=false;entry.row=entry.column=0;}
+  for(auto &entry:surfaces)if(entry.page==p){
+    if(refresh->busy()&&(systemModalBasePin(systemModalBaseFrame,entry)||systemModalPanelPin(systemModalPanelFrame,entry))){
+      if(systemModalBasePin(systemModalBaseFrame,entry))systemModalBaseFrame.clearAfterFrame=true;
+      if(systemModalPanelPin(systemModalPanelFrame,entry))systemModalPanelFrame.clearAfterFrame=true;
+      ++stats.systemModalBaseWriterPinSkips;continue;
+    }
+    ++entry.pixelsRevision;entry.page=nullptr;entry.key.clear();entry.geometry=FrameCache{};entry.ready=entry.compressionAttempted=false;entry.row=entry.column=0;}
 }
 void clearSurfaces() {
+  clearSystemModalBases();
+  // Reusing the same storage address after reconfiguration must not revive
+  // a backend copy from the preceding resource/revision namespace.
+  frameSourceOwner=nextFrameSourceOwner();
+  cacheOrder=PixelOrder::Wire;
   seedSurface=nullptr;seedPixels=seedExpectedPixels=0;
   coldFadeSurface=nullptr;coldFadePage=nullptr;
   clearCompressedSurfaces();
@@ -267,6 +351,9 @@ bool configureSurfaces(uint16_t *storage,size_t pixels,size_t compressedPixels) 
     if(begin<other+capacity*sizeof(uint16_t)&&other<end)return false;
   }
   clearSurfaces();
+#if NICE_GFX_UI_NATIVE_CACHE_REPAIR && NICE_GFX_UI_NATIVE_SURFACES
+  if(!displayPolicy.monochrome&&!compressedPixels&&!(page().width*2u%64u))cacheOrder=PixelOrder::Native;
+#endif
   const size_t count=std::min<size_t>(project->count,(pixels-compressedPixels)/perPage);
   surfaces.resize(count);surfacePixels=count*perPage+compressedPixels;surfaceStats.capacityPages=count;
   surfaceWanted.reserve(count);surfacePrewarm.reserve(project->count);surfaceWarmPending=true;
@@ -310,6 +397,16 @@ bool activeWarmProducer(int index,const Surface *slot=nullptr) const {
   if(index!=history.back())return false;
   if(animationsRunning())return true;
   ensureTickNodes();
+  if(slot&&slot->page==&page()&&slot->key.size()==state().size())for(uint16_t i:animationNodes){
+    if(!chartKind(page().nodes[i].kind)||!visible(page(),state(),i))continue;
+    const auto &old=slot->key[i].instrument,&live=state()[i].instrument;
+    if(old==live)continue;
+    // Public chart setters also produce live frames. Keep the last complete
+    // key instead of restarting its idle builder on every sample. The existing
+    // pause epoch resumes warming once these writes have been quiet for 100ms.
+    if(!old||!live||old->data!=live->data)return true;
+    for(unsigned s=0;s<4;++s)if(old->head[s]!=live->head[s]||old->count[s]!=live->count[s])return true;
+  }
   for(uint16_t i:mediaNodes){
     if(slot&&slot->key.size()==state().size()&&
        (slot->key[i].image.impl_!=state()[i].image.impl_||slot->key[i].imageOverride!=state()[i].imageOverride)&&
@@ -321,9 +418,10 @@ bool activeWarmProducer(int index,const Surface *slot=nullptr) const {
 }
 bool borrowedWarmSurface(const Surface &surface) const {
   return &surface==snapshotSurface||&surface==previewSurface||
-    &surface==snapshotAnimationSurface||&surface==coldFadeSurface;
+    &surface==snapshotAnimationSurface||&surface==coldFadeSurface||systemModalBasePinned(surface);
 }
 void discardWarmSurface(Surface &surface) {
+  if(systemModalBasePinned(surface)){++stats.systemModalBaseWriterPinSkips;return;}
   ++surface.pixelsRevision;surface.presentedAtFrame=UINT64_MAX;
   surface.page=nullptr;surface.key.clear();surface.geometry=FrameCache{};
   surface.ready=surface.paused=surface.compressionAttempted=false;surface.row=surface.column=0;
@@ -333,11 +431,12 @@ void discardWarmSurface(Surface &surface) {
 void warmSurfaceTile(uint32_t now,bool allowDirty=false) {
   if(!surfaceWarmPending||surfaces.empty()||!project||refresh->busy()||(refresh->dirty()&&!allowDirty)||processing||updateDepth||
      down||groupMotion.active||transition.active||backAnimation.active||animation.active||inertia.active)return;
-  // Entry controls and shared media can keep producing frames after the route
-  // transition ends. Reserve their frame budget and shared JPEG output for
-  // live rendering; queued cache work resumes when these clocks are idle.
+  // Entry controls, menus, modal springs and shared media can keep producing
+  // frames after the route transition ends. Reserve their frame budget and
+  // shared JPEG output for live rendering; queued cache work resumes when
+  // these clocks are idle. Explicit cache steps obey the same idle boundary.
   // This also keeps Wire565 warming away from an active Native565 fade slot.
-  if(animationsRunning()||!mediaTweens.empty())return;
+  if(behaviorMoving()||menuMoving()||animationsRunning()||!mediaTweens.empty())return;
   // Counting and encoding share at most 8192 input pixels per tick, reduced
   // further by a configured raster budget.
   // Completed keys are published only after both resumable passes finish.
@@ -350,14 +449,14 @@ void warmSurfaceTile(uint32_t now,bool allowDirty=false) {
   // request in wanted would pin all slots forever and exclude the live page
   // as soon as an application requested more routes than fit in its cache.
   surfacePrewarm.erase(std::remove_if(surfacePrewarm.begin(),surfacePrewarm.end(),
-    [&](int index){return surfaceReady(index);}),surfacePrewarm.end());
+    [&](int index){return surfaceReady(index,true);}),surfacePrewarm.end());
   // A one-slot cache cannot retain the live page and warm another route at
   // once. Let an already-started explicit build finish before restoring the
   // live page, rather than discarding that partial key on every idle tick.
   if(surfaces.size()==1&&!surfacePrewarm.empty()){
     const auto &entry=surfaces.front();
     const int requested=surfacePrewarm.front();
-    if(surfaceReady(history.back())||(entry.page==&project->pages[requested]&&!entry.ready))add(requested);
+    if(surfaceReady(history.back(),true)||(entry.page==&project->pages[requested]&&!entry.ready))add(requested);
   }
   add(history.back());
   // Explicit callers may warm never-visited routes without navigation/events.
@@ -405,7 +504,7 @@ void warmSurfaceTile(uint32_t now,bool allowDirty=false) {
     // cache underneath its pending ordinary refresh.
     if(allowDirty&&refresh->dirty()&&index==history.back())continue;
     initializePage(uint16_t(index));const PageDesc &p=project->pages[index];auto &state=pages[index];
-    if(surfaceReady(index)){
+    if(surfaceReady(index,true)){
       // A normal frame may repair the retained key while its replacement is
       // still being built. The incomplete duplicate no longer has any work.
       for(auto &entry:surfaces)if(entry.page==&p&&!entry.ready&&!borrowedWarmSurface(entry))discardWarmSurface(entry);
@@ -414,13 +513,28 @@ void warmSurfaceTile(uint32_t now,bool allowDirty=false) {
     Surface *slot=nullptr;
     Surface *retained=nullptr;
     for(auto &entry:surfaces)if(entry.page==&p){
+      if(systemModalBasePinned(entry)){++stats.systemModalBaseWriterPinSkips;continue;}
       if(entry.ready){if(!retained||entry.used>retained->used)retained=&entry;}
       else if(!slot||entry.used>slot->used)slot=&entry;
     }
     if(!slot)slot=retained;
-    if(!slot)for(auto &entry:surfaces)if(!entry.page){slot=&entry;break;}
-    if(!slot)for(auto &entry:surfaces){const int old=entry.page?int(entry.page-project->pages):-1;
+    if(!slot)for(auto &entry:surfaces)if(!entry.page&&!systemModalBasePinned(entry)){slot=&entry;break;}
+    if(!slot)for(auto &entry:surfaces){if(systemModalBasePinned(entry)){++stats.systemModalBaseWriterPinSkips;continue;}const int old=entry.page?int(entry.page-project->pages):-1;
       if(std::find(wanted.begin(),wanted.end(),old)==wanted.end()&&(!slot||entry.used<slot->used))slot=&entry;
+    }
+    // A live page can retain distinct complete poses beside one another.
+    // Route-level wanted membership must not reserve every obsolete pose and
+    // leave a queued third route without any slot. Reclaim only an unborrowed
+    // duplicate whose sibling already supplies that route's current body;
+    // keep an exact current key whenever it is the last exact sibling.
+    if(!slot)for(auto &entry:surfaces){
+      if(!entry.page||!entry.ready||borrowedWarmSurface(entry))continue;
+      const int old=int(entry.page-project->pages);if(old<0||size_t(old)>=pages.size()||pages[size_t(old)].empty())continue;
+      const bool exact=sameSurfaceState(entry.key,pages[size_t(old)]);bool redundant=false;
+      for(const auto &other:surfaces)if(&other!=&entry&&other.page==entry.page&&other.ready&&
+          sameSurfaceBodyState(*entry.page,other.key,pages[size_t(old)])&&
+          (!exact||sameSurfaceState(other.key,pages[size_t(old)]))){redundant=true;break;}
+      if(redundant&&(!slot||entry.used<slot->used))slot=&entry;
     }
     // With two slots the live page may temporarily own a complete source and
     // its builder. An unserviceable prewarm request must not block that builder.
@@ -434,7 +548,7 @@ void warmSurfaceTile(uint32_t now,bool allowDirty=false) {
         slot->paused=false;resumed=true;
       }
     }
-    const bool same=slot->page==&p&&sameSurfaceState(slot->key,state);
+    const bool same=slot->page==&p&&sameSurfaceBodyState(p,slot->key,state);
     const bool carry=!same&&slot->page==&p&&!slot->ready&&canCompleteMediaWarm(*slot,p,state);
     if(!same&&!carry){
       // Continuous changes cannot finish a page-sized warm. Keep a completed
@@ -471,7 +585,7 @@ void warmSurfaceTile(uint32_t now,bool allowDirty=false) {
     rasterFrame.current.page=&p;rasterFrame.preview.page=nullptr;snapshotTransition=false;snapshotInput=false;
     snapshotPressed=snapshotFocus=snapshotGroupIndex=-1;snapshotBackOffset=0;buildingSurface=true;
     ++slot->pixelsRevision;
-    const Status result=render(this,area,slot->pixels+size_t(area.y)*p.width+area.x,p.width);
+    const Status result=cacheOrder==PixelOrder::Native?renderNativeCachePatch(*slot,area):render(this,area,slot->pixels+size_t(area.y)*p.width+area.x,p.width);
     buildingSurface=false;
     rasterFrame.current.values.swap(slot->key);rasterFrame.current.motions.swap(pageMotions[size_t(index)]);std::swap(rasterFrame.current.geometry,slot->geometry);
     rasterFrame.current.page=savedPage;rasterFrame.preview.page=savedPreview;snapshotTransition=savedTransition;snapshotInput=savedInput;
@@ -481,6 +595,9 @@ void warmSurfaceTile(uint32_t now,bool allowDirty=false) {
     slot->column+=width;if(slot->column==p.width){slot->column=0;slot->row+=height;}
     if(slot->row==p.height){
       slot->ready=true;releaseSurfaceText(*slot);
+      // Idle cache warming may prepare a backend-owned native copy. It does
+      // not publish a frame or change any UI/animation clock.
+      if(auto *backend=nice_gfx::detail::DisplayAccess::panel(display))backend->cacheFrameSource(backendFrameSource(*slot));
       // Publish complete coverage before releasing the previous source. No
       // refresh can borrow either slot while this bounded idle work runs.
       for(auto &entry:surfaces)if(&entry!=slot&&entry.page==&p&&!borrowedWarmSurface(entry))discardWarmSurface(entry);
@@ -488,6 +605,8 @@ void warmSurfaceTile(uint32_t now,bool allowDirty=false) {
     surfaceWarmNext=(wantedAt+1)%count;
     return;
   }
-  surfaceWarmPending=false;
+  // A temporarily unserviceable explicit request remains queued. Pins or a
+  // producer may release a usable slot later; do not silently lose its retry.
+  surfaceWarmPending=!surfacePrewarm.empty();
   for(const auto &entry:surfaces)if(entry.paused)surfaceWarmPending=true;
 }

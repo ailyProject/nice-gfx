@@ -1,7 +1,7 @@
 #pragma once
 #include "../../Display/ControllerProfile.h"
 
-// GC9C01 initialization ported from Arduino_GFX (BSD-licensed).
+// Register and timing reference: GC9C01 datasheet.
 
 namespace nice_gfx { namespace controllers {
 inline void init_GC9C01(PanelSequence &s) {

@@ -184,16 +184,16 @@ static const uint8_t ngfx_u8x8_d_st7571_128x128_init_seq[] = {
   NGFX_U8X8_C(0xC8), 				// SHL select
   NGFX_U8X8_CA(0x44, 0x00), 		// COM0 register  
   NGFX_U8X8_CA(0x40, 0x0), 		// initial display line  (0x7f... strange but ok... maybe specific for the JLX128128)
-                                                        // 2 sep 2021: maybe this also wrong because the 0x44 command is overwritten later.
-                                                        // 4 Mar 2022: Changed to 0
-  
+
+
+
   NGFX_U8X8_C(0xAB), 				// OSC ON  
   NGFX_U8X8_C(0x25), 				// Voltage regulator
   NGFX_U8X8_CA(0x81, 0x33), 		// Volume
   NGFX_U8X8_C(0x54), 				// LCD Bias: 0x056=1/11 (1/11 according to JLX128128 datasheet), 0x054=1/9
-  NGFX_U8X8_CA(0x48, 0x80), 		// Duty 1/128   // 2 Sep 2021: Should this be 00x48???  
-                                                        // 4 Mar 2022, cmd changed to 0x48, arg changed to 0x80
-  
+  NGFX_U8X8_CA(0x48, 0x80), 		// Duty 1/128
+
+
   NGFX_U8X8_C(0x2C), 				// Power Control, VC: ON, VR: OFF, VF: OFF
   NGFX_U8X8_DLY(200),
   NGFX_U8X8_C(0x2E), 				// Power Control, VC: ON, VR: ON, VF: OFF
@@ -209,7 +209,7 @@ static const uint8_t ngfx_u8x8_d_st7571_128x128_init_seq[] = {
   NGFX_U8X8_C(0xA6), 				// Display Inverse OFF
   NGFX_U8X8_C(0xA4), 				// Disable Display All Pixel ON
 
-  //NGFX_U8X8_C(0xAF), 				// Display on
+
 
 
   NGFX_U8X8_END_TRANSFER(),             	/* disable chip */
@@ -230,7 +230,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_st7571_128x128_display_info =
   /* post_reset_wait_ms = */ 5, 		/**/
   /* sda_setup_time_ns = */ 20,		/* */
   /* sck_pulse_width_ns = */ 40,	/*  */
-  /* sck_clock_hz = */ 4000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
+  /* sck_clock_hz = */ 4000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,	/* 400KHz */
   /* data_setup_time_ns = */ 15,
@@ -279,7 +279,7 @@ static const uint8_t ngfx_u8x8_d_st7571_128x96_init_seq[] = {
   
   NGFX_U8X8_C(0xAE), 				// Display OFF
   NGFX_U8X8_C(0x38), 				// Mode Set  
-  //NGFX_U8X8_C(0xB8), 				// FR=1011 (85Hz), BE[1:0]=10, level 3 booster
+
   NGFX_U8X8_C(0x94),                                 // 128x96: 75 Hz 
   
   NGFX_U8X8_C(0xA0), 				// ADC select
@@ -308,7 +308,7 @@ static const uint8_t ngfx_u8x8_d_st7571_128x96_init_seq[] = {
   NGFX_U8X8_C(0xA6), 				// Display Inverse OFF
   NGFX_U8X8_C(0xA4), 				// Disable Display All Pixel ON
 
-  //NGFX_U8X8_C(0xAF), 				// Display on
+
 
 
   NGFX_U8X8_END_TRANSFER(),             	/* disable chip */
@@ -329,7 +329,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_st7571_128x96_display_info =
   /* post_reset_wait_ms = */ 5, 		/**/
   /* sda_setup_time_ns = */ 20,		/* */
   /* sck_pulse_width_ns = */ 40,	/*  */
-  /* sck_clock_hz = */ 4000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
+  /* sck_clock_hz = */ 4000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,	/* 400KHz */
   /* data_setup_time_ns = */ 15,
@@ -380,7 +380,7 @@ static const uint8_t ngfx_u8x8_d_st7571_g12896_init_seq[] = {
   
   NGFX_U8X8_C(0xAE), 				// Display OFF
   NGFX_U8X8_C(0x38), 				// Mode Set  
-  //NGFX_U8X8_C(0xB8), 				// FR=1011 (85Hz), BE[1:0]=10, level 3 booster
+
   NGFX_U8X8_C(0x94),                                 // 128x96: 75 Hz 
   
   NGFX_U8X8_C(0xA0), 				// ADC select
@@ -409,7 +409,7 @@ static const uint8_t ngfx_u8x8_d_st7571_g12896_init_seq[] = {
   NGFX_U8X8_C(0xA6), 				// Display Inverse OFF
   NGFX_U8X8_C(0xA4), 				// Disable Display All Pixel ON
 
-  //NGFX_U8X8_C(0xAF), 				// Display on
+
 
 
   NGFX_U8X8_END_TRANSFER(),             	/* disable chip */

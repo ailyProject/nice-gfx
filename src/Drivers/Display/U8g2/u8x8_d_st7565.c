@@ -99,7 +99,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_st7565_128x64_display_info =
   /* post_reset_wait_ms = */ 1, 
   /* sda_setup_time_ns = */ 50,		/* st7565 datasheet, table 26, tsds */
   /* sck_pulse_width_ns = */ 120,	/* half of cycle time (100ns according to datasheet), AVR: below 70: 8 MHz, >= 70 --> 4MHz clock */
-  /* sck_clock_hz = */ 4000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
+  /* sck_clock_hz = */ 4000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,
   /* data_setup_time_ns = */ 40,	/* st7565 datasheet, table 24, tds8 */
@@ -192,9 +192,9 @@ static const uint8_t ngfx_u8x8_d_st7565_dogm128_init_seq[] = {
   NGFX_U8X8_C(0x0a1),		                /* ADC set to reverse */
   NGFX_U8X8_C(0x0c0),		                /* common output mode */
   // Flipmode
-  // NGFX_U8X8_C(0x0a0),		                /* ADC set to reverse */
-  // NGFX_U8X8_C(0x0c8),		                /* common output mode */
-  
+
+
+
   NGFX_U8X8_C(0x0a6),		                /* display normal, bit val 0: LCD pixel off. */
   NGFX_U8X8_C(0x0a2),		                /* LCD bias 1/9 */
   NGFX_U8X8_C(0x02f),		                /* all power  control circuits on (regulator, booster and follower) */
@@ -259,9 +259,9 @@ static const uint8_t ngfx_u8x8_d_st7565_lm6063_init_seq[] = {
   NGFX_U8X8_C(0x0a1),		                /* ADC set to reverse */
   NGFX_U8X8_C(0x0c0),		                /* common output mode */
   // Flipmode
-  // NGFX_U8X8_C(0x0a0),		                /* ADC set to reverse */
-  // NGFX_U8X8_C(0x0c8),		                /* common output mode */
-  
+
+
+
   NGFX_U8X8_C(0x0a6),		                /* display normal, bit val 0: LCD pixel off. */
   NGFX_U8X8_C(0x0a2),		                /* LCD bias 1/9 */
   NGFX_U8X8_C(0x02f),		                /* all power  control circuits on (regulator, booster and follower) */
@@ -327,14 +327,14 @@ static const uint8_t ngfx_u8x8_d_st7565_64128n_init_seq[] = {
   NGFX_U8X8_C(0x0a1),		                /* ADC set to reverse */
   NGFX_U8X8_C(0x0c0),		                /* common output mode */
   // Flipmode
-  // NGFX_U8X8_C(0x0a0),		                /* ADC set to reverse */
-  // NGFX_U8X8_C(0x0c8),		                /* common output mode */
-  
+
+
+
   NGFX_U8X8_C(0x0a6),		                /* display normal, bit val 0: LCD pixel off. */
   NGFX_U8X8_C(0x0a2),		                /* LCD bias 1/9 */
   NGFX_U8X8_C(0x02f),		                /* all power  control circuits on */
-  //NGFX_U8X8_CA(0x0f8, 0x000),		/* set booster ratio to 4x */
-  //NGFX_U8X8_C(0x027),		                /* set V0 voltage resistor ratio to max  */
+
+
 
   NGFX_U8X8_C(0x010),                   		/* Set V0 voltage resistor ratio. Setting for controlling brightness of Displaytech 64128N */
   
@@ -351,21 +351,21 @@ static const uint8_t ngfx_u8x8_d_st7565_64128n_init_seq[] = {
   
   NGFX_U8X8_C(0x0a1),		                /* ADC set to reverse */
   NGFX_U8X8_C(0x0c0),		                /* common output mode */
-  //NGFX_U8X8_C(0x0A0),  				   /* Normal ADC Select (according to Displaytech 64128N datasheet) */
-  //NGFX_U8X8_C(0x0c8),                   /* common output mode: set scan direction normal operation/SHL Select, 0x0c0 --> SHL = 0, normal, 0x0c8 --> SHL = 1 */
-  
+
+
+
   NGFX_U8X8_C(0x040),		           /* Display start line for Displaytech 64128N */
   NGFX_U8X8_C(0x028 | 0x04),            /* power control: turn on voltage converter */
   NGFX_U8X8_C(0x028 | 0x06),            /* power control: turn on voltage regulator */
   NGFX_U8X8_C(0x028 | 0x07),            /* power control: turn on voltage follower */
   NGFX_U8X8_C(0x010),                   /* Set V0 voltage resistor ratio. Setting for controlling brightness of Displaytech 64128N */
-					      /* 19 Jul 17: Not sure if this is true, cmd 0x1? is used to set the column */
+					      /* Column addressing for command 0x1? is unverified. */
   NGFX_U8X8_C(0x0a6),                   /* display normal, bit val 0: LCD pixel off. */
   NGFX_U8X8_C(0x081),      	           /* set contrast */
   NGFX_U8X8_C(0x01e),        	       /* Contrast value. Setting for controlling brightness of Displaytech 64128N */
-  //NGFX_U8X8_C(0x0af),		           /* display on */
-  //NGFX_U8X8_C(0x0a5),		           /* display all points, ST7565 */
-  //NGFX_U8X8_C(0x0a4),		           /* normal display */
+
+
+
 
   NGFX_U8X8_C(0x0ae),		                /* display off */
 
@@ -387,7 +387,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_st7565_64128n_display_info =
   /* post_reset_wait_ms = */ 1, 
   /* sda_setup_time_ns = */ 50,		/* st7565 datasheet, table 26, tsds */
   /* sck_pulse_width_ns = */ 120,	/* half of cycle time (100ns according to datasheet), AVR: below 70: 8 MHz, >= 70 --> 4MHz clock */
-  /* sck_clock_hz = */ 4000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
+  /* sck_clock_hz = */ 4000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,
   /* data_setup_time_ns = */ 40,	/* st7565 datasheet, table 24, tds8 */
@@ -448,9 +448,9 @@ static const uint8_t ngfx_u8x8_d_st7565_zolen_128x64_init_seq[] = {
   NGFX_U8X8_C(0x0a1),		                /* ADC set to reverse */
   NGFX_U8X8_C(0x0c8),		                /* common output mode */
   // Flipmode
-  // NGFX_U8X8_C(0x0a0),		                /* ADC set to reverse */
-  // NGFX_U8X8_C(0x0c0),		                /* common output mode */
-  
+
+
+
   NGFX_U8X8_C(0x0a6),		                /* display normal, bit val 0: LCD pixel off. */
   NGFX_U8X8_C(0x0a2),		                /* LCD bias 1/9 */
   NGFX_U8X8_C(0x02f),		                /* all power  control circuits on (regulator, booster and follower) */
@@ -515,7 +515,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_st7565_128x32_display_info =
   /* post_reset_wait_ms = */ 1, 
   /* sda_setup_time_ns = */ 50,		/* st7565 datasheet, table 26, tsds */
   /* sck_pulse_width_ns = */ 120,	/* half of cycle time (100ns according to datasheet), AVR: below 70: 8 MHz, >= 70 --> 4MHz clock */
-  /* sck_clock_hz = */ 4000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
+  /* sck_clock_hz = */ 4000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,
   /* data_setup_time_ns = */ 40,	/* st7565 datasheet, table 24, tds8 */
@@ -540,9 +540,9 @@ static const uint8_t ngfx_u8x8_d_st7565_nhd_c12832_init_seq[] = {
   NGFX_U8X8_C(0x0a1),		                /* ADC set to reverse */
   NGFX_U8X8_C(0x0c0),		                /* common output mode */
   // Flipmode
-  //NGFX_U8X8_C(0x0a0),		                /* ADC set to reverse */
-  //NGFX_U8X8_C(0x0c8),		                /* common output mode */
-  
+
+
+
   NGFX_U8X8_C(0x0a6),		                /* display normal, bit val 0: LCD pixel off. */
   NGFX_U8X8_C(0x0a2),		                /* LCD bias 1/9 */
   NGFX_U8X8_C(0x02f),		                /* all power  control circuits on */
@@ -605,7 +605,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_st7565_nhd_c12864_display_info =
   /* post_reset_wait_ms = */ 1, 
   /* sda_setup_time_ns = */ 50,		/* st7565 datasheet, table 26, tsds */
   /* sck_pulse_width_ns = */ 120,	/* half of cycle time (100ns according to datasheet), AVR: below 70: 8 MHz, >= 70 --> 4MHz clock */
-  /* sck_clock_hz = */ 4000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
+  /* sck_clock_hz = */ 4000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,
   /* data_setup_time_ns = */ 40,	/* st7565 datasheet, table 24, tds8 */
@@ -630,14 +630,14 @@ static const uint8_t ngfx_u8x8_d_st7565_nhd_c12864_init_seq[] = {
   NGFX_U8X8_C(0x0a1),		                /* ADC set to reverse */
   NGFX_U8X8_C(0x0c0),		                /* common output mode */
   // Flipmode
-  //NGFX_U8X8_C(0x0a0),		                /* ADC set to reverse */
-  //NGFX_U8X8_C(0x0c8),		                /* common output mode */
-  
+
+
+
   NGFX_U8X8_C(0x0a6),		                /* display normal, bit val 0: LCD pixel off. */
   NGFX_U8X8_C(0x0a2),		                /* LCD bias 1/9 */
   NGFX_U8X8_C(0x02f),		                /* all power  control circuits on */
   NGFX_U8X8_CA(0x0f8, 0x000),		/* set booster ratio to 4x */
-  NGFX_U8X8_C(0x025),		                /* set V0 voltage resistor ratio to large,  issue 1678: changed from 0x23 to 0x25 */
+  NGFX_U8X8_C(0x025),		                /* set V0 voltage resistor ratio to large */
   NGFX_U8X8_CA(0x081, 170),			/* set contrast, contrast value NHD C12864, see issue 186, increased contrast to 180 (issue 219), reduced to 170 (issue 1678) */
   
   NGFX_U8X8_C(0x0ae),		                /* display off */
@@ -702,12 +702,12 @@ static const uint8_t ngfx_u8x8_d_st7565_lm6059_init_seq[] = {
   
   NGFX_U8X8_C(0x0a0),		                /* ADC set to reverse */
   NGFX_U8X8_C(0x0c8),		                /* common output mode */
-  //NGFX_U8X8_C(0x0a1),		                /* ADC set to reverse */
-  //NGFX_U8X8_C(0x0c0),		                /* common output mode */
+
+
   // Flipmode
-  // NGFX_U8X8_C(0x0a0),		                /* ADC set to reverse */
-  // NGFX_U8X8_C(0x0c8),		                /* common output mode */
-  
+
+
+
   NGFX_U8X8_C(0x0a6),		                /* display normal, bit val 0: LCD pixel off. */
   NGFX_U8X8_C(0x0a3),		                /* LCD bias 1/9 */
   NGFX_U8X8_C(0x02f),		                /* all power  control circuits on (regulator, booster and follower) */
@@ -733,7 +733,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_st7565_lm6059_display_info =
   /* post_reset_wait_ms = */ 1, 
   /* sda_setup_time_ns = */ 50,		/* st7565 datasheet, table 26, tsds */
   /* sck_pulse_width_ns = */ 120,	/* half of cycle time (100ns according to datasheet), AVR: below 70: 8 MHz, >= 70 --> 4MHz clock */
-  /* sck_clock_hz = */ 4000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
+  /* sck_clock_hz = */ 4000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,
   /* data_setup_time_ns = */ 40,	/* st7565 datasheet, table 24, tds8 */
@@ -849,12 +849,12 @@ static const uint8_t ngfx_u8x8_d_st7565_lx12864_init_seq[] = {
   
   NGFX_U8X8_C(0x0a0),		                /* ADC set to reverse */
   NGFX_U8X8_C(0x0c8),		                /* common output mode */
-  //NGFX_U8X8_C(0x0a1),		                /* ADC set to reverse */
-  //NGFX_U8X8_C(0x0c0),		                /* common output mode */
+
+
   // Flipmode
-  // NGFX_U8X8_C(0x0a0),		                /* ADC set to reverse */
-  // NGFX_U8X8_C(0x0c8),		                /* common output mode */
-  
+
+
+
   NGFX_U8X8_C(0x0a6),		                /* display normal, bit val 0: LCD pixel off. */
   NGFX_U8X8_C(0x0a2),		                /* LCD bias 1/9 */
   NGFX_U8X8_C(0x02f),		                /* all power  control circuits on (regulator, booster and follower) */
@@ -880,7 +880,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_st7565_lx12864_display_info =
   /* post_reset_wait_ms = */ 1, 
   /* sda_setup_time_ns = */ 50,		/* st7565 datasheet, table 26, tsds */
   /* sck_pulse_width_ns = */ 120,	/* half of cycle time (100ns according to datasheet), AVR: below 70: 8 MHz, >= 70 --> 4MHz clock */
-  /* sck_clock_hz = */ 4000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
+  /* sck_clock_hz = */ 4000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,
   /* data_setup_time_ns = */ 40,	/* st7565 datasheet, table 24, tds8 */
@@ -941,12 +941,12 @@ static const uint8_t ngfx_u8x8_d_st7565_erc12864_init_seq[] = {
   
   NGFX_U8X8_C(0x0a0),		                /* ADC set to reverse */
   NGFX_U8X8_C(0x0c8),		                /* common output mode */
-  //NGFX_U8X8_C(0x0a1),		                /* ADC set to reverse */
-  //NGFX_U8X8_C(0x0c0),		                /* common output mode */
+
+
   // Flipmode
-  // NGFX_U8X8_C(0x0a0),		                /* ADC set to reverse */
-  // NGFX_U8X8_C(0x0c8),		                /* common output mode */
-  
+
+
+
   NGFX_U8X8_C(0x0a6),		                /* display normal, bit val 0: LCD pixel off. */
   NGFX_U8X8_C(0x0a3),		                /* LCD bias 1/9 */
   NGFX_U8X8_C(0x02f),		                /* all power  control circuits on (regulator, booster and follower) */
@@ -972,7 +972,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_st7565_erc12864_display_info =
   /* post_reset_wait_ms = */ 1, 
   /* sda_setup_time_ns = */ 50,		/* st7565 datasheet, table 26, tsds */
   /* sck_pulse_width_ns = */ 120,	/* half of cycle time (100ns according to datasheet), AVR: below 70: 8 MHz, >= 70 --> 4MHz clock */
-  /* sck_clock_hz = */ 4000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
+  /* sck_clock_hz = */ 4000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,
   /* data_setup_time_ns = */ 40,	/* st7565 datasheet, table 24, tds8 */
@@ -1030,28 +1030,28 @@ static const uint8_t ngfx_u8x8_d_st7565_erc12864_alt_init_seq[] = {
 
   // original sequence 
   
-  // NGFX_U8X8_START_TRANSFER(),             	/* enable chip, delay is part of the transfer start */
-  
-  // NGFX_U8X8_C(0x0e2),            			/* soft reset */
-  // NGFX_U8X8_C(0x0ae),		                /* display off */
-  // NGFX_U8X8_C(0x040),		                /* set display start line to ... */
-  
-  // NGFX_U8X8_C(0x0a0),		                /* ADC set to reverse */
-  // NGFX_U8X8_C(0x0c8),		                /* common output mode */
-  
-  // NGFX_U8X8_C(0x0a6),		                /* display normal, bit val 0: LCD pixel off. */
-  // NGFX_U8X8_C(0x0a3),		                /* LCD bias 1/9 */
-  // NGFX_U8X8_C(0x02f),		                /* all power  control circuits on (regulator, booster and follower) */
-  // NGFX_U8X8_CA(0x0f8, 0x000),		/* set booster ratio to 4x (ST7567 feature)*/
-  // NGFX_U8X8_C(0x027),		                /* set V0 voltage resistor ratio to max  */
-  // NGFX_U8X8_CA(0x081, 0x018),		/* set contrast, contrast value, EA default: 0x016 */
-  
-  // NGFX_U8X8_C(0x0ae),		                /* display off */
-  // NGFX_U8X8_C(0x0a5),		                /* enter powersafe: all pixel on, issue 142 */
-  
-  // NGFX_U8X8_END_TRANSFER(),             	/* disable chip */
-  // NGFX_U8X8_END()             			/* end of sequence */
-  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
   // suggested in https://github.com/olikraus/u8g2/issues/790
@@ -1066,12 +1066,12 @@ static const uint8_t ngfx_u8x8_d_st7565_erc12864_alt_init_seq[] = {
   NGFX_U8X8_C(0x0c8),		                /* common output mode */
   
   NGFX_U8X8_C(0x0a6),		                /* display normal, bit val 0: LCD pixel off. */
-  NGFX_U8X8_C(0x0a2),		                /* LCD bias 1/9 - *** Changed by Ismail - was 0xa3 - 1/7 bias we were getting dark pixel off */
+  NGFX_U8X8_C(0x0a2),		                /* LCD bias 1/9 (Ismail) */
   NGFX_U8X8_C(0x02f),		                /* all power  control circuits on (regulator, booster and follower) */
   NGFX_U8X8_CA(0x0f8, 0x000),		/* set booster ratio to 4x (ST7567 feature)*/
   NGFX_U8X8_C(0x027),		                /* set V0 voltage resistor ratio to max  */
-  NGFX_U8X8_CA(0x081, 0x05),		       /* set contrast, contrast value, EA default: 0x016 - *** Changed by Ismail to 0x05 */ 
-  
+  NGFX_U8X8_CA(0x081, 0x05),		       /* set contrast to 0x05 (Ismail) */
+
   NGFX_U8X8_C(0x0ae),		                /* display off */
   NGFX_U8X8_C(0x0a5),		                /* enter powersafe: all pixel on, issue 142 */
   
@@ -1135,13 +1135,13 @@ static const uint8_t ngfx_u8x8_d_nt7534_tg12864r_init_seq[] = {
   NGFX_U8X8_C(0x0a0),		                /* ADC set to reverse */
   NGFX_U8X8_C(0x0c8),		                /* common output mode */
   // Flipmode
-  //NGFX_U8X8_C(0x0a1),		                /* ADC set to reverse */
-  //NGFX_U8X8_C(0x0c0),		                /* common output mode */
-  
+
+
+
   NGFX_U8X8_C(0x0a6),		                /* display normal, bit val 0: LCD pixel off. */
   NGFX_U8X8_C(0x0a3),		                /* LCD bias 1/9 */
   NGFX_U8X8_C(0x02f),		                /* all power  control circuits on (regulator, booster and follower) */
-  //NGFX_U8X8_CA(0x0f8, 0x000),		/* set booster ratio to 4x (ST7567 feature)*/
+
   NGFX_U8X8_C(0x027),		                /* set V0 voltage resistor ratio to max  */
   NGFX_U8X8_CA(0x081, 0x009),		/* set contrast, contrast value, EA default: 0x016 */
   
@@ -1167,7 +1167,7 @@ uint8_t ngfx_u8x8_d_nt7534_tg12864r(ngfx_u8x8_t *u8x8, uint8_t msg, uint8_t arg_
       case NGFX_U8X8_MSG_DISPLAY_INIT:
 	ngfx_u8x8_d_helper_display_init(u8x8);
       
-	//ngfx_u8x8_cad_SendSequence(u8x8, ngfx_u8x8_d_st7565_lm6059_init_seq);
+
 	ngfx_u8x8_cad_SendSequence(u8x8, ngfx_u8x8_d_nt7534_tg12864r_init_seq);
 	break;
       case NGFX_U8X8_MSG_DISPLAY_SET_FLIP_MODE:
@@ -1204,7 +1204,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_st7565_dogm132_display_info =
   /* post_reset_wait_ms = */ 1, 
   /* sda_setup_time_ns = */ 50,		/* st7565 datasheet, table 26, tsds */
   /* sck_pulse_width_ns = */ 120,	/* half of cycle time (100ns according to datasheet), AVR: below 70: 8 MHz, >= 70 --> 4MHz clock */
-  /* sck_clock_hz = */ 4000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
+  /* sck_clock_hz = */ 4000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,
   /* data_setup_time_ns = */ 40,	/* st7565 datasheet, table 24, tds8 */
@@ -1229,9 +1229,9 @@ static const uint8_t ngfx_u8x8_d_st7565_dogm132_init_seq[] = {
   NGFX_U8X8_C(0x0a1),		                /* ADC set to reverse */
   NGFX_U8X8_C(0x0c0),		                /* common output mode */
   // Flipmode
-  //NGFX_U8X8_C(0x0a0),		                /* ADC set to reverse */
-  //NGFX_U8X8_C(0x0c8),		                /* common output mode */
-  
+
+
+
   NGFX_U8X8_C(0x0a6),		                /* display normal, bit val 0: LCD pixel off. */
   NGFX_U8X8_C(0x0a2),		                /* LCD bias 1/9 */
   NGFX_U8X8_C(0x02f),		                /* all power  control circuits on */

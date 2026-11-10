@@ -3,7 +3,7 @@
 The current resource ABI is `ResourceVersion` in [Compiled.h](Compiled.h).
 Generated resources assert this version when compiled against the runtime.
 
-ABI 16 adds immutable chart styling and reference-line descriptors. Line charts
+Charts use immutable styling and reference-line descriptors. Line charts
 support solid/gradient areas, step traces, finer grids and point markers; bars
 support mixed-sign stacking. The editor and exported runtime share these options.
 Regenerate complete projects so compiled resources and the runtime match.
@@ -14,7 +14,7 @@ the compiler lives only in `nice_gfx_editor/packages/html-ui/`. Its preview font
 and firmware archive are generated from this library.
 It includes the editor's media, linear gradients, Gauge/Ring/LineChart/BarChart/
 Spinbox, physical-key bindings and focus navigation. See
-[version unification and migration](../../docs/Architecture.md).
+[runtime architecture](../../docs/Architecture.md).
 
 `UI/View.h` provides the designer-generated UI runtime. Generated `ProjectDesc`
 resources mount into `nice_gfx::htmlui::View`; `View.cpp` is compiled independently
@@ -31,6 +31,38 @@ Arduino sketches using an installed library include `<NICE_GFX.h>` before their
 generated headers so Arduino can discover the library. Plain C++ and ESP-IDF
 can include module headers directly. Complete designer exports carry their own
 runtime under `src/nice_gfx/` and use relative includes.
+
+`View::configureRenderCache()` borrows caller-owned RGB565 storage. Keep that
+storage alive and unmodified until a successful cache clear/replacement or
+View destruction, after pending refreshes have drained. Cache storage must be
+independent of writable display framebuffers, UI tile buffers and mutable asset
+storage. A Wire565 cached page cannot also be a driver-writable Native565
+framebuffer; overlapping those roles can overwrite the immutable cached pixels.
+
+The generated project status bar uses a registered system panel for its custom
+control center. For a full-screen clipped system panel with no independent
+overlay or other active visual behavior, the backdrop fades with the panel's clamped
+spring progress. Closing completes when the panel first leaves the top of the
+screen; it restores the saved field draft and focus and emits the ordinary
+`Hidden` event through the same close lifecycle. Reopening before that point
+retains the spring's current momentum. Other dialogs and unsupported system
+panel geometry retain their original backdrop and spring completion behavior.
+
+A status-bar pull follows the pointer before release. A downward one-pixel
+sample with vertical dominance starts the registered modal once; subsequent
+samples directly control its normalized 0..1024 pose. An existing panel can be
+caught at its current opening/closing pose from its handle or plain background.
+While held, the spring pauses, and even zero visible height retains modal input
+isolation. Pointer cancellation returns to the endpoint targeted before contact.
+Explicit Back, hide or navigation supersedes the held contact.
+
+Release projects the current progress 120ms using the last valid pointer
+increment, then settles to the nearest endpoint with that velocity. An increment
+must have 0<dt<150ms, remain younger than150ms at release, and the total vertical
+travel must reach12px to supply velocity; otherwise only position is used.
+Beginning, moving and reversing one drag do not repeat Shown, field suspension
+or resource preparation. Normal bar/handle taps and authored controls retain
+their ordinary actions.
 
 Text, Label, Button and Checkbox nodes require a font even when their initial
 text is empty, so later `setText()` calls have a defined appearance. Other nodes
@@ -49,8 +81,7 @@ selection indices, Tabs proxies page indices, and linked captions proxy text.
 Select/Popup/Confirm expose `setExpanded/expanded`. Unsupported component setters
 return false. Select/Choice commit after a cancelable option Click and emit root
 Input/Change with `Event::component` and `optionIndex`; ordinary setters remain
-silent except Pager page notifications. `NICE_GFX_UI_COMPONENTS_VERSION = 1`
-declares this capability without changing the resource ABI. See the
+silent except Pager page notifications. See the
 [Arduino component guide](../../docs/ArduinoComponentInteraction.md) for all 33
 components, public IDs, event semantics and runtime limits.
 
@@ -66,15 +97,13 @@ updates through `setImage`, immutable owning `Image` handles, and
 old pixels for in-flight snapshots. `clearImage` blanks content; `resetImage`
 restores the authored source. See [dynamic images](../../docs/DynamicImages.md)
 for copied uploads, ownership transfer, compiled resource switching and memory
-contracts. This capability uses `NICE_GFX_UI_DYNAMIC_IMAGE_VERSION = 1` without
-changing the resource descriptor ABI.
+contracts.
 
 Media pixels honor the node's `border-radius`, including dynamic replacements,
 frame playback and transformed animations. The radius is capped at half the
 border box's shorter side, then inset by each border and padding edge to clip
 the content corners. An 80 x 80 node with a 40px radius is circular; zero keeps
-the rectangular fast path. This uses the existing style field without an ABI
-change; export the updated runtime with the generated UI.
+the rectangular fast path. Export the runtime with the generated UI.
 
 The runtime requires STL containers and sufficient dynamic memory. AVR is not a
 compiled-UI target: `View.cpp` excludes its implementation there so Arduino can
@@ -96,8 +125,7 @@ but does not bubble. Input, Change, PointerCancel, Scroll, PageChange and LongPr
 are non-cancelable notifications. Click and PointerDown/Move/Up are cancelable.
 `stopImmediatePropagation()` also stops remaining listeners on the current node.
 `preventDefault` on Click suppresses activation
-and declarative routing. Legacy interaction preserves its original down/move
-semantics. Coordinated interaction suppresses sequence defaults after a prevented
+and declarative routing. Coordinated interaction suppresses sequence defaults after a prevented
 PointerDown, and prevents the current owned Range update after a prevented Move.
 Checkbox/Switch click listeners observe the tentatively
 toggled value; a canceled Click rolls it back and emits no Input or Change.
@@ -120,13 +148,12 @@ BeforeNavigate callback or route guard clears the preview and preserves history.
 
 Scroll and Pager cancel the child pointer sequence when their drag wins. Range
 supports horizontal and vertical drag, independent of touch-action's native
-scroll restrictions. `InteractionVersion::Coordinated` adds an 8px slop with
+scroll restrictions. `InteractionVersion::Coordinated` uses an 8px slop with
 direction disambiguation, local controls before ordinary edge navigation,
 axis-specific containment and explicit navigation chaining. Ownership stays
-locked through release/cancel. Sparse policies leave NodeDesc ABI 17 intact;
-navigation descriptor capability is version 5. Generated new projects select
-interactionVersion 2; missing project versions and raw mount() remain Legacy.
-See [interaction modes and gestures](../../docs/ArduinoComponentInteraction.md#交互模式与手势).
+locked through release/cancel. Generated projects select coordinated interaction;
+raw `mount()` defaults to `InteractionVersion::Legacy`.
+See [navigation, input and scheduling](../../docs/ArduinoComponentInteraction.md#导航输入与调度).
 Scroll accepts one configured axis with bounded, damped inertia; a new down stops
 inertia at its current offset and consumes a click inside the moving viewport.
 Pager is horizontal, follows the pointer,
@@ -152,8 +179,8 @@ the previous/current pages are drawn together during the drag. Release completes
 or rolls back over 180 ms with pointer input gated. Canceled drags leave history
 unchanged; a successful animation commits history only at its completion.
 
-`GestureBindingDesc` adds optional trailing `interaction` and `transition` fields
-in navigation API version 3; existing eight-field resources keep Release/null.
+`GestureBindingDesc` has optional `interaction` and `transition` fields,
+which default to Release/null when omitted.
 Release triggers after a direction-dominant swipe reaches its threshold. Null
 inherits project/page and component departure effects; an explicit descriptor
 uses one paired page transition with the complete target pose, overriding page
@@ -188,8 +215,8 @@ and Spinbox provide bounded cursor editing through the shared automatic keyboard
 with separate draft/committed values, confirmation/cancellation, UTF-8 editing and
 fixed-point validation. `InputFieldDesc::keyboardHeight` uses fullscreen editing
 when zero; a positive height docks at the bottom, bounded by the screen height
-and a 240px minimum. Round screens always use fullscreen editing. ABI 14 adds
-`InputFieldDesc::keyboardTheme` (`KeyboardTheme::Light` / `Dark`, default Light).
+and a 240px minimum. Round screens always use fullscreen editing.
+`InputFieldDesc::keyboardTheme` selects `KeyboardTheme::Light` / `Dark` (default Light).
 `setKeyboardTheme(KeyboardTheme)` overrides the field theme across field changes
 and hiding; `resetKeyboardTheme()` restores the field theme; `keyboardTheme()`
 returns the effective theme. Theme changes preserve draft and committed values.
@@ -296,8 +323,8 @@ until every referring page and in-flight frame releases them.
 `memoryStats()` estimates retained state/snapshot/cache/payload/tile/scratch capacity
 with shared payloads counted once; it excludes allocator metadata, driver storage
 and immutable flash resources. `runtimeStats/resetRuntimeStats` expose cumulative
-frame, geometry, text layout, candidate, paint and transfer-pixel work. Stats
-version 5 also counts reused geometry/text, component index builds, timed ticks
+frame, geometry, text layout, candidate, paint and transfer-pixel work. They
+also count reused geometry/text, component index builds, timed ticks
 and deferred maintenance. Tick timing is enabled by a profiling clock or a
 microsecond budget; its maximum includes required work that exceeds that budget.
 See
@@ -306,7 +333,7 @@ See
 For component APIs, events, input handling and application scheduling, see the
 [Arduino component interaction guide](../../docs/ArduinoComponentInteraction.md).
 
-## Declarative component animations (ABI 4; independent exit requires ABI 10)
+## Declarative component animations
 
 Each NodeDesc has an AnimationDesc: effect, easing, trigger, duration/delay in ms,
 repeat count (0 = infinite), and distance in pixels. Zero initialization disables
@@ -314,9 +341,9 @@ animation. Effects: FadeIn/FadeOut, SlideLeft/Right/Up/Down, Float, Bounce, Shak
 Pulse (opacity breathing), Blink. SlideLeft/Right start on the corresponding side;
 SlideUp starts below and SlideDown starts above. Easing: Linear, EaseIn, EaseOut,
 EaseInOut, BackOut and BounceOut. One preset per node, without layout reflow;
-ABI 15 adds the optional compiled keyframes and local transforms described below.
+Optional compiled keyframes and local transforms are described below.
 
-ABI 10 appends `NodeDesc::exitAnimation`, an optional immutable `AnimationDesc`
+`NodeDesc::exitAnimation` is an optional immutable `AnimationDesc`
 pointer. Exit effects are FadeOut and SlideOutLeft/Right/Up/Down; the latter keep
 their final displacement. Exit descriptors use Manual and one finite cycle.
 They are independent of the existing enter/click/manual preset. Accepted ordinary
@@ -375,7 +402,7 @@ finish and dirty tiles drain, idle tick performs no display writes. finish() onl
 drains the current frame, never advances animation time. Test actual bus throughput
 on hardware; no fixed frame rate is promised.
 
-## Compiled keyframes and local transforms (ABI 17, motion API 1)
+## Compiled keyframes and local transforms
 
 `NodeDesc::motion` optionally references an immutable `MotionDesc`, with 2–16
 normalized `MotionKeyframe` poses. The compiler resolves missing fields, delay
@@ -383,19 +410,17 @@ staggering and resource deduplication before export. Device sampling uses Q10
 integer progress for x/y, opacity, uniform scale, clockwise integer-degree
 rotation and rectangular reveal. Keyframes replace the node's main preset and
 retain its `AnimationDesc` timing. A zero-frame descriptor attaches alternate
-direction to a legacy preset; a null pointer keeps the original sampling path.
+direction to a preset; a null pointer uses the preset sampler.
 `repeat` counts single traversals, so alternate repeat=2 returns to the first
 pose. Infinite alternate clocks rebase only whole pairs of traversals.
 
 Rotation and uniform scale use one fixed pivot per node. Optional
 `data-animation-pivot-x` and `data-animation-pivot-y` are integer percentages
-from -1000 to 1000; omitted axes default to 50 (the existing center behavior).
+from -1000 to 1000; omitted axes default to 50 (the center).
 The compiler stores them as trailing `MotionDesc::pivotX` / `pivotY` fields;
-`NICE_GFX_UI_PIVOT_MOTION_VERSION=1` identifies this capability. ABI 17 changes
-the motion descriptor layout; re-export resources when upgrading the runtime.
-Existing C++ `{frames,count,flags}` source initializers retain the center defaults,
-including Arduino toolchains using C++11; a constexpr constructor supplies the
-optional pivot values without changing descriptor layout.
+`NICE_GFX_UI_PIVOT_MOTION_VERSION=1` identifies this capability.
+C++ `{frames,count,flags}` initializers use the center defaults, including
+Arduino toolchains using C++11; a constexpr constructor supplies optional pivot values.
 
 For Media/Icon, 0/100 percent select the node box edges. For Shape they select
 the first/last pixel centers, so a filled polygon endpoint at logical
@@ -426,8 +451,8 @@ transform. Containers, text and controls support translation, opacity and
 reveal, but cannot scale/rotate. Reveal clips descendants and pointer hits from
 the selected edge; it does not change layout or resize content.
 
-`NICE_GFX_UI_SHAPE_MOTION_VERSION=1` also enables scale/rotation on all Shape
-leaves without changing the resource ABI. Authored line/polygon vertices are
+`NICE_GFX_UI_SHAPE_MOTION_VERSION=1` identifies scale/rotation support on all Shape
+leaves. Authored line/polygon vertices are
 transformed around the configured full-node pivot (center by default); circles, ellipses and rounded rectangles
 use a bounded 64-segment contour during transforms. The original renderer remains
 in use for unchanged poses. Geometry and destination clipping stay independent
@@ -454,8 +479,8 @@ refresh but does not advance animation clocks.
 Only animation-bearing nodes own sparse motion slots; live clocks and immutable
 snapshot poses are separate. Storage is reserved during page initialization.
 After first-use warming, sampling, transforms and ordinary completion delivery
-allocate no heap memory. Unchanged integer poses invalidate no pixels. Legacy
-animations without completion listeners incur no additional end-frame fence.
+allocate no heap memory. Unchanged integer poses invalidate no pixels.
+Preset animations without completion listeners incur no additional end-frame fence.
 The [Motion Lab project](../../../nice_gfx_editor/public/motion-lab.gfx-project.json)
 demonstrates rotation, alternate scaling, reveal/slide/fade and animated show/hide.
 

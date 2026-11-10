@@ -1,5 +1,7 @@
 #pragma once
 #include "Compiled.h"
+#include "../Graphics/ChartIram.h"
+#include "../Graphics/ChartBackdropGrid.h"
 #include "DisplayPolicy.h"
 #include <vector>
 #include <memory>
@@ -7,6 +9,10 @@
 #include <stdio.h>
 #include <string.h>
 #include <limits.h>
+
+#ifndef NICE_GFX_UI_CHART_SKIP_DEAD_WORK
+#define NICE_GFX_UI_CHART_SKIP_DEAD_WORK 1
+#endif
 
 namespace nice_gfx { namespace htmlui {
 constexpr int32_t ChartNone = INT32_MIN;
@@ -94,15 +100,25 @@ template<class Canvas> void instrumentArc(Canvas &c,int x,int y,int radius,int w
 }
 #include "ChartRendering.inc.h"
 
-template<class Canvas> void renderInstrument(Canvas &c,const NodeDesc &n,const InstrumentState &state,int32_t value,Rect r,bool monochrome=false) {
+template<class Canvas> void renderInstrument(Canvas &c,const NodeDesc &n,const InstrumentState &state,int32_t value,Rect r,bool monochrome=false
+#if NICE_GFX_UI_CHART_FUSED_BACKDROP_GRID
+    ,bool gridPrepared=false
+#endif
+    ) {
   const auto &a=*n.instrument;const auto &s=n.style;const int fh=s.font->height*s.fontSize;
   c.setAntialiasing(!(n.flags&NoAntialias));
   c.setFont(s.font);c.setTextSize(s.fontSize);c.setTextColor(s.color);c.setTextDatum(TL_DATUM);c.setTextPadding(0);
   auto label=[&](const char *text,int x,int y,int width,int align){const int pixels=c.textWidth(text);
     if(pixels>width||y<r.y||y+fh>r.y+r.height)return;c.drawString(text,x+(align==1?(width-pixels)/2:align==2?width-pixels:0),y);};
   auto fraction=[&](int32_t v,int length){return int32_t((int64_t(std::max(n.minimum,std::min(n.maximum,v)))-n.minimum)*length/(int64_t(n.maximum)-n.minimum));};
-  char formatted[96];instrumentFormat(formatted,sizeof(formatted),value,a.decimals,a.unit,n.kind==Kind::Spinbox?a.formatFlags:0,n.kind==Kind::Spinbox?a.minDigits:0);
+  char formatted[96];
+#if !NICE_GFX_UI_CHART_SKIP_DEAD_WORK
+  instrumentFormat(formatted,sizeof(formatted),value,a.decimals,a.unit,n.kind==Kind::Spinbox?a.formatFlags:0,n.kind==Kind::Spinbox?a.minDigits:0);
+#endif
   if(n.kind==Kind::Spinbox) {
+#if NICE_GFX_UI_CHART_SKIP_DEAD_WORK
+    instrumentFormat(formatted,sizeof(formatted),value,a.decimals,a.unit,a.formatFlags,a.minDigits);
+#endif
     const auto g=spinboxGeometry(r,a);const int button=g.button,cy=r.y+r.height/2,half=std::max(2,std::min(6,button/5));
     if(a.buttonLayout){c.drawRoundRect(g.minusX+4,r.y+4,button-8,r.height-8,2,s.trackColor);c.drawRoundRect(g.plusX+4,r.y+4,button-8,r.height-8,2,s.trackColor);}
     else {c.drawFastVLine(g.minusX+button,r.y+8,std::max<int32_t>(0,r.height-16),s.trackColor);c.drawFastVLine(g.plusX,r.y+8,std::max<int32_t>(0,r.height-16),s.trackColor);}
@@ -142,6 +158,10 @@ template<class Canvas> void renderInstrument(Canvas &c,const NodeDesc &n,const I
     instrumentFormat(formatted,sizeof(formatted),state.visual,a.decimals,a.unit);label(formatted,r.x,valueY,r.width,1);
     if(n.kind==Kind::Gauge){instrumentFormat(formatted,sizeof(formatted),n.minimum,a.decimals);label(formatted,r.x,r.y+r.height-fh,r.width/2,0);instrumentFormat(formatted,sizeof(formatted),n.maximum,a.decimals);label(formatted,r.x+r.width/2,r.y+r.height-fh,r.width/2,2);}return;
   }
-  renderChart(c,n,state,r,monochrome);
+  renderChart(c,n,state,r,monochrome
+#if NICE_GFX_UI_CHART_FUSED_BACKDROP_GRID
+    ,gridPrepared
+#endif
+    );
 }
 } }

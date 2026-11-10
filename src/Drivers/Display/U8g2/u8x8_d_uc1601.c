@@ -101,10 +101,10 @@ static const uint8_t ngfx_u8x8_d_uc1601_128x32_init_seq[] = {
   
   NGFX_U8X8_C(0x0e2),            			/* soft reset */
   NGFX_U8X8_C(0x0eb),            			/* LCD Bias: 0xe8: 6, 0xe9: 7, 0xea: 8, 0xeb: 9 */
-  //NGFX_U8X8_C(0x023),            			/* 0x020...0x023 only for UC1601, not for UC1601s */
-	
 
-  //NGFX_U8X8_C(0x02e),            			/* LCD Load + Internal Charge Pump (default: 0x2e) */
+
+
+
   NGFX_U8X8_C(0x024),		                /* Temperature Compenstation, default: 0x24 */
   NGFX_U8X8_C(0x089),		                /* RAM address ctrl, default: 0x89 */
   NGFX_U8X8_C(0x0c4),		                /* RAM mapping ctrl */
@@ -193,10 +193,10 @@ static const uint8_t ngfx_u8x8_d_uc1601_128x64_init_seq[] = {
   
   NGFX_U8X8_C(0x0e2),            			/* soft reset */
   NGFX_U8X8_C(0x0eb),            			/* LCD Bias: 0xe8: 6, 0xe9: 7, 0xea: 8, 0xeb: 9 */
-  //NGFX_U8X8_C(0x023),            			/* 0x020...0x023 only for UC1601, not for UC1601s */
-	
 
-  //NGFX_U8X8_C(0x02e),            			/* LCD Load + Internal Charge Pump (default: 0x2e) */
+
+
+
   NGFX_U8X8_C(0x024),		                /* Temperature Compenstation, default: 0x24 */
   NGFX_U8X8_C(0x089),		                /* RAM address ctrl, default: 0x89 */
   NGFX_U8X8_C(0x0c4),		                /* RAM mapping ctrl */

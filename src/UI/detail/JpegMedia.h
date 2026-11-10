@@ -36,6 +36,20 @@
 #ifndef NICE_GFX_UI_CAN_BORROW_JPEG_FLASH
 #define NICE_GFX_UI_CAN_BORROW_JPEG_FLASH 0
 #endif
+#if NICE_GFX_UI_HAS_HARDWARE_JPEG && defined(CONFIG_IDF_TARGET_ESP32P4)
+#include <esp_memory_utils.h>
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6,0,0)
+#include <esp_cache.h>
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6,1,0)
+#include <esp_private/dma2d.h>
+#endif
+#else
+#include <esp_dma_utils.h>
+#endif
+#define NICE_GFX_UI_CAN_DECODE_JPEG_FRAMEBUFFER 1
+#else
+#define NICE_GFX_UI_CAN_DECODE_JPEG_FRAMEBUFFER NICE_GFX_UI_CAN_BORROW_JPEG_FLASH
+#endif
 namespace nice_gfx { namespace htmlui { namespace detail {
 inline bool jpegCanBorrowFlash(const uint8_t *bytes,size_t count){
 #if NICE_GFX_UI_CAN_BORROW_JPEG_FLASH
@@ -49,6 +63,39 @@ inline bool jpegCanBorrowFlash(const uint8_t *bytes,size_t count){
   return physical!=SPI_FLASH_CACHE2PHYS_FAIL&&end!=SPI_FLASH_CACHE2PHYS_FAIL&&end>=physical&&end-physical==count-1;
 #else
   (void)bytes;(void)count;return false;
+#endif
+}
+// P4 copies compressed Flash input into its decoder-owned DMA scratch. This
+// eligibility check permits immutable look-ahead without claiming direct Flash
+// DMA support on the P4 driver or retaining application-owned mutable memory.
+inline bool jpegImmutableFramebufferSource(const uint8_t *bytes,size_t count){
+#if NICE_GFX_UI_HAS_HARDWARE_JPEG && defined(CONFIG_IDF_TARGET_ESP32P4)
+  const uintptr_t at=reinterpret_cast<uintptr_t>(bytes);
+  return bytes&&count&&count<=UINT32_MAX&&at<=UINTPTR_MAX-(count-1)&&esp_ptr_in_drom(bytes)&&esp_ptr_in_drom(reinterpret_cast<const void*>(at+count-1));
+#else
+  return jpegCanBorrowFlash(bytes,count);
+#endif
+}
+inline bool jpegFramebufferAligned(const void *pixels,size_t bytes){
+#if NICE_GFX_UI_HAS_HARDWARE_JPEG && defined(CONFIG_IDF_TARGET_ESP32P4)
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6,0,0)
+  // IDF 6 removed esp_dma_utils' public helpers. Match the JPEG driver's
+  // cache-line (or 4-byte) alignment and DMA2D memory constraints instead.
+  size_t alignment=esp_cache_get_line_size_by_addr(pixels);if(!alignment)alignment=4;
+  if((reinterpret_cast<uintptr_t>(pixels)&(alignment-1))||(bytes&(alignment-1)))return false;
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6,1,0)
+  return dma2d_get_buffer_alignment_constraint(pixels)<=1;
+#else
+  return true;
+#endif
+#else
+  esp_dma_mem_info_t memory{};memory.dma_alignment_bytes=4;
+  return esp_dma_is_buffer_alignment_satisfied(pixels,bytes,memory);
+#endif
+#elif NICE_GFX_UI_CAN_BORROW_JPEG_FLASH
+  (void)bytes;return dma2d_get_buffer_alignment_constraint(pixels)<=1;
+#else
+  (void)pixels;(void)bytes;return false;
 #endif
 }
 inline uint32_t jpegRead32(const uint8_t *p){return uint32_t(p[0])|(uint32_t(p[1])<<8)|(uint32_t(p[2])<<16)|(uint32_t(p[3])<<24);}
@@ -134,24 +181,24 @@ class JpegMediaCache {
   // buffer, and external output never enters a decoded-image cache slot.
   bool planFramebuffer(const MediaDesc &m,uint16_t frame,FramebufferPlan &plan)const{
     plan=FramebufferPlan{};
-#if NICE_GFX_UI_CAN_BORROW_JPEG_FLASH
+#if NICE_GFX_UI_CAN_DECODE_JPEG_FRAMEBUFFER
     if(handler_||!m.width||!m.height||(m.width&15)||(m.height&15))return false;
     const uint8_t *bytes=nullptr;size_t count=0;JpegHeader header;
-    if(!jpegFrame(m,frame,bytes,count)||!jpegHeader(bytes,count,header)||header.width!=m.width||header.height!=m.height||!jpegCanBorrowFlash(bytes,count))return false;
+    if(!jpegFrame(m,frame,bytes,count)||!jpegHeader(bytes,count,header)||header.width!=m.width||header.height!=m.height||!jpegImmutableFramebufferSource(bytes,count))return false;
     plan={bytes,count,m.width,m.height,header.sampling};return true;
 #else
     (void)m;(void)frame;return false;
 #endif
   }
   Status decodeFramebuffer(const FramebufferPlan &plan,JpegDecodeTarget &target){
-#if NICE_GFX_UI_CAN_BORROW_JPEG_FLASH
+#if NICE_GFX_UI_CAN_DECODE_JPEG_FRAMEBUFFER
     const size_t bytes=size_t(plan.width)*plan.height*2;
     const uintptr_t at=reinterpret_cast<uintptr_t>(target.pixels);
     if(handler_||!plan.bytes||!plan.count||!plan.width||!plan.height||(plan.width&15)||(plan.height&15)||
        !target.pixels||(at&63)||(bytes&63)||target.capacityBytes!=bytes||target.strideBytes!=size_t(plan.width)*2||
        target.width!=plan.width||target.height!=plan.height||at>UINTPTR_MAX-bytes||overlaps(at,bytes)||
        !esp_ptr_external_ram(target.pixels)||!esp_ptr_external_ram(reinterpret_cast<const void *>(at+bytes-1))||
-       dma2d_get_buffer_alignment_constraint(target.pixels)>1||!jpegCanBorrowFlash(plan.bytes,plan.count))return Status::Unsupported;
+       !jpegFramebufferAligned(target.pixels,bytes)||!jpegImmutableFramebufferSource(plan.bytes,plan.count))return Status::Unsupported;
     const auto original=target;const Status status=hardware(plan.bytes,plan.count,target,plan.sampling);
     if(status!=Status::Ok)return failed(status);
     if(target.pixels!=original.pixels||target.capacityBytes!=bytes||target.strideBytes!=size_t(plan.width)*2||target.width!=plan.width||target.height!=plan.height)return failed(Status::IoError);

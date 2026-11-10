@@ -1,4 +1,4 @@
-// This sketch tests a fillArc function that has been adapted to permit the drawing of spirals
+// This sketch tests a fillArc function that draws spirals
 
 // Sketch also includes (but does not use) a function to change the brightness of a colour
 
@@ -40,7 +40,7 @@ void loop() {
 }
 
 // #########################################################################
-// Draw an arc with a defined thickness (modified to aid drawing spirals)
+// Draw an arc with a defined thickness for spiral rendering
 // #########################################################################
 
 // x,y == coords of centre of arc

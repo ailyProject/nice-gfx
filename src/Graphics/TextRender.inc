@@ -211,6 +211,7 @@ int16_t NICE_GFX::drawString(const String &string, int32_t x, int32_t y)
 int16_t NICE_GFX::drawString(const char *string, int32_t poX, int32_t poY)
 {
   if (!string || !_monoFont) return 0;
+  WriteScope write(*this);
   int16_t sumX = 0;
   uint8_t padding = 1;
   const int32_t baseline = _monoFont->baseline * textsize;

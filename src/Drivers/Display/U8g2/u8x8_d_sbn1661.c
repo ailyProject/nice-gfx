@@ -49,8 +49,8 @@ static const uint8_t ngfx_u8x8_d_sbn1661_init_seq[] = {
   NGFX_U8X8_C(0x0a4),		                /* a4: normal driving, a5: power save */  
   NGFX_U8X8_C(0x0a9),		                /* a8: 1/16, a9: 1/32 duty */  
 
-  //NGFX_U8X8_C(0x0af),				/* display on */
-  
+
+
   NGFX_U8X8_END()             			/* end of sequence */
 };
 
@@ -141,9 +141,9 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_sbn1661_122x32_display_info =
 uint8_t ngfx_u8x8_d_sbn1661_122x32(ngfx_u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *arg_ptr)
 {
   uint8_t *ptr;
-  //uint8_t x;
-  //uint8_t c;
-  
+
+
+
   switch(msg)
   {
     case NGFX_U8X8_MSG_DISPLAY_SETUP_MEMORY:
@@ -188,7 +188,7 @@ uint8_t ngfx_u8x8_d_sbn1661_122x32(ngfx_u8x8_t *u8x8, uint8_t msg, uint8_t arg_i
 
       ptr = ((ngfx_u8x8_tile_t *)arg_ptr)->tile_ptr;
       // x and c are ignored (u8g2 only)
-      //x = ((ngfx_u8x8_tile_t *)arg_ptr)->x_pos;
+
       //c = ((ngfx_u8x8_tile_t *)arg_ptr)->cnt;
       
       u8x8->cad_cb(u8x8, NGFX_U8X8_MSG_CAD_START_TRANSFER, 0, NULL);
@@ -256,9 +256,9 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_sbn1661_80x32_display_info =
 uint8_t ngfx_u8x8_d_sbn1661_80x32(ngfx_u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *arg_ptr)
 {
   uint8_t *ptr;
-  //uint8_t x;
-  //uint8_t c;
-  
+
+
+
   switch(msg)
   {
     case NGFX_U8X8_MSG_DISPLAY_SETUP_MEMORY:
@@ -290,7 +290,7 @@ uint8_t ngfx_u8x8_d_sbn1661_80x32(ngfx_u8x8_t *u8x8, uint8_t msg, uint8_t arg_in
 
       ptr = ((ngfx_u8x8_tile_t *)arg_ptr)->tile_ptr;
       // x and c are ignored (u8g2 only)
-      //x = ((ngfx_u8x8_tile_t *)arg_ptr)->x_pos;
+
       //c = ((ngfx_u8x8_tile_t *)arg_ptr)->cnt;
       
       u8x8->cad_cb(u8x8, NGFX_U8X8_MSG_CAD_START_TRANSFER, 0, NULL);

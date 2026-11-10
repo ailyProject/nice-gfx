@@ -31,8 +31,15 @@ class RgbAtomicPipeline {
   // pixels; fullscreen damage needs no clone. Bounded fragmentation falls back
   // to a complete clone, which is always safe before any caller paint occurs.
   template<size_t Capacity> static size_t inheritance(const DirtyRect &full,
-      const DirtyRect *damage,size_t count,DirtyRect (&needed)[Capacity],DirtyRect (&next)[Capacity]){
+      const DirtyRect *damage,size_t count,DirtyRect (&needed)[Capacity],DirtyRect (&next)[Capacity]
+#if NICE_GFX_P4_NATIVE_PRESENTATION_HISTORY_COALESCE
+      ,bool *capacityFallback=nullptr
+#endif
+      ){
     static_assert(Capacity>0,"inheritance scratch required");
+#if NICE_GFX_P4_NATIVE_PRESENTATION_HISTORY_COALESCE
+    if(capacityFallback)*capacityFallback=false;
+#endif
     needed[0]=full;size_t used=1;
     if(!count||!damage)return used; // Unknown damage conservatively clones all.
     for(size_t cut=0;cut<count;++cut){size_t n=0;bool overflow=false;const auto &b=damage[cut];
@@ -46,7 +53,12 @@ class RgbAtomicPipeline {
         else {add(a.x,a.y,a.width,top-a.y);add(a.x,bottom,a.width,a.y+a.height-bottom);
           add(a.x,top,left-a.x,bottom-top);add(right,top,a.x+a.width-right,bottom-top);}
       }
-      if(overflow){needed[0]=full;return 1;}
+      if(overflow){
+#if NICE_GFX_P4_NATIVE_PRESENTATION_HISTORY_COALESCE
+        if(capacityFallback)*capacityFallback=true;
+#endif
+        needed[0]=full;return 1;
+      }
       used=n;for(size_t i=0;i<n;++i)needed[i]=next[i];
     }
     return used;

@@ -143,7 +143,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_st7586s_ymc240160_display_info =
   /* post_reset_wait_ms = */ 6,
   /* sda_setup_time_ns = */ 20,
   /* sck_pulse_width_ns = */  100,  /* datasheet ST7586S */
-  /* sck_clock_hz = */ 8000000UL, /* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
+  /* sck_clock_hz = */ 8000000UL, /* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
   /* ST7586+Atmega128RFA1 works with 8MHz */
   /* spi_mode = */ 3,   /* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,
@@ -165,7 +165,7 @@ uint8_t ngfx_u8x8_d_st7586s_md240128(ngfx_u8x8_t *u8x8, uint8_t msg, uint8_t arg
   uint8_t i, byte;
   uint32_t input;
   uint8_t output[8];
-//  uint8_t output[4];
+
   switch (msg) {
     case NGFX_U8X8_MSG_DISPLAY_DRAW_TILE:
     ngfx_u8x8_cad_StartTransfer(u8x8); // OK Start transfer
@@ -173,7 +173,7 @@ uint8_t ngfx_u8x8_d_st7586s_md240128(ngfx_u8x8_t *u8x8, uint8_t msg, uint8_t arg
     ngfx_u8x8_cad_SendArg(u8x8, 0x000);
     ngfx_u8x8_cad_SendArg(u8x8, 0x008 * ((ngfx_u8x8_tile_t *)arg_ptr)->y_pos);
     ngfx_u8x8_cad_SendArg(u8x8, 0x000);
-//    ngfx_u8x8_cad_SendArg(u8x8, 0x09F); // should set end row based on display dimensions
+
     ngfx_u8x8_cad_SendArg(u8x8, u8x8->display_info->pixel_height - 1);  /* should this be u8x8->display_info->pixel_height - 1 */
     ngfx_u8x8_cad_SendCmd(u8x8, 0x02C);  /* cmd write display data to ram */
     c = ((ngfx_u8x8_tile_t *) arg_ptr)->cnt; //

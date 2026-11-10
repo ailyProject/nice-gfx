@@ -1,7 +1,7 @@
 #pragma once
 #include "../../Display/ControllerProfile.h"
 
-// SEPS525 initialization ported from Arduino_GFX (BSD-licensed).
+// Register and timing reference: SEPS525 datasheet.
 
 namespace nice_gfx { namespace controllers {
 inline void init_SEPS525(PanelSequence &s) {

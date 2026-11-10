@@ -99,8 +99,8 @@ int mediaScrubTarget(int source) const {
   const auto *m=media(page().nodes[i],state()[i]);return m&&m->frames>1?i:-1;
 }
 void acquireMediaScrub(int source) {
-  // The legacy reserved back edge also precedes a media scrub in coordinated
-  // mode. Ordinary ranges/scrollers retain their existing navigation order.
+  // The reserved back edge also precedes a media scrub in coordinated mode.
+  // Ordinary ranges/scrollers follow the configured navigation order.
   if(edgeBack&&history.size()>1&&startX>=0&&startX<24&&x>startX&&contactModal<0){
     const char *from=page().path,*to=project->pages[history[history.size()-2]].path;
     bool prepared=routeEvent(EventType::BeforeNavigate,from,to,RouteAction::Back);

@@ -45,7 +45,8 @@ Status Esp32Qspi::begin() {
   int pins[7];
   for (unsigned i=0; i<7; ++i) pins[i]=Esp32Pin::gpioNumber(logicalPins[i]);
   for (unsigned i=0; i<7; ++i) {
-    if (logicalPins[i] < 0 && ((!config_.quad && i >= 2 && i <= 5) || (config_.quad && i == 6))) continue;
+    if (logicalPins[i] < 0 && ((!config_.quad && i >= 2 && i <= 5) ||
+        (i == 6 && (config_.quad || config_.byteOnly)))) continue;
     if (i == 2 && !config_.quad) {
       if (!GPIO_IS_VALID_GPIO(pins[i])) return Status::InvalidArgument;
     } else if (!GPIO_IS_VALID_OUTPUT_GPIO(pins[i])) return Status::InvalidArgument;

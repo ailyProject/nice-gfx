@@ -154,9 +154,9 @@ static const uint8_t ngfx_u8x8_d_ssd1606_to_display_seq[] = {
   NGFX_U8X8_START_TRANSFER(),             	/* enable chip, delay is part of the transfer start */
   
   
-  //NGFX_U8X8_CA(0x22, 0xc0),	/* display update seq. option: Enable clock and charge pump */
-  //NGFX_U8X8_C(0x20),	/* execute sequence */
-  //NGFX_U8X8_DLY(10),
+
+
+
   /* strange, splitting 0x0c0 does not work reliable */
   
   NGFX_U8X8_CA(0x22, 0xc4),	/* display update seq. option: clk -> CP -> LUT -> initial display -> pattern display */
@@ -170,8 +170,8 @@ static const uint8_t ngfx_u8x8_d_ssd1606_to_display_seq[] = {
   NGFX_U8X8_DLY(200),		/* this requres about 270ms */
   NGFX_U8X8_DLY(90),  
   
-  //NGFX_U8X8_CA(0x10, 0x01), /* deep sleep mode */
-  //NGFX_U8X8_C(0x20), 		/* execute sequence */
+
+
   NGFX_U8X8_DLY(50),  
   
   NGFX_U8X8_END_TRANSFER(),             	/* disable chip */
@@ -180,28 +180,28 @@ static const uint8_t ngfx_u8x8_d_ssd1606_to_display_seq[] = {
 
 
 // static const uint8_t ngfx_u8x8_d_ssd1606_172x72_powersave0_seq[] = {
-//   NGFX_U8X8_START_TRANSFER(),             	/* enable chip, delay is part of the transfer start */
-//   NGFX_U8X8_END_TRANSFER(),             	/* disable chip */
-//   NGFX_U8X8_END()             			/* end of sequence */
+
+
+
 // };
 
 
 // static const uint8_t ngfx_u8x8_d_ssd1606_172x72_powersave1_seq[] = {
-//   NGFX_U8X8_START_TRANSFER(),             	/* enable chip, delay is part of the transfer start */
-//   NGFX_U8X8_END_TRANSFER(),             	/* disable chip */
-//   NGFX_U8X8_END()             			/* end of sequence */
+
+
+
 // };
 
 // static const uint8_t ngfx_u8x8_d_ssd1606_172x72_flip0_seq[] = {
-//   NGFX_U8X8_START_TRANSFER(),             	/* enable chip, delay is part of the transfer start */
-//   NGFX_U8X8_END_TRANSFER(),             	/* disable chip */
-//   NGFX_U8X8_END()             			/* end of sequence */
+
+
+
 // };
 
 // static const uint8_t ngfx_u8x8_d_ssd1606_172x72_flip1_seq[] = {
-//   NGFX_U8X8_START_TRANSFER(),             	/* enable chip, delay is part of the transfer start */
-//   NGFX_U8X8_END_TRANSFER(),             	/* disable chip */
-//   NGFX_U8X8_END()             			/* end of sequence */
+
+
+
 // };
 
 
@@ -338,10 +338,7 @@ static uint8_t ngfx_u8x8_d_ssd1606_172x72_generic(ngfx_u8x8_t *u8x8, uint8_t msg
       break;
 #ifdef NGFX_U8X8_WITH_SET_CONTRAST
     case NGFX_U8X8_MSG_DISPLAY_SET_CONTRAST:
-/*
-      ngfx_u8x8_cad_StartTransfer(u8x8);
-      ngfx_u8x8_cad_EndTransfer(u8x8);
-*/
+
       break;
 #endif
     case NGFX_U8X8_MSG_DISPLAY_DRAW_TILE:
@@ -368,7 +365,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_ssd1606_172x72_display_info =
   /* post_reset_wait_ms = */ 100, 
   /* sda_setup_time_ns = */ 50,		/* SSD1606: */
   /* sck_pulse_width_ns = */ 100,	/* SSD1606: 100ns */
-  /* sck_clock_hz = */ 4000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
+  /* sck_clock_hz = */ 4000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,
   /* data_setup_time_ns = */ 40,

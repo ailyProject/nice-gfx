@@ -135,7 +135,7 @@ uint8_t ngfx_u8x8_UserInterfaceSelectionList(ngfx_u8x8_t *u8x8, const char *titl
   u8sl.y = 0;
   
 
-  //ngfx_u8x8_ClearDisplay(u8x8);   /* not required because all is 100% filled */
+
   ngfx_u8x8_SetInverseFont(u8x8, 0);
   
   if ( title != NULL )

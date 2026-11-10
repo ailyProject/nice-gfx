@@ -2,11 +2,7 @@
 
   This program provides cartesian type graph function
 
-  Revisions
-  rev     date        author      description
-  1       12-24-2015  kasprzak    initial creation
-
-  Updated by Bodmer to be an example for the library here:
+  Authors: kasprzak, Bodmer.
 */
 
 #include <NICE_GFX.h>

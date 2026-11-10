@@ -76,7 +76,7 @@ void ngfx_u8x8_get_glyph_data(ngfx_u8x8_t *u8x8, uint8_t encoding, uint8_t *buf,
     offset *= tiles;		/* new 2019 format */
     offset += tile_offset;	/* new 2019 format */
     offset *= 8;
-    offset +=4;			/* changed from 2 to 4, new 2019 format */
+    offset +=4;			/* Four bytes per font header. */
     for( i = 0; i < 8; i++ )
     {
       buf[i] = ngfx_u8x8_pgm_read(u8x8->font+offset);
@@ -153,11 +153,11 @@ void ngfx_u8x8_DrawGlyph(ngfx_u8x8_t *u8x8, uint8_t x, uint8_t y, uint8_t encodi
 uint16_t ngfx_u8x8_upscale_byte(uint8_t x) 
 {
 	uint16_t y = x;
-	y |= (y << 4);		// x = (x | (x << S[2])) & B[2];
+	y |= (y << 4);
 	y &= 0x0f0f;
-	y |= (y << 2);		// x = (x | (x << S[1])) & B[1];
+	y |= (y << 2);
 	y &= 0x3333;
-	y |= (y << 1);		// x = (x | (x << S[0])) & B[0];
+	y |= (y << 1);
 	y &= 0x5555;
   
 	y |= (y << 1);		// z = x | (y << 1);

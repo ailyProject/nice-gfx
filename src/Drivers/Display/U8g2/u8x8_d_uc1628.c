@@ -158,7 +158,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_uc1628_256x128_display_info =
   /* post_reset_wait_ms = */ 5, 		/**/
   /* sda_setup_time_ns = */ 25,		/* */
   /* sck_pulse_width_ns = */ 100,	/*  */
-  /* sck_clock_hz = */ 4000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
+  /* sck_clock_hz = */ 4000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,	/* 400KHz */
   /* data_setup_time_ns = */ 45,
@@ -260,7 +260,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_uc1628_256x32_display_info =
   /* post_reset_wait_ms = */ 5, 		/**/
   /* sda_setup_time_ns = */ 25,		/* */
   /* sck_pulse_width_ns = */ 100,	/*  */
-  /* sck_clock_hz = */ 4000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
+  /* sck_clock_hz = */ 4000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,	/* 400KHz */
   /* data_setup_time_ns = */ 45,
@@ -349,12 +349,7 @@ uint8_t ngfx_u8x8_d_uc1628_256x32(ngfx_u8x8_t *u8x8, uint8_t msg, uint8_t arg_in
 
 
 /*=============================================*/
-/* 128x64, https://github.com/olikraus/u8g2/issues/2260 
-
-  2 Oct 2023: Probably the LCD Bias is wrong, it should be reduced, maybe 0xea or so
-  Moreover the COM end should be halfed (0x03f) --> Done, but not tested
-
-*/
+/* 128x64 module: LCD bias and COM-end settings require hardware verification. */
 
 static const ngfx_u8x8_display_info_t ngfx_u8x8_uc1628_128x64_display_info =
 {
@@ -367,7 +362,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_uc1628_128x64_display_info =
   /* post_reset_wait_ms = */ 5, 		/**/
   /* sda_setup_time_ns = */ 25,		/* */
   /* sck_pulse_width_ns = */ 100,	/*  */
-  /* sck_clock_hz = */ 4000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
+  /* sck_clock_hz = */ 4000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,	/* 400KHz */
   /* data_setup_time_ns = */ 45,

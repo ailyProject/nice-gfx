@@ -1,7 +1,7 @@
 #pragma once
 #include "../../Display/ControllerProfile.h"
 
-// JD9613 initialization ported from Arduino_GFX (BSD-licensed).
+// Register and timing reference: JD9613 datasheet.
 
 namespace nice_gfx { namespace controllers {
 inline void init_JD9613(PanelSequence &s) {

@@ -159,7 +159,7 @@ uint8_t ngfx_u8x8_d_uc1698u_common(ngfx_u8x8_t *u8x8, uint8_t msg, uint8_t arg_i
           if ((i - 19) % 20 == 0) 
           {
             arr_4k[0] = 0;
-            ngfx_u8x8_cad_SendData(u8x8, 1, arr_4k);         // replaced NUL
+            ngfx_u8x8_cad_SendData(u8x8, 1, arr_4k);
           }
           ptr++;
         }        
@@ -207,7 +207,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_uc1698u_cg160160_display_info =
   /* post_reset_wait_ms = */    200, 	/* uc1611 datasheet, page 67 */
   /* sda_setup_time_ns = */ 10,		/* uc1611 datasheet, page 64, actually 0 */
   /* sck_pulse_width_ns = */ 60,	/* half of cycle time  */
-  /* sck_clock_hz = */ 8000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
+  /* sck_clock_hz = */ 8000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,
   /* data_setup_time_ns = */ 30,	/* uc1611 datasheet, page 60 */
@@ -267,7 +267,7 @@ static const uint8_t ngfx_u8x8_d_uc1698u_cg160160_init_seq[] = {
         NGFX_U8X8_C(0x0a1),			//line rate 15.2klps
 	NGFX_U8X8_C(0x0d1),			//rgb-rgb
         
-//        NGFX_U8X8_C(0x0d6),			//64k color mode
+
         NGFX_U8X8_C(0x0d5),			//4k color mode
  	      
 	NGFX_U8X8_C(0x084),			//12:partial display control disable
@@ -360,16 +360,7 @@ uint8_t ngfx_u8x8_d_uc1698_160x160(ngfx_u8x8_t *u8x8, uint8_t msg, uint8_t arg_i
 }
 
 /*=====================================================*/
-/* 240x64 display 
-
-  Notes:
-    The above 160x160 had been a great inital code template for the below 240x64 display,
-    however i did several improvements
-    - The window size is now maximized to avoid any line breaks by the display
-    - The row/col position is set for each horizontal row
-    - I think the below common2 is more portable and could be reused.
-    - If the y-offset differs, it could be passed/changed via function arguments
-*/
+/* 240x64 display: maximize the window to avoid line breaks and set row/column position for each horizontal row. */
 
 
 
@@ -386,7 +377,7 @@ uint8_t ngfx_u8x8_d_uc1698u_common2(ngfx_u8x8_t *u8x8, uint8_t y_offset, uint8_t
     
       x = ((ngfx_u8x8_tile_t *)arg_ptr)->x_pos;
       // in u8g2 horizontal mode, x is always 0
-      //x = x<<3;         // Fast multiplication by 8 with shift
+
       //x /= 3;           //The X-axis is addressed using 1 RAM cell. 1 cell is 3 pixels in 4k RGB format.
       x += u8x8->x_offset;
       
@@ -462,7 +453,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_uc1698u_240x64_display_info =
   /* post_reset_wait_ms = */    200, 	/* uc1611 datasheet, page 67 */
   /* sda_setup_time_ns = */ 10,		/* uc1611 datasheet, page 64, actually 0 */
   /* sck_pulse_width_ns = */ 60,	/* half of cycle time  */
-  /* sck_clock_hz = */ 8000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
+  /* sck_clock_hz = */ 8000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,
   /* data_setup_time_ns = */ 30,	/* uc1611 datasheet, page 60 */
@@ -522,7 +513,7 @@ static const uint8_t ngfx_u8x8_d_uc1698u_240x64_init_seq[] = {
         NGFX_U8X8_C(0x0a1),			//line rate 15.2klps
 	NGFX_U8X8_C(0x0d1),			//rgb-rgb
         
-//        NGFX_U8X8_C(0x0d6),			//64k color mode
+
         NGFX_U8X8_C(0x0d5),			//4k color mode
  	      
 	NGFX_U8X8_C(0x084),			//12:partial display control disable

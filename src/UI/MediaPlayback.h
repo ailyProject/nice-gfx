@@ -4,7 +4,7 @@
 namespace nice_gfx { namespace htmlui {
 
 // Sparse per-node behavior; shared MediaDesc resources contain no playback state.
-// Install after mount(). Resource ABI 17 and existing aggregate initializers stay intact.
+// Install after mount().
 struct MediaPlaybackDesc {
   Id id, scrubTarget;
   bool autoplay, loop, reverse;

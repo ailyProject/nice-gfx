@@ -48,7 +48,7 @@ if(NOT CMAKE_BUILD_EARLY_EXPANSION)
     endif()
     # Optional build-only selection. The default retains every bundled font.
     # NONE excludes bundled data; applications can still supply their own fonts.
-    # Names are e.g. Fixed6x13;GfxSansCN16; setFont() remains unchanged.
+    # Font names include Fixed6x13 and GfxSansCN16; select fonts with setFont().
     if(NOT NICE_GFX_ENABLE_FONTS OR NICE_GFX_FONT_SOURCES STREQUAL "NONE")
         list(FILTER nice_gfx_sources EXCLUDE REGEX "/Fonts/Mono/GFX_Font_[^/]+\\.cpp$")
     elseif(NICE_GFX_FONT_SOURCES)

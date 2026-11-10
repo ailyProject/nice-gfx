@@ -108,11 +108,11 @@ static const uint8_t ngfx_u8x8_d_ist3020_erc19264_init_seq[] = {
   NGFX_U8X8_C(0x0a0),		                /* ADC set to reverse */
   NGFX_U8X8_C(0x0c8),		                /* common output mode */
   // Flipmode
-  //NGFX_U8X8_C(0x0a0),		                /* ADC set to reverse */
-  //NGFX_U8X8_C(0x0c8),		                /* common output mode */
-  
+
+
+
   NGFX_U8X8_C(0x0a6),		                /* display normal, bit val 0: LCD pixel off. */
-  NGFX_U8X8_C(0x0a3),		                /* FIX: LCD bias 1/7, old value was 1/9 (0x0a2) */
+  NGFX_U8X8_C(0x0a3),		                /* LCD bias 1/7 */
   
   NGFX_U8X8_C(0x028|4),		                /* all power  control circuits on */
   NGFX_U8X8_DLY(50),

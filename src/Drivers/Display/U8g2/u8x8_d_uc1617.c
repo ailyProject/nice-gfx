@@ -41,7 +41,7 @@
 
 static const uint8_t ngfx_u8x8_d_uc1617_powersave0_seq[] = {
   NGFX_U8X8_START_TRANSFER(),             	/* enable chip, delay is part of the transfer start */
-  //NGFX_U8X8_C(0x0ad),            			/* display enable BW Mode*/
+
   NGFX_U8X8_C(0x0af),            			/* display enable GS Mode*/
   NGFX_U8X8_END_TRANSFER(),             	/* disable chip */
   NGFX_U8X8_END()             			/* end of sequence */
@@ -73,11 +73,11 @@ static const uint8_t ngfx_u8x8_d_uc1617_flip1_seq[] = {
 static uint8_t ngfx_u8x8_upscale_4bit(uint8_t x) 
 {
 	uint8_t y = x;
-	y |= (y << 4);		// x = (x | (x << S[2])) & B[2];
+	y |= (y << 4);
 	y &= 0x0f;
-	y |= (y << 2);		// x = (x | (x << S[1])) & B[1];
+	y |= (y << 2);
 	y &= 0x33;
-	y |= (y << 1);		// x = (x | (x << S[0])) & B[0];
+	y |= (y << 1);
 	y &= 0x55;
   
 	y |= (y << 1);		// z = x | (y << 1);
@@ -246,15 +246,15 @@ static const uint8_t ngfx_u8x8_d_uc1617_jlx128128_init_seq[] = {
   NGFX_U8X8_C(0x0e2),            			/* reset */
   NGFX_U8X8_DLY(10),
   
-  //NGFX_U8X8_D1(0x0ff),
+
   NGFX_U8X8_C(0x027),            			/* temperature compensation */
   NGFX_U8X8_C(0x02b),            			/* panel loading: 13-18nF */
   
   NGFX_U8X8_C(0x02f),            			/* internal pump control */
   NGFX_U8X8_C(0x0eb),            			/* bias=1/11 */
   NGFX_U8X8_CA(0x081, 0x028),		/* set contrast */
-  //NGFX_U8X8_C(0x0a9),            			/* used in display datasheet, but cmd not described in controller datasheet */
-  
+
+
   NGFX_U8X8_CA(0x0f1, 0x07f),			/* set COM end */
   NGFX_U8X8_CA(0x0f2, 0x000),		/* display line start */
   NGFX_U8X8_CA(0x0f3, 127),			/* display line end */
@@ -264,15 +264,15 @@ static const uint8_t ngfx_u8x8_d_uc1617_jlx128128_init_seq[] = {
   NGFX_U8X8_C(0x0d7),            			/* */
   
 
-  //NGFX_U8X8_C(0x0a5),            			/* all pixel on */
 
-  //NGFX_U8X8_C(0x0d1),            			/* display pattern */  
+
+
   NGFX_U8X8_C(0x08b),            			/* auto increment */
   NGFX_U8X8_C(0x0c0),            	/* LCD Mapping */
 
-  //NGFX_U8X8_C(0x0ad),            			/* display enable BW Mode*/
-  //NGFX_U8X8_C(0x0af),            			/* display enable GS Mode*/
-  
+
+
+
   NGFX_U8X8_END_TRANSFER(),             	/* disable chip */
   NGFX_U8X8_END()             			/* end of sequence */
 };
@@ -288,7 +288,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_uc1617_128x128_display_info =
   /* post_reset_wait_ms = */ 20, 	/* uc1617 datasheet, page 56 */
   /* sda_setup_time_ns = */ 24,		/* uc1617 datasheet, page 54 */
   /* sck_pulse_width_ns = */ 45,	/* half of cycle time  uc1617 datasheet, page 54*/
-  /* sck_clock_hz = */ 8000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
+  /* sck_clock_hz = */ 8000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,
   /* data_setup_time_ns = */ 30,	/* uc1617 datasheet, page 52 */

@@ -68,7 +68,7 @@ static const uint8_t ngfx_u8x8_d_s1d15e06_flip1_seq[] = {
 uint8_t ngfx_u8x8_d_s1d15e06_common(ngfx_u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *arg_ptr)
 {
   uint8_t x, c;
-  // uint8_t y;
+
   uint8_t *ptr;
   switch(msg)
   {
@@ -81,8 +81,8 @@ uint8_t ngfx_u8x8_d_s1d15e06_common(ngfx_u8x8_t *u8x8, uint8_t msg, uint8_t arg_
 	  ngfx_u8x8_cad_SendCmd(u8x8, 0xB1);	//Page Address - Row
 	  ngfx_u8x8_cad_SendArg(u8x8, (((ngfx_u8x8_tile_t *)arg_ptr)->y_pos));
 
-      // y = ((ngfx_u8x8_tile_t *)arg_ptr)->y_pos;
-      // y += u8x8->x_offset;
+
+
 
       ngfx_u8x8_cad_SendCmd(u8x8, 0x13);	/* col */
       ngfx_u8x8_cad_SendArg(u8x8, x);
@@ -152,7 +152,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_s1d15e06_160100_display_info =
   /* post_reset_wait_ms = */ 10, 	
   /* sda_setup_time_ns = */ 30,		/* uc1608 datasheet, page 41 */
   /* sck_pulse_width_ns = */ 65,	/* half of cycle time  */
-  /* sck_clock_hz = */ 8000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
+  /* sck_clock_hz = */ 8000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,
   /* data_setup_time_ns = */ 30,	/* uc1608 datasheet, page 39 */

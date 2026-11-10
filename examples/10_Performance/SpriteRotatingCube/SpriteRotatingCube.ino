@@ -9,7 +9,7 @@
 // interface TFT's. Comment out line 29 for no DMA.
 
 // Library here:
-// Adapted by Bodmer 18/12/19 from "RotatingCube" by Daniel Eichhorn.
+// Based on "RotatingCube" by Daniel Eichhorn; adaptation by Bodmer.
 // See MIT License at end of sketch.
 
 // The rotating cube is drawn into a 128 x 128 Sprite and then this is

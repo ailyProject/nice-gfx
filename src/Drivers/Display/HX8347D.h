@@ -1,7 +1,7 @@
 #pragma once
 #include "../../Display/ControllerProfile.h"
 
-// HX8347D initialization ported from Arduino_GFX (BSD-licensed).
+// Register and timing reference: HX8347D datasheet.
 
 namespace nice_gfx { namespace controllers {
 inline void init_HX8347D(PanelSequence &s) {

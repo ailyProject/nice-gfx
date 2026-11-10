@@ -1,8 +1,42 @@
 #pragma once
 #include "Gfx.h"
+#include "ChartIram.h"
+#include "ChartBackdropGrid.h"
+#ifndef NICE_GFX_UI_THIN_SOLID_FILL
+#define NICE_GFX_UI_THIN_SOLID_FILL 1
+#endif
+#define NICE_GFX_UI_THIN_SOLID_FILL_VERSION 1
 #include "../Fonts/Text.h"
 #include "../Core/Geometry.h"
 #include "../Display/Refresh.h"
+#include "../Platform/ESP32/Rgb565P4Memory.h"
+#include "WordFill16.h"
+#ifndef NICE_GFX_TILE_WORD_FILL
+#if defined(CONFIG_IDF_TARGET_ESP32S31)
+#define NICE_GFX_TILE_WORD_FILL 1
+#else
+#define NICE_GFX_TILE_WORD_FILL 0
+#endif
+#endif
+#ifndef NICE_GFX_UI_CHART_ROW_MAJOR_STEEP
+#define NICE_GFX_UI_CHART_ROW_MAJOR_STEEP 1
+#endif
+#ifndef NICE_GFX_UI_CHART_ROW_MAJOR_GRID
+#define NICE_GFX_UI_CHART_ROW_MAJOR_GRID 1
+#endif
+#ifndef NICE_GFX_UI_CHART_COLUMN_STROKES
+#define NICE_GFX_UI_CHART_COLUMN_STROKES 1
+#endif
+#ifndef NICE_GFX_TILE_AA_PALETTE
+#if defined(CONFIG_IDF_TARGET_ESP32S31) || defined(CONFIG_IDF_TARGET_ESP32P4)
+#define NICE_GFX_TILE_AA_PALETTE 1
+#else
+#define NICE_GFX_TILE_AA_PALETTE 0
+#endif
+#endif
+#ifndef NICE_GFX_TILE_ROUNDED_CENTER
+#define NICE_GFX_TILE_ROUNDED_CENTER 1
+#endif
 #if (defined(ARDUINO_ARCH_ESP32) || NICE_GFX_NATIVE_IDF) && defined(CONFIG_IDF_TARGET_ESP32S31)
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -15,6 +49,168 @@ namespace nice_gfx {
 // display, while memory only contains the current clipped tile. All geometry
 // and fonts use the normal NICE_GFX rasterizer; no Sprite or allocation needed.
 class TileCanvas : public NICE_GFX {
+ public:
+  // Diagnostic-only, per-canvas chart component clocks. Clock-free calls are
+  // inert. Scope closure prevents time outside renderChart being attributed.
+  using ChartPhaseClock=uint32_t (*)();
+  void setChartPhaseClock(ChartPhaseClock clock){if(chartPhaseClock_!=clock){chartPhaseClock_=clock;chartPhase_=-1;}}
+  void chartProfilePhase(int phase){if(!chartPhaseClock_)return;const uint32_t now=chartPhaseClock_();
+    if(chartPhase_>=0)chartPhaseUs_[chartPhase_]+=uint32_t(now-chartPhaseAt_);
+    chartPhase_=phase>=0&&phase<5?phase:-1;chartPhaseAt_=now;}
+  uint64_t chartPhaseMicros(unsigned phase)const{return phase<5?chartPhaseUs_[phase]:0;}
+ private:
+  ChartPhaseClock chartPhaseClock_=nullptr;int chartPhase_=-1;uint32_t chartPhaseAt_=0;uint64_t chartPhaseUs_[5]{};
+ public:
+  using NativeFillHandler=bool (*)(void *,const DirtyRect &,uint16_t *,size_t,uint16_t);
+  // Optional blocking native writer. False requests the complete CPU fallback;
+  // implementations must drain accepted writes and leave CPU-coherent output.
+  void setNativeFillHandler(NativeFillHandler handler,void *context){nativeFill_=handler;nativeFillContext_=context;}
+  // Exact factory only. View separately proves either PPA is unavailable or
+  // this is its serialized fenced SDK back mapping before omitting the hook.
+  // A capability authorizes only the currently mapped, fenced MIPI inactive
+  // back allocation. Match the exact attached ROI rather than accepting a
+  // same-sized generic/native/staging pointer. This query never touches pixels.
+  bool chartBackdropMatchesFencedFrame(const NativeFramebuffer &frame)const{
+#if NICE_GFX_UI_CHART_FUSED_PPA_FRAME
+    if(chartColumnOwner_!=this||!data_||order_!=PixelOrder::Native||
+       nativeFill_!=chartColumnPureFill_||nativeFillContext_!=chartColumnPureContext_||
+       !frame.fencedAtomicMipiRmw||!frame.pixels||!frame.width||!frame.height||
+       frame.stride<frame.width||frame.height>SIZE_MAX/frame.stride/sizeof(uint16_t)||
+       tile_.x<0||tile_.y<0||tile_.width<=0||tile_.height<=0||
+       uint64_t(tile_.x)+uint32_t(tile_.width)>frame.width||
+       uint64_t(tile_.y)+uint32_t(tile_.height)>frame.height||stride_!=frame.stride)return false;
+    const size_t bytes=frame.stride*frame.height*sizeof(uint16_t);
+    const uintptr_t base=reinterpret_cast<uintptr_t>(frame.pixels);
+    if(frame.bytes<bytes||base%alignof(uint16_t)||base>UINTPTR_MAX-bytes)return false;
+    const size_t offset=(size_t(tile_.y)*frame.stride+size_t(tile_.x))*sizeof(uint16_t);
+    return reinterpret_cast<uintptr_t>(data_)==base+offset;
+#else
+    (void)frame;return false;
+#endif
+  }
+  bool prepareChartBackdropGrid(int32_t x,int32_t y,int32_t width,int32_t height,unsigned radius,
+      unsigned horizontal,unsigned vertical,unsigned minor,uint16_t background,
+      uint16_t majorColor,uint16_t minorColor,ChartBackdropGridPlan &out)const{
+#if NICE_GFX_UI_CHART_FUSED_BACKDROP_GRID
+    if(chartColumnOwner_!=this||!data_||order_!=PixelOrder::Native||
+       nativeFill_!=chartColumnPureFill_||nativeFillContext_!=chartColumnPureContext_||
+       width<2||height<2||width>2048||height>2048||radius>255||radius>unsigned(width/2)||radius>unsigned(height/2)||minor>5||horizontal>10||vertical>24||
+       x<-32760||y<-32760||int64_t(x)+width>32760||int64_t(y)+height>32760||
+       _xDatum||_yDatum)return false;
+    const unsigned hs=horizontal*(minor+1),vs=vertical*(minor+1);
+    if((horizontal&&hs>=64)||(vertical&&vs>=96))return false;
+    auto &p=out;p.owner=this;p.target=data_;p.stride=stride_;p.x=x;p.y=y;p.width=width;p.height=height;p.radius=uint16_t(radius);
+    p.tileX=tile_.x;p.tileY=tile_.y;p.background=stored(background);p.rowCount=p.columnCount=0;
+    p.left=std::max(x,std::max(_vpX,tile_.x));p.right=std::min(x+width,std::min(_vpW,tile_.x+tile_.width));
+    p.top=std::max(y,std::max(_vpY,tile_.y));p.bottom=std::min(y+height,std::min(_vpH,tile_.y+tile_.height));
+    if(_vpOoB)p.right=p.left;
+    if(horizontal)for(unsigned k=0;k<=hs;++k){p.rows[p.rowCount]=uint16_t((height-1)*k/hs);p.rowColors[p.rowCount++]=stored(k%(minor+1)==0?majorColor:minorColor);}
+    if(vertical)for(unsigned k=0;k<=vs;++k){p.columns[p.columnCount]=uint16_t((width-1)*k/vs);p.columnColors[p.columnCount++]=stored(k%(minor+1)==0?majorColor:minorColor);}
+    return true;
+#else
+    (void)x;(void)y;(void)width;(void)height;(void)radius;(void)horizontal;(void)vertical;(void)minor;(void)background;(void)majorColor;(void)minorColor;(void)out;return false;
+#endif
+  }
+#if defined(CONFIG_IDF_TARGET_ESP32P4) && defined(__GNUC__) && !defined(__clang__)
+  __attribute__((noinline,optimize("O3","no-tree-vectorize","no-tree-slp-vectorize")))
+#endif
+  void paintChartBackdropGrid(const ChartBackdropGridPlan &p,const DirtyRect &cover,ChartBackdropGridResult &result){
+#if NICE_GFX_UI_CHART_FUSED_BACKDROP_GRID
+    // Only prepared plans from this still-attached exact canvas are accepted.
+    if(p.owner!=this||p.target!=data_||p.stride!=stride_||p.tileX!=tile_.x||p.tileY!=tile_.y||
+       p.right<=p.left||p.bottom<=p.top)return;
+    const int32_t first=p.left-p.x,last=p.right-p.x;
+    const int64_t coverEndX=int64_t(cover.x)+cover.width,coverEndY=int64_t(cover.y)+cover.height;
+    const auto fill=[&](uint16_t *out,int32_t count,uint16_t color){
+      if(count<=0)return;
+      result.pixels+=uint32_t(count);
+#if NICE_GFX_UI_RETAINED_CHART_INK
+      if(retainedBackground_){const size_t offset=size_t(out-data_);const int32_t y=tile_.y+int32_t(offset/stride_),x=tile_.x+int32_t(offset%stride_);
+        for(int32_t i=0;i<count;++i){if(!retainedBackground_->contains(x+i,y)||retainedBackground_->test(x+i,y)){out[i]=color;if(retainedBackground_->contains(x+i,y))++retainedRestored_;}else ++retainedSkipped_;}return;}
+#endif
+      if(reinterpret_cast<uintptr_t>(out)&2u){*out++=color;--count;}
+      const uint32_t pair=uint32_t(color)|(uint32_t(color)<<16);
+      // memcpy gives a defined alias-safe word store; alignment is explicit.
+#if defined(__GNUC__) || defined(__clang__)
+      auto *aligned=static_cast<uint16_t*>(__builtin_assume_aligned(out,4));
+#else
+      auto *aligned=out;
+#endif
+      while(count>=8){memcpy(aligned,&pair,4);memcpy(aligned+2,&pair,4);memcpy(aligned+4,&pair,4);memcpy(aligned+6,&pair,4);aligned+=8;count-=8;}
+      while(count>=2){memcpy(aligned,&pair,4);aligned+=2;count-=2;}
+      if(count)*aligned=color;
+    };
+    unsigned rowAt=0;
+    for(int32_t y=p.top;y<p.bottom;++y){const int32_t localY=y-p.y;uint16_t horizontalColor=0;bool horizontal=false;
+      // Original H-grid order: duplicate row positions keep the last color.
+      while(rowAt<p.rowCount&&p.rows[rowAt]<=localY){if(p.rows[rowAt]==localY){horizontal=true;horizontalColor=p.rowColors[rowAt];}++rowAt;}
+      const uint32_t distance=localY<p.radius?uint32_t(p.radius-localY):localY>=p.height-p.radius?uint32_t(localY-(p.height-p.radius-1)):0;
+      const int32_t inset=distance?int32_t(roundInset(p.radius,distance)):0;
+      const bool hole=cover.width>0&&cover.height>0&&y>=cover.y&&int64_t(y)<coverEndY;
+      const int32_t holeLeft=hole?int32_t(std::min<int64_t>(last,std::max<int64_t>(first,int64_t(cover.x)-p.x))):last;
+      const int32_t holeRight=hole?int32_t(std::max<int64_t>(first,std::min<int64_t>(last,coverEndX-p.x))):first;
+      auto *row=p.target+size_t(y-p.tileY)*p.stride+size_t(p.left-p.tileX);
+      const auto base=[&](int32_t a,int32_t b){if(b<=a)return;
+        // Horizontal lines stop before the final x pixel (original width=pw).
+        if(horizontal){const int32_t gridEnd=std::min(b,p.width-1);if(gridEnd>a)fill(row+a-first,gridEnd-a,horizontalColor);a=std::max(a,gridEnd);}
+        if(b<=a)return;
+        const int32_t begin=std::max(a,inset),end=std::min(b,p.width-inset);
+        if(end<=begin){result.holes+=uint32_t(b-a);return;}
+        result.holes+=uint32_t(begin-a+b-end);a=begin;b=end;
+        if(hole&&holeRight>holeLeft){const int32_t l=std::max(a,holeLeft),r=std::min(b,holeRight);
+          if(r>l){fill(row+a-first,l-a,p.background);fill(row+r-first,b-r,p.background);result.holes+=uint32_t(r-l);return;}}
+        fill(row+a-first,b-a,p.background);
+      };
+      int32_t cursor=first;
+      // Original V-grid comes after H-grid, and omits the final y row.
+      if(localY<p.height-1)for(unsigned k=0;k<p.columnCount;){const int32_t x=p.columns[k];uint16_t color=p.columnColors[k++];
+        while(k<p.columnCount&&p.columns[k]==x)color=p.columnColors[k++];
+        if(x<first)continue;if(x>=last)break;base(cursor,x);fill(row+x-first,1,color);cursor=x+1;
+      }
+      base(cursor,last);++result.rows;
+    }
+#else
+    (void)p;(void)cover;(void)result;
+#endif
+  }
+
+  struct RetainedInkMask {DirtyRect rect{};uint8_t *bits=nullptr;
+    bool contains(int32_t x,int32_t y)const{return bits&&x>=rect.x&&y>=rect.y&&int64_t(x)<int64_t(rect.x)+rect.width&&int64_t(y)<int64_t(rect.y)+rect.height;}
+    size_t position(int32_t x,int32_t y)const{return size_t(y-rect.y)*size_t(rect.width)+size_t(x-rect.x);}
+    bool test(int32_t x,int32_t y)const{if(!contains(x,y))return false;const size_t p=position(x,y);return (bits[p/8]>>(p%8))&1;}
+    void mark(int32_t x,int32_t y){if(contains(x,y)){const size_t p=position(x,y);bits[p/8]|=uint8_t(1u<<(p%8));}}
+  };
+  void setRetainedExclusions(const DirtyRect *rects,size_t count){retainedExclude_=rects;retainedExcludeCount_=count;}
+  void setRetainedBackgroundMask(RetainedInkMask *mask){retainedBackground_=mask;}
+  void setRetainedInstrumentMask(RetainedInkMask *mask){retainedInstrument_=mask;}
+  uint64_t retainedSkippedStores()const{return retainedSkipped_;}
+  uint64_t retainedInkStores()const{return retainedInk_;}
+  uint64_t retainedRestoredStores()const{return retainedRestored_;}
+ private:
+  const DirtyRect *retainedExclude_=nullptr;size_t retainedExcludeCount_=0;
+  RetainedInkMask *retainedBackground_=nullptr,*retainedInstrument_=nullptr;
+  uint64_t retainedSkipped_=0,retainedInk_=0,retainedRestored_=0;
+  bool retainedExcluded(int32_t x,int32_t y)const{
+#if NICE_GFX_UI_RETAINED_CHART_INK
+    for(size_t i=0;i<retainedExcludeCount_;++i){const auto&r=retainedExclude_[i];if(x>=r.x&&y>=r.y&&int64_t(x)<int64_t(r.x)+r.width&&int64_t(y)<int64_t(r.y)+r.height)return true;}
+#else
+    (void)x;(void)y;
+#endif
+    return false;}
+  bool retainedIntersects(const DirtyRect&r)const{
+#if NICE_GFX_UI_RETAINED_CHART_INK
+    for(size_t i=0;i<retainedExcludeCount_;++i){const auto&b=retainedExclude_[i];if(int64_t(r.x)<int64_t(b.x)+b.width&&int64_t(b.x)<int64_t(r.x)+r.width&&int64_t(r.y)<int64_t(b.y)+b.height&&int64_t(b.y)<int64_t(r.y)+r.height)return true;}
+#else
+    (void)r;
+#endif
+    return false;}
+  void retainedMarkSpan(int32_t x,int32_t y,int32_t width){
+#if NICE_GFX_UI_RETAINED_CHART_INK
+    if(!retainedInstrument_)return;for(int32_t i=0;i<width;++i)if(retainedInstrument_->contains(x+i,y)){retainedInstrument_->mark(x+i,y);++retainedInk_;}
+#else
+    (void)x;(void)y;(void)width;
+#endif
+  }
  public:
   TileCanvas(int16_t width, int16_t height) : NICE_GFX(width, height) {}
   void resize(int16_t w, int16_t h) {
@@ -36,6 +232,20 @@ class TileCanvas : public NICE_GFX {
   }
   void detach() { data_ = nullptr; stream_ = false; resetViewport(); }
   bool attached() const { return data_ != nullptr; }
+  // A text-only compositor may bypass this sink only when its checked native
+  // framebuffer is the same backing region. Offscreen motion/cache canvases
+  // must retain their own painter even while a screen target is also mapped.
+  bool targetsNativeFramebuffer(const NativeFramebuffer &target) const {
+    if(!data_||order_!=PixelOrder::Native||!target.pixels||!target.width||!target.height||
+       target.stride<target.width||target.height>SIZE_MAX/target.stride/2||
+       target.bytes<target.stride*target.height*2||tile_.x<0||tile_.y<0||
+       int64_t(tile_.x)+tile_.width>int64_t(target.width)||
+       int64_t(tile_.y)+tile_.height>int64_t(target.height)||stride_!=target.stride)return false;
+    const size_t bytes=target.stride*target.height*2;
+    if(reinterpret_cast<uintptr_t>(target.pixels)>UINTPTR_MAX-bytes)return false;
+    const size_t offset=(size_t(tile_.y)*target.stride+size_t(tile_.x))*2;
+    return reinterpret_cast<uintptr_t>(data_)==reinterpret_cast<uintptr_t>(target.pixels)+offset;
+  }
   // Actual attached-tile and viewport intersection (right/bottom exclusive),
   // expressed in drawing coordinates even when a viewport datum is enabled.
   bool rasterClip(int &left,int &top,int &right,int &bottom) const {
@@ -43,6 +253,160 @@ class TileCanvas : public NICE_GFX {
     if(!textRenderClip(x0,y0,x1,y1))return false;
     left=int(x0-_xDatum);right=int(x1-_xDatum);top=int(y0-_yDatum);bottom=int(y1-_yDatum);return true;
   }
+  // Exact RGB565-only fast path for the established radius-one chart brush.
+  // Explicit owner authorization excludes derived/borrowed copies and unknown
+  // native callbacks; no generic graphics primitive changes behavior.
+  void enableChartColumnStrokesForExactCanvas(NativeFillHandler pureSmallFill=nullptr,void *context=nullptr){
+    chartColumnOwner_=this;chartColumnPureFill_=pureSmallFill;chartColumnPureContext_=context;
+  }
+  // Consumes only the chart caller's bounded scratch arrays on success.
+  // False leaves both arrays unchanged and retains every legacy callback.
+  uint64_t chartGridBatches() const{return chartGridBatches_;}
+  uint64_t chartGridPixels() const{return chartGridPixels_;}
+#if defined(CONFIG_IDF_TARGET_ESP32P4) && defined(__GNUC__) && !defined(__clang__)
+  __attribute__((noinline,optimize("O3")))
+#endif
+  NICE_GFX_UI_CHART_IRAM_ATTR bool chartGridVerticalBatch(int32_t top,int32_t height,int32_t *positions,uint16_t *colors,size_t count){
+#if NICE_GFX_UI_CHART_ROW_MAJOR_GRID
+    if(chartColumnOwner_!=this||!data_||!positions||!colors||!count||count>96||
+       top<-32760||top>32760||height<=0||height>=4096)return false;
+    if(order_==PixelOrder::Native&&nativeFill_&&
+       (nativeFill_!=chartColumnPureFill_||nativeFillContext_!=chartColumnPureContext_))return false;
+    // Every original width-one VLine has fewer than 4096 pixels. The
+    // factory's explicitly authorized Native handler purely rejects it.
+    for(size_t i=0;i<count;++i)if(positions[i]<-32760||positions[i]>32760)return false;
+    if(_vpOoB)return true;
+    const int32_t left=std::max(_vpX,tile_.x),right=std::min(_vpW,tile_.x+tile_.width);
+    const int32_t firstBound=std::max(_vpY,tile_.y),lastBound=std::min(_vpH,tile_.y+tile_.height);
+    const int64_t first=std::max<int64_t>(int64_t(top)+_yDatum,firstBound),last=std::min<int64_t>(int64_t(top)+height+_yDatum,lastBound);
+    if(left>=right||first>=last)return true;
+    size_t visible=0;
+    for(size_t i=0;i<count;++i){const int64_t x=int64_t(positions[i])+_xDatum;if(x<left||x>=right)continue;
+      positions[visible]=int32_t(x)-tile_.x;colors[visible]=stored(colors[i]);++visible;
+    }
+    if(!visible)return true;
+    const int32_t rows=int32_t(last-first),rowStart=int32_t(first)-tile_.y;
+    // Preserve the source column order inside each row. Repeated x values
+    // therefore retain the last authored grid color, including minor lines.
+    for(int32_t y=0;y<rows;++y){uint16_t *row=data_+size_t(rowStart+y)*stride_;
+      for(size_t i=0;i<visible;++i)row[size_t(positions[i])]=colors[i];
+    }
+    ++chartGridBatches_;chartGridPixels_+=uint64_t(uint32_t(rows))*visible;return true;
+#else
+    (void)top;(void)height;(void)positions;(void)colors;(void)count;return false;
+#endif
+  }
+
+  bool chartHasExactOwner() const{return chartColumnOwner_==this;}
+  uint64_t chartColumnBatches() const{return chartColumnBatches_;}
+  uint64_t chartColumnPixels() const{return chartColumnPixels_;}
+#if defined(CONFIG_IDF_TARGET_ESP32P4) && defined(__GNUC__) && !defined(__clang__)
+  __attribute__((noinline,optimize("O3")))
+#endif
+  NICE_GFX_UI_CHART_IRAM_ATTR bool chartStrokeRadiusOne(int32_t x1,int32_t y1,int32_t x2,int32_t y2,uint16_t color){
+#if NICE_GFX_UI_CHART_COLUMN_STROKES
+    if(chartColumnOwner_!=this||!data_||_vpOoB||x2<x1)return false;
+    if(order_==PixelOrder::Native&&nativeFill_&&
+       (nativeFill_!=chartColumnPureFill_||nativeFillContext_!=chartColumnPureContext_))return false;
+    const int64_t wideDx=int64_t(x2)-x1,wideDy=y2>=y1?int64_t(y2)-y1:int64_t(y1)-y2;
+    // Every original horizontal brush span has <4096 pixels in this domain.
+    // View's explicitly authorized fill handler rejects those without work.
+    if(wideDx>2048||wideDy>4096||x1<-32760||x2>32760||y1<-32760||y1>32760||y2<-32760||y2>32760)return false;
+    const int32_t physicalLeft=std::max(_vpX,tile_.x),physicalTop=std::max(_vpY,tile_.y);
+    const int32_t physicalRight=std::min(_vpW,tile_.x+tile_.width),physicalBottom=std::min(_vpH,tile_.y+tile_.height);
+    const int64_t left64=int64_t(physicalLeft)-_xDatum,top64=int64_t(physicalTop)-_yDatum;
+    const int64_t right64=int64_t(physicalRight)-_xDatum,bottom64=int64_t(physicalBottom)-_yDatum;
+    if(left64<INT32_MIN||left64>INT32_MAX||right64<INT32_MIN||right64>INT32_MAX||
+       top64<INT32_MIN||top64>INT32_MAX||bottom64<INT32_MIN||bottom64>INT32_MAX)return false;
+    const int32_t left=int32_t(left64),top=int32_t(top64),right=int32_t(right64),bottom=int32_t(bottom64);
+    if(left>=right||top>=bottom)return true;
+    const int32_t dx=int32_t(wideDx),dy=int32_t(wideDy),sy=y2>=y1?1:-1;
+    const int32_t first=std::max(x1-1,left),last=std::min(x2+1,right-1);
+    if(first>last)return true;
+#if NICE_GFX_UI_CHART_ROW_MAJOR_STEEP
+    if(dy>dx){
+      const int32_t minY=std::min(y1,y2),maxY=std::max(y1,y2);
+      const uint16_t ink=stored(color);uint64_t pixels=0;
+      const auto span=[&](int32_t y,int32_t center,int32_t radius){
+        if(y<top||y>=bottom)return;
+        const int32_t low=std::max(center-radius,left),high=std::min(center+radius,right-1);
+        if(low>high)return;
+        const int32_t px=int32_t(int64_t(low)+_xDatum),py=int32_t(int64_t(y)+_yDatum);
+        uint16_t *target=data_+size_t(py-tile_.y)*stride_+size_t(px-tile_.x);
+        retainedMarkSpan(px,py,high-low+1);for(int32_t x=low;x<=high;++x)*target++=ink;
+        pixels+=uint32_t(high-low+1);
+      };
+      // A steep Bresenham segment has exactly one center in every integer
+      // y row and adjacent centers differ in x by at most1. Consequently
+      // each internal radius-one brush union is precisely centerX[-1,+1].
+      // Only the two outside endpoint rows have a single covered texel.
+      span(minY-1,sy>0?x1:x2,0);
+      const int32_t rowFirst=std::max(minY,top),rowLast=std::min(maxY,bottom-1);
+      if(rowFirst<=rowLast){
+        const int32_t m=sy>0?rowFirst-y1:y1-rowFirst,den=2*dy,step=2*dx;
+        const int32_t numerator=step*m+dy;
+        int32_t offset=numerator/den,remainder=numerator%den;
+        // All arithmetic is bounded by accepted endpoints: numerator<2^25,
+        // den<=8192 and step<den. One carry/borrow replaces per-row division.
+        for(int32_t y=rowFirst;y<=rowLast;++y){
+          span(y,x1+offset,1);
+          if(sy>0){remainder+=step;if(remainder>=den){remainder-=den;++offset;}}
+          else {remainder-=step;if(remainder<0){remainder+=den;--offset;}}
+        }
+      }
+      span(maxY+1,sy>0?x2:x1,0);
+      ++chartColumnBatches_;chartColumnPixels_+=pixels;
+#ifdef NICE_GFX_CHART_STEEP_TRACE
+      NICE_GFX_CHART_STEEP_TRACE(dx,dy,pixels);
+#endif
+      return true;
+    }
+#endif
+
+    struct Center {int32_t low=0,high=0;bool valid=false;};
+    const auto center=[&](int32_t q){
+      Center out;if(q<0||q>dx)return out;out.valid=true;
+      if(!dx){out.low=std::min(y1,y2);out.high=std::max(y1,y2);return out;}
+      if(dy<=dx){const int32_t offset=(2*dy*q+dx)/(2*dx);out.low=out.high=y1+sy*offset;return out;}
+      // Exact inversion of x(m)=floor((2*dx*m+dy)/(2*dy)).
+      // All products are bounded below2^25 by the accepted endpoint domain.
+      const int32_t begin=q?std::max<int32_t>(0,(2*dy*q-dy+2*dx-1)/(2*dx)):0;
+      const int32_t end=std::min(dy,(2*dy*q+dy-1)/(2*dx));
+      const int32_t a=y1+sy*begin,b=y1+sy*end;out.low=std::min(a,b);out.high=std::max(a,b);return out;
+    };
+    int32_t pendingX=0,pendingWidth=0,pendingLow=0,pendingHigh=0;
+    const uint16_t ink=stored(color);uint64_t pixels=0;
+    const auto flush=[&](){
+      if(!pendingWidth)return;
+      const int32_t px=int32_t(int64_t(pendingX)+_xDatum),py=int32_t(int64_t(pendingLow)+_yDatum);
+      uint16_t *firstPixel=data_+size_t(py-tile_.y)*stride_+size_t(px-tile_.x);
+      const int32_t height=pendingHigh-pendingLow+1;
+      for(int32_t y=0;y<height;++y){uint16_t *row=firstPixel+size_t(y)*stride_;retainedMarkSpan(px,py+y,pendingWidth);for(int32_t x=0;x<pendingWidth;++x)row[x]=ink;}
+      pixels+=uint64_t(pendingWidth)*uint32_t(height);pendingWidth=0;
+    };
+    int32_t q=first-x1;Center previous=center(q-1),own=center(q),next=center(q+1);
+    for(int32_t x=first;x<=last;++x,++q){
+      int32_t low=INT32_MAX,high=INT32_MIN;
+      if(own.valid){low=own.low-1;high=own.high+1;}
+      if(previous.valid){low=std::min(low,previous.low);high=std::max(high,previous.high);}
+      if(next.valid){low=std::min(low,next.low);high=std::max(high,next.high);}
+      low=std::max(low,top);high=std::min(high,bottom-1);
+      if(low<=high){
+        if(pendingWidth&&low==pendingLow&&high==pendingHigh&&x==pendingX+pendingWidth)++pendingWidth;
+        else {flush();pendingX=x;pendingWidth=1;pendingLow=low;pendingHigh=high;}
+      }else flush();
+      previous=own;own=next;next=center(q+2);
+    }
+    flush();++chartColumnBatches_;chartColumnPixels_+=pixels;
+#ifdef NICE_GFX_CHART_COLUMN_TRACE
+    NICE_GFX_CHART_COLUMN_TRACE(dx,dy,pixels);
+#endif
+    return true;
+#else
+    (void)x1;(void)y1;(void)x2;(void)y2;(void)color;return false;
+#endif
+  }
+
   // RGB565 images in either byte order, cropped before row copies. Source
   // storage is borrowed for this call and must not overlap the attached tile.
   Status blit(int32_t x, int32_t y, PixelView image) {
@@ -139,7 +503,7 @@ class TileCanvas : public NICE_GFX {
           if(opaque)*dst=palette[coverage];
           else if(coverage==15)*dst=ink;
           else if(coverage){
-#if defined(CONFIG_IDF_TARGET_ESP32S31)
+#if NICE_GFX_TILE_AA_PALETTE
             *dst=paletteBlend(foreground,*dst,coverage);
 #else
             *dst=stored(textCoverageColor(foreground,stored(*dst),coverage));
@@ -160,7 +524,7 @@ class TileCanvas : public NICE_GFX {
         if(opaque)*dst=palette[coverage];
         else if(coverage==15)*dst=ink;
         else if(coverage){
-#if defined(CONFIG_IDF_TARGET_ESP32S31)
+#if NICE_GFX_TILE_AA_PALETTE
           *dst=paletteBlend(foreground,*dst,coverage);
 #else
           *dst=stored(textCoverageColor(foreground,stored(*dst),coverage));
@@ -188,6 +552,10 @@ class TileCanvas : public NICE_GFX {
     if (coverage==15) {
       const uint16_t c=stored(color);
       const size_t bytes=size_t(w)*sizeof(uint16_t);
+#if NICE_GFX_TILE_WORD_FILL
+      if(uint8_t(c)!=uint8_t(c>>8)&&size_t(w)*size_t(h)>=64&&
+         detail::fillWordRect16(first,(size_t(tile_.height-1)*stride_+size_t(tile_.width))-size_t(first-data_),size_t(w),size_t(h),stride_,c))return true;
+#endif
       if (uint8_t(c)==uint8_t(c>>8)) {
         if (size_t(w)==stride_) { memset(first,uint8_t(c),bytes*size_t(h)); return true; }
         for (int32_t row=0;row<h;++row) memset(first+size_t(row)*stride_,uint8_t(c),bytes);
@@ -199,7 +567,7 @@ class TileCanvas : public NICE_GFX {
       for (int32_t row=0;row<h;++row) {
         uint16_t *dst=first+size_t(row)*stride_;
         for (int32_t col=0;col<w;++col) {
-#if defined(CONFIG_IDF_TARGET_ESP32S31) // Exact AA palette memo.
+#if NICE_GFX_TILE_AA_PALETTE // Exact AA palette memo.
           if(coverage<15) {dst[col]=paletteBlend(color,dst[col],coverage);continue;}
 #endif
           dst[col]=stored(textCoverageColor(color,stored(dst[col]),coverage));
@@ -221,7 +589,7 @@ class TileCanvas : public NICE_GFX {
     if (!_vpOoB && streamX_>=_vpX && streamX_<_vpW && streamY_>=_vpY && streamY_<_vpH &&
         streamX_>=tile_.x && streamX_<tile_.x+tile_.width &&
         streamY_>=tile_.y && streamY_<tile_.y+tile_.height)
-      data_[size_t(streamY_-tile_.y)*stride_+size_t(streamX_-tile_.x)]=stored(color);
+      {if(!retainedExcluded(streamX_,streamY_)){retainedMarkSpan(streamX_,streamY_,1);data_[size_t(streamY_-tile_.y)*stride_+size_t(streamX_-tile_.x)]=stored(color);}else ++retainedSkipped_;}
     if (streamX_==streamRight_) {
       streamX_=streamLeft_;
       if (streamY_==streamBottom_) stream_=false; else ++streamY_;
@@ -235,6 +603,7 @@ class TileCanvas : public NICE_GFX {
     const int64_t px = int64_t(x)+_xDatum, py = int64_t(y)+_yDatum;
     if (!data_ || _vpOoB || px<_vpX || py<_vpY || px>=_vpW || py>=_vpH ||
         px<tile_.x || py<tile_.y || px>=tile_.x+tile_.width || py>=tile_.y+tile_.height) return;
+    if(retainedExcluded(int32_t(px),int32_t(py))){++retainedSkipped_;return;}retainedMarkSpan(int32_t(px),int32_t(py),1);
     data_[size_t(py-tile_.y)*stride_+size_t(px-tile_.x)] = stored(uint16_t(color));
   }
   uint16_t readPixel(int32_t x, int32_t y) override {
@@ -252,8 +621,41 @@ class TileCanvas : public NICE_GFX {
     const int32_t bottom=_vpH<tile_.y+tile_.height?_vpH:tile_.y+tile_.height;
     if (!clipRect(x,y,w,h,_xDatum,_yDatum,left,top,right,bottom,r)) return;
     const uint16_t c=stored(uint16_t(color));
+    if(retainedIntersects(DirtyRect(r.x,r.y,r.width,r.height))){for(int32_t row=0;row<r.height;++row){auto*out=data_+size_t(r.y+row-tile_.y)*stride_+size_t(r.x-tile_.x);for(int32_t col=0;col<r.width;++col){if(retainedExcluded(r.x+col,r.y+row)){++retainedSkipped_;continue;}out[col]=c;}}return;}
+    if(retainedInstrument_)for(int32_t row=0;row<r.height;++row)retainedMarkSpan(r.x,r.y+row,r.width);
     uint16_t *first=data_+size_t(r.y-tile_.y)*stride_+size_t(r.x-tile_.x);
     const size_t bytes=size_t(r.width)*sizeof(uint16_t);
+    // Tiny raster spans cannot reach the native writer's 4096-pixel threshold
+    // or PIE's 32-pixel minimum. Keep these frequent chart strokes local.
+    if(r.height==1&&r.width<32){
+      for(int32_t col=0;col<r.width;++col)first[col]=c;
+      return;
+    }
+#if NICE_GFX_UI_THIN_SOLID_FILL
+    // The exact View factory authorizes only its pure rejecting <4096-pixel
+    // writer. Unknown/accepting hooks and any Wire hook retain their old path.
+    // Dense spans may use the existing whole-span PIE fill; leave them alone.
+    if(r.width<=2&&size_t(r.width)<stride_&&uint64_t(r.width)*uint32_t(r.height)<4096&&
+       (!nativeFill_||(order_==PixelOrder::Native&&chartColumnOwner_==this&&
+        nativeFill_==chartColumnPureFill_&&nativeFillContext_==chartColumnPureContext_))){
+      for(int32_t row=0;row<r.height;++row){uint16_t *target=first+size_t(row)*stride_;target[0]=c;if(r.width==2)target[1]=c;}
+#ifdef NICE_GFX_UI_THIN_SOLID_FILL_TRACE
+      NICE_GFX_UI_THIN_SOLID_FILL_TRACE(r.width,r.height);
+#endif
+      return;
+    }
+#endif
+    if(order_==PixelOrder::Native&&nativeFill_&&nativeFill_(nativeFillContext_,DirtyRect(r.x,r.y,r.width,r.height),first,stride_,uint16_t(color)))return;
+    if(size_t(r.width)==stride_&&platform::rgb565_p4_memory::fill(first,size_t(r.width)*r.height,c))return;
+    if(platform::rgb565_p4_memory::fill(first,size_t(r.width),c)){
+      for(int32_t row=1;row<r.height;++row)if(!platform::rgb565_p4_memory::fill(first+size_t(row)*stride_,size_t(r.width),c))
+        for(int32_t col=0;col<r.width;++col)first[size_t(row)*stride_+col]=c;
+      return;
+    }
+#if NICE_GFX_TILE_WORD_FILL
+    if(uint8_t(c)!=uint8_t(c>>8)&&size_t(r.width)*size_t(r.height)>=64&&
+       detail::fillWordRect16(first,(size_t(tile_.height-1)*stride_+size_t(tile_.width))-size_t(first-data_),size_t(r.width),size_t(r.height),stride_,c))return;
+#endif
     if (uint8_t(c)==uint8_t(c>>8)) {
       if (size_t(r.width)==stride_) { memset(first,uint8_t(c),bytes*size_t(r.height)); return; }
       for(int32_t row=0;row<r.height;++row) memset(first+size_t(row)*stride_,uint8_t(c),bytes);
@@ -294,8 +696,19 @@ class TileCanvas : public NICE_GFX {
     if(radius<0 || radius>w/2 || radius>h/2){NICE_GFX::fillRoundRect(x,y,w,h,radius,color);return;}
     const uint16_t c=stored(uint16_t(color));
     uint16_t *first=data_+size_t(r.y-tile_.y)*stride_+size_t(r.x-tile_.x);
+#if NICE_GFX_TILE_ROUNDED_CENTER
+    // The exact midpoint coverage is rectangular between the two corner
+    // bands. Submit that visible interior once, sharing fillRect's bounded
+    // native writer and row-copy fallbacks; only the arc rows need scanlines.
+    const int32_t centerTop=r.sourceY>radius?r.sourceY:radius;
+    const int32_t centerBottom=r.sourceY+r.height<h-radius?r.sourceY+r.height:h-radius;
+    if(centerBottom>centerTop)fillRect(x+r.sourceX,y+centerTop,r.width,centerBottom-centerTop,color);
+#endif
     for(int32_t row=0;row<r.height;++row) {
       const int32_t sy=r.sourceY+row;
+#if NICE_GFX_TILE_ROUNDED_CENTER
+      if(sy>=centerTop&&sy<centerBottom)continue;
+#endif
       const uint32_t distance=sy<radius?uint32_t(radius-sy):sy>=h-radius?uint32_t(sy-(h-radius-1)):0;
       const int32_t inset=distance?int32_t(roundInset(uint32_t(radius),distance)):0;
       const int32_t begin=inset>r.sourceX?inset:r.sourceX;
@@ -303,6 +716,8 @@ class TileCanvas : public NICE_GFX {
       if(end<=begin)continue;
       uint16_t *dst=first+size_t(row)*stride_+size_t(begin-r.sourceX);
       const int32_t count=end-begin;
+      if(retainedIntersects(DirtyRect(x+begin+_xDatum,y+sy+_yDatum,count,1))){for(int32_t col=0;col<count;++col){if(retainedExcluded(x+begin+_xDatum+col,y+sy+_yDatum)){++retainedSkipped_;continue;}dst[col]=c;}continue;}
+      retainedMarkSpan(x+begin+_xDatum,y+sy+_yDatum,count);
       if(uint8_t(c)==uint8_t(c>>8))memset(dst,uint8_t(c),size_t(count)*2);
       else for(int32_t col=0;col<count;++col)dst[col]=c;
     }
@@ -404,6 +819,7 @@ class TileCanvas : public NICE_GFX {
 #endif
   static void copyRow(uint16_t *dst,const uint8_t *src,size_t pixels) {
     if(!pixels)return;
+    if(platform::rgb565_p4_memory::copy(dst,src,pixels))return;
 #if (defined(ARDUINO_ARCH_ESP32) || NICE_GFX_NATIVE_IDF) && defined(CONFIG_IDF_TARGET_ESP32S31) && defined(__GNUC__)
     if(pixels>=32 && !((reinterpret_cast<uintptr_t>(dst)|reinterpret_cast<uintptr_t>(src))&15) &&
        xPortGetCoreID()==1 && xPortCanYield()) {
@@ -550,7 +966,7 @@ class TileCanvas : public NICE_GFX {
     // Let the compiler resolve endianness, also on 8-bit targets.
     return wireWord(c);
   }
-#if defined(CONFIG_IDF_TARGET_ESP32S31) // Exact AA palette memo.
+#if NICE_GFX_TILE_AA_PALETTE // Exact AA palette memo.
   // Each pixel still supplies its real stored underlay. Only an identical
   // foreground/background/order tuple can reuse exact RGB565 interpolation.
   uint16_t paletteBlend(uint16_t foreground,uint16_t background,uint8_t coverage) {
@@ -564,6 +980,11 @@ class TileCanvas : public NICE_GFX {
   uint16_t palette_[16]={},paletteForeground_=0,paletteBackground_=0,paletteValid_=0;
   PixelOrder paletteOrder_=PixelOrder::Wire;
 #endif
+  const TileCanvas *chartColumnOwner_=nullptr;
+  NativeFillHandler chartColumnPureFill_=nullptr;void *chartColumnPureContext_=nullptr;
+  uint64_t chartColumnBatches_=0,chartColumnPixels_=0;
+  uint64_t chartGridBatches_=0,chartGridPixels_=0;
+  NativeFillHandler nativeFill_=nullptr;void *nativeFillContext_=nullptr;
   uint16_t *data_ = nullptr;
   size_t stride_ = 0;
   DirtyRect tile_;

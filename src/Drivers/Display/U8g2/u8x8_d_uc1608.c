@@ -159,7 +159,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_uc1608_240x64_display_info =
   /* post_reset_wait_ms = */ 10, 	
   /* sda_setup_time_ns = */ 30,		/* uc1608 datasheet, page 41 */
   /* sck_pulse_width_ns = */ 65,	/* half of cycle time  */
-  /* sck_clock_hz = */ 8000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
+  /* sck_clock_hz = */ 8000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,
   /* data_setup_time_ns = */ 30,	/* uc1608 datasheet, page 39 */
@@ -180,7 +180,7 @@ static const uint8_t ngfx_u8x8_d_uc1608_erc24064_init_seq[] = {
   NGFX_U8X8_DLY(200),
 
   NGFX_U8X8_C(0x023),            			/* Bit 0/1: Temp compenstation, Bit 2: Multiplex Rate 0=96, 1=128 */
-  //NGFX_U8X8_C(0x027),            			/* Bit 0/1: Temp compenstation, Bit 2: Multiplex Rate 0=96, 1=128 */
+
 
   NGFX_U8X8_C(0x0c8),            			/* Map control, Bit 3: MY=1, Bit 2: MX=0, Bit 0: MSF =0 */
   NGFX_U8X8_C(0x0e8),            			/* LCD bias Bits 0/1: 00=10.7 01=10.3, 10=12.0, 11=12.7 */
@@ -240,7 +240,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_uc1608_240x128_display_info =
   /* post_reset_wait_ms = */ 10, 	
   /* sda_setup_time_ns = */ 30,		/* uc1608 datasheet, page 41 */
   /* sck_pulse_width_ns = */ 65,	/* half of cycle time  */
-  /* sck_clock_hz = */ 8000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
+  /* sck_clock_hz = */ 8000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,
   /* data_setup_time_ns = */ 30,	/* uc1608 datasheet, page 39 */
@@ -260,7 +260,7 @@ static const uint8_t ngfx_u8x8_d_uc1608_240x128_init_seq[] = {
   NGFX_U8X8_C(0x0e2),            			/* soft reset */
   NGFX_U8X8_DLY(200),
 
-  //NGFX_U8X8_C(0x023),            			/* Bit 0/1: Temp compenstation, Bit 2: Multiplex Rate 0=96, 1=128 */
+
   NGFX_U8X8_C(0x026),            			/* Bit 0/1: Temp compenstation, Bit 2: Multiplex Rate 0=96, 1=128 */
 
   NGFX_U8X8_C(0x0c8),            			/* Map control, Bit 3: MY=1, Bit 2: MX=0, Bit 0: MSF =0 */
@@ -321,7 +321,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_uc1608_erc240120_display_info =
   /* post_reset_wait_ms = */ 10, 	
   /* sda_setup_time_ns = */ 30,		/* uc1608 datasheet, page 41 */
   /* sck_pulse_width_ns = */ 65,	/* half of cycle time  */
-  /* sck_clock_hz = */ 8000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
+  /* sck_clock_hz = */ 8000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,
   /* data_setup_time_ns = */ 30,	/* uc1608 datasheet, page 39 */
@@ -342,7 +342,7 @@ static const uint8_t ngfx_u8x8_d_uc1608_erc240120_init_seq[] = {
   NGFX_U8X8_C(0x0e2),            			/* soft reset */
   NGFX_U8X8_DLY(200),
 
-  //NGFX_U8X8_C(0x023),            			/* Bit 0/1: Temp compenstation, Bit 2: Multiplex Rate 0=96, 1=128 */
+
   NGFX_U8X8_C(0x026),            			/* Bit 0/1: Temp compenstation, Bit 2: Multiplex Rate 0=96, 1=128 */
 
   NGFX_U8X8_C(0x0c8),            			/* Map control, Bit 3: MY=1, Bit 2: MX=0, Bit 0: MSF =0 */
@@ -356,7 +356,7 @@ static const uint8_t ngfx_u8x8_d_uc1608_erc240120_init_seq[] = {
   NGFX_U8X8_C(0x090),            			/* no fixed lines */
   NGFX_U8X8_C(0x089),            			/* RAM access control */
   
-  //NGFX_U8X8_CA(0x081, 46),			/* set contrast, 46 according to  DemoCode.txt */
+
   NGFX_U8X8_CA(0x081, 80),			/* */
   
   NGFX_U8X8_C(0x000),		                /* column low nibble */
@@ -405,7 +405,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_uc1608_dem240064_display_info =
   /* post_reset_wait_ms = */ 10, 	
   /* sda_setup_time_ns = */ 30,		/* uc1608 datasheet, page 41 */
   /* sck_pulse_width_ns = */ 65,	/* half of cycle time  */
-  /* sck_clock_hz = */ 8000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
+  /* sck_clock_hz = */ 8000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,
   /* data_setup_time_ns = */ 30,	/* uc1608 datasheet, page 39 */
@@ -426,7 +426,7 @@ static const uint8_t ngfx_u8x8_d_uc1608_dem240064_init_seq[] = {
   NGFX_U8X8_C(0x0e2),            			/* soft reset */
   NGFX_U8X8_DLY(200),
 
-  //NGFX_U8X8_C(0x023),            			/* Bit 0/1: Temp compenstation, Bit 2: Multiplex Rate 0=96, 1=128 */
+
   NGFX_U8X8_C(0x026),            			/* Bit 0/1: Temp compenstation, Bit 2: Multiplex Rate 0=96, 1=128 */
 
   NGFX_U8X8_C(0x0c8),            			/* Map control, Bit 3: MY=1, Bit 2: MX=0, Bit 0: MSF =0 */

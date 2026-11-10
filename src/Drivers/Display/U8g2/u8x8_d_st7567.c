@@ -134,9 +134,9 @@ static const uint8_t ngfx_u8x8_d_st7567_132x64_init_seq[] = {
   NGFX_U8X8_C(0x0a1),		                /* ADC set to reverse */
   NGFX_U8X8_C(0x0c0),		                /* common output mode */
   // Flipmode
-  //NGFX_U8X8_C(0x0a0),		                /* ADC set to reverse */
-  //NGFX_U8X8_C(0x0c8),		                /* common output mode */
-  
+
+
+
   NGFX_U8X8_C(0x0a6),		                /* display normal, bit val 0: LCD pixel off. */
   NGFX_U8X8_C(0x0a3),		                /* LCD bias 1/7 */
   /* power on sequence from paxinstruments */
@@ -275,9 +275,9 @@ static const uint8_t ngfx_u8x8_st7567_jlx12864_init_seq[] = {
   NGFX_U8X8_C(0x0a1),		                /* ADC set to reverse */
   NGFX_U8X8_C(0x0c0),		                /* common output mode */
   // Flipmode
-  //NGFX_U8X8_C(0x0a0),		                /* ADC set to reverse */
-  //NGFX_U8X8_C(0x0c8),		                /* common output mode */
-  
+
+
+
   NGFX_U8X8_C(0x0a6),		                /* display normal, bit val 0: LCD pixel off. */
   NGFX_U8X8_C(0x0a3),		                /* LCD bias 1/7 */
   /* power on sequence from paxinstruments */
@@ -435,9 +435,9 @@ static const uint8_t ngfx_u8x8_st7567_122x32_init_seq[] = {
   NGFX_U8X8_C(0x0a1),		                /* ADC set to reverse */
   NGFX_U8X8_C(0x0c0),		                /* common output mode */
   // Flipmode
-  //NGFX_U8X8_C(0x0a0),		                /* ADC set to reverse */
-  //NGFX_U8X8_C(0x0c8),		                /* common output mode */
-  
+
+
+
   NGFX_U8X8_C(0x0a6),		                /* display normal, bit val 0: LCD pixel off. */
   
   
@@ -602,9 +602,9 @@ static const uint8_t ngfx_u8x8_st7567_enh_dg128064_init_seq[] = {
   NGFX_U8X8_C(0x0a1),		                /* ADC set to reverse */
   NGFX_U8X8_C(0x0c0),		                /* common output mode */
   // Flipmode
-  //NGFX_U8X8_C(0x0a0),		                /* ADC set to reverse */
-  //NGFX_U8X8_C(0x0c8),		                /* common output mode */
-  
+
+
+
   NGFX_U8X8_C(0x0a6),		                /* display normal, bit val 0: LCD pixel off. */
   NGFX_U8X8_C(0x0a2),		                /* LCD bias 1/9 */
   /* power on sequence from paxinstruments */
@@ -779,9 +779,9 @@ static const uint8_t ngfx_u8x8_st7567_64x32_init_seq[] = {
   NGFX_U8X8_C(0x0a1),		                /* ADC */
   NGFX_U8X8_C(0x0c0),		                /* common output mode */
   // Flipmode
-  //NGFX_U8X8_C(0x0a0),		                /* ADC  */
-  //NGFX_U8X8_C(0x0c8),		                /* common output mode */
-  
+
+
+
   NGFX_U8X8_C(0x0a6),		                /* display normal, bit val 0: LCD pixel off. */
   NGFX_U8X8_C(0x0a2),		                /* LCD bias 1/9 */
   NGFX_U8X8_C(0x028|4),		                /* all power  control circuits on */
@@ -793,9 +793,8 @@ static const uint8_t ngfx_u8x8_st7567_64x32_init_seq[] = {
   
   NGFX_U8X8_C(0x024),		                /* v0 voltage resistor ratio, taken from issue 657 */
   NGFX_U8X8_CA(0x081, 0x020),		/* set contrast, contrast value*/
-  /* 18 Apr 2020: the value 0x080 does not make sense, only 6 bit are supported
-  for contrast, changed to 0x040 */
-  
+  /* Contrast uses six bits. */
+
   NGFX_U8X8_C(0x0ae),		                /* display off */
   NGFX_U8X8_C(0x0a5),		                /* enter powersafe: all pixel on, issue 142 */
    
@@ -919,9 +918,9 @@ static const uint8_t ngfx_u8x8_st7567_hem6432_init_seq[] = {
   NGFX_U8X8_C(0x0a1),		                /* ADC */
   NGFX_U8X8_C(0x0c0),		                /* common output mode */
   // Flipmode
-  //NGFX_U8X8_C(0x0a0),		                /* ADC  */
-  //NGFX_U8X8_C(0x0c8),		                /* common output mode */
-  
+
+
+
   NGFX_U8X8_C(0x0a6),		                /* display normal, bit val 0: LCD pixel off. */
   NGFX_U8X8_C(0x0a2),		                /* LCD bias 1/9 */
   NGFX_U8X8_C(0x028|4),		                /* all power  control circuits on */
@@ -1063,9 +1062,9 @@ static const uint8_t ngfx_u8x8_st7567_os12864_init_seq[] = {
   NGFX_U8X8_C(0x0a1),		                /* ADC set to reverse */
   NGFX_U8X8_C(0x0c0),		                /* common output mode */
   // Flipmode
-  //NGFX_U8X8_C(0x0a0),		                /* ADC set to reverse */
-  //NGFX_U8X8_C(0x0c8),		                /* common output mode */
-  
+
+
+
   NGFX_U8X8_C(0x0a6),		                /* display normal, bit val 0: LCD pixel off. */
   NGFX_U8X8_C(0x0a3),		                /* LCD bias 1/7 */
   /* power on sequence from paxinstruments */
@@ -1212,9 +1211,9 @@ static const uint8_t ngfx_u8x8_d_st7567_erc13232_init_seq[] = {
   NGFX_U8X8_C(0x0a1),		                /* ADC set to reverse */
   NGFX_U8X8_C(0x0c0),		                /* common output mode */
   // Flipmode
-  //NGFX_U8X8_C(0x0a0),		                /* ADC set to reverse */
-  //NGFX_U8X8_C(0x0c8),		                /* common output mode */
-  
+
+
+
   NGFX_U8X8_C(0x0a6),		                /* display normal, bit val 0: LCD pixel off. */
   NGFX_U8X8_C(0x0a3),		                /* LCD bias 1/7 */
   /* power on sequence from paxinstruments */
@@ -1496,9 +1495,9 @@ static const uint8_t ngfx_u8x8_st7567_lw12832_init_seq[] = {
   NGFX_U8X8_C(0x0a1),		                /* ADC set to reverse */
   NGFX_U8X8_C(0x0c0),		                /* common output mode */
   // Flipmode
-  //NGFX_U8X8_C(0x0a0),		                /* ADC set to reverse */
-  //NGFX_U8X8_C(0x0c8),		                /* common output mode */
-  
+
+
+
   NGFX_U8X8_C(0x0a6),		                /* display normal, bit val 0: LCD pixel off. */
   NGFX_U8X8_C(0x0a3),		                /* LCD bias 1/7 */
   /* power on sequence from paxinstruments */
@@ -1549,7 +1548,7 @@ static void st7567_lw12832_clear_ddram(ngfx_u8x8_t *u8x8)
 
     x = ((ngfx_u8x8_tile_t *)arg_ptr)->x_pos;
     x *= 8;
-    /* x += u8x8->x_offset; */                                         // Note that this is removed intentionally
+                                              // Note that this is removed intentionally
     ngfx_u8x8_cad_SendCmd(u8x8, 0x010 | (x >> 4));                          // Set Column Address (MSB)
     ngfx_u8x8_cad_SendCmd(u8x8, 0x000 | ((x & 15)));                        // Set Column Address (LSB)
     ngfx_u8x8_cad_SendCmd(u8x8, 0x0b0 | (((ngfx_u8x8_tile_t *)arg_ptr)->y_pos)); // Set Page Address
@@ -1707,9 +1706,9 @@ static const uint8_t ngfx_u8x8_st7567_96x65_init_seq[] = {
   NGFX_U8X8_C(0x0a1),		                /* ADC set to reverse */
   NGFX_U8X8_C(0x0c0),		                /* common output mode */
   // Flipmode
-  //NGFX_U8X8_C(0x0a0),		                /* ADC set to reverse */
-  //NGFX_U8X8_C(0x0c8),		                /* common output mode */
-  
+
+
+
   NGFX_U8X8_C(0x0a6),		                /* display normal, bit val 0: LCD pixel off. */
   NGFX_U8X8_C(0x0a3),		                /* LCD bias 1/7 */
   /* power on sequence from paxinstruments */

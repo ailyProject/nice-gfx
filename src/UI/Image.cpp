@@ -40,17 +40,29 @@ bool Image::valid() const { return impl_!=nullptr; }
 ImageView Image::view() const { return impl_?impl_->source:ImageView(); }
 size_t Image::storageBytes() const { return impl_?impl_->ownedBytes:0; }
 Status Image::copy(const ImageView &source,Image &out) {
+  return copyStorage(source,out,PixelOrder::Wire);
+}
+Status Image::copyForView(const ImageView &source,Image &out) {
+  // Adopted Native565 images are already supported by the renderer. Preserve
+  // that order in owned View snapshots so native framebuffers can memcpy them.
+  const PixelOrder order=source.format==ImageFormat::RGB565?source.order:PixelOrder::Wire;
+  return copyStorage(source,out,order);
+}
+Status Image::copyStorage(const ImageView &source,Image &out,PixelOrder storageOrder) {
   size_t stride,bytes;if(!validImageView(source,stride,bytes))return Status::InvalidArgument;
   uint8_t *pixels=new(std::nothrow) uint8_t[bytes];if(!pixels)return Status::NoMemory;
   const size_t planes=source.format==ImageFormat::Mono1Masked?2:1;
   const size_t row=bytes/source.height/planes;
   const auto *input=static_cast<const uint8_t *>(source.pixels);
-  for(size_t y=0;y<source.height*planes;++y) {
-    if(source.format==ImageFormat::RGB565&&source.order==PixelOrder::Native) {
-      for(size_t x=0;x<source.width;++x){uint16_t color;memcpy(&color,input+y*stride+2*x,2);pixels[y*row+2*x]=uint8_t(color>>8);pixels[y*row+2*x+1]=uint8_t(color);}
-    } else memcpy(pixels+y*row,input+y*stride,row);
+  const bool convert=source.format==ImageFormat::RGB565&&source.order!=storageOrder;
+  if(stride==row) {
+    if(convert)copyPixels(pixels,input,source.width*source.height,PixelOrder::Native);
+    else memcpy(pixels,input,bytes);
+  } else for(size_t y=0;y<source.height*planes;++y) {
+    if(convert)copyPixels(pixels+y*row,input+y*stride,source.width,PixelOrder::Native);
+    else memcpy(pixels+y*row,input+y*stride,row);
   }
-  const ImageView packed(pixels,source.width,source.height,bytes,source.format,PixelOrder::Wire,row);
+  const ImageView packed(pixels,source.width,source.height,bytes,source.format,storageOrder,row);
   Impl *storage=new(std::nothrow) Impl(packed,releaseCopiedImage,nullptr,bytes);
   if(!storage){delete[] pixels;return Status::NoMemory;}
   Image image(storage);out=std::move(image);return Status::Ok;

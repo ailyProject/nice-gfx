@@ -61,7 +61,7 @@ void setup(void)
 {
   Serial.begin(9600);
   gfx.begin();
-  exampleAttachTouch(gfx); // Runtime XPT2046 pins in ExampleBoard.h
+  exampleAttachTouch(gfx); // Runtime XPT2046 pins in Hardware.h
 
   // Set the rotation before we calibrate
   gfx.setRotation(1);

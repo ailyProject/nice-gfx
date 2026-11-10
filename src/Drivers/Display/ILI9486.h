@@ -1,7 +1,7 @@
 #pragma once
 #include "../../Display/ControllerProfile.h"
 
-// From https://github.com/notro/fbtft/blob/master/fb_ili9486.c
+// Register and timing reference: ILI9486 datasheet.
 
 namespace nice_gfx { namespace controllers {
 inline void init_ILI9486(PanelSequence &s) {

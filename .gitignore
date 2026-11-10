@@ -51,7 +51,13 @@ Temporary Items
 .apdisk
 
 # Regression sources are versioned; only generated test output is local.
-tests/
+tests/*
+!tests/epaper/
+tests/epaper/*
+!tests/epaper/test.cpp
+!tests/epaper/it8951.cpp
+!tests/epaper/run.mjs
+!tests/epaper/README.md
 
 # Build output and downloaded development dependencies
 build/
@@ -142,4 +148,3 @@ sdkconfig.old
 *.tmp
 *.temp
 *.log
-!docs/validation/2026-10-23-interaction/*.log

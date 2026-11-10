@@ -54,6 +54,7 @@ using Esp32Pin = FastPin;
 
 namespace esp32_platform {
 inline void write(int pin, bool high) {
+  if (pin < 0) return;
 #if NICE_GFX_NATIVE_IDF
   gpio_set_level(gpio_num_t(pin), high ? 1 : 0);
 #else
@@ -61,6 +62,7 @@ inline void write(int pin, bool high) {
 #endif
 }
 inline void output(int pin, bool high) {
+  if (pin < 0) return;
 #if NICE_GFX_NATIVE_IDF
   if (!GPIO_IS_VALID_OUTPUT_GPIO(pin)) return;
   gpio_set_level(gpio_num_t(pin), high ? 1 : 0);

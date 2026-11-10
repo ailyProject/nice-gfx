@@ -110,7 +110,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_ssd1362z_oel1m0033we_256x64_disp
     /* post_reset_wait_ms = */ 10,      /* far east OLEDs need much longer setup time */
     /* sda_setup_time_ns = */ 50,       /* ssd1362z: 15ns, but cycle time is 100ns, so use 100/2 */
     /* sck_pulse_width_ns = */ 50,      /* ssd1362z: 20ns, but cycle time is 100ns, so use 100/2, AVR: below 70: 8 MHz, >= 70 --> 4MHz clock */
-    /* sck_clock_hz = */ 10000000UL,    /* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns, increased to 8MHz (issue 215), 10 MHz (issue 301) */
+    /* sck_clock_hz = */ 10000000UL,    /* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns, increased to 8MHz (issue 215), 10 MHz (issue 301) */
     /* spi_mode = */ 0,                 /* active high, rising edge */
     /* i2c_bus_clock_100kHz = */ 4,
     /* data_setup_time_ns = */ 10,

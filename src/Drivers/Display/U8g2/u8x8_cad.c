@@ -49,39 +49,7 @@
 
 
 */
-/*
-uint8_t ngfx_u8x8_cad_template(ngfx_u8x8_t *u8x8, uint8_t msg, uint16_t arg_int, void *arg_ptr)
-{
-  uint8_t i;
-  
-  switch(msg)
-  {
-    case NGFX_U8X8_MSG_CAD_SEND_CMD:
-      ngfx_u8x8_mcd_byte_SetDC(mcd->next, 1);
-      ngfx_u8x8_mcd_byte_Send(mcd->next, arg_int);
-      break;
-    case NGFX_U8X8_MSG_CAD_SEND_ARG:
-      ngfx_u8x8_mcd_byte_SetDC(mcd->next, 1);
-      ngfx_u8x8_mcd_byte_Send(mcd->next, arg_int);
-      break;
-    case NGFX_U8X8_MSG_CAD_SEND_DATA:
-      ngfx_u8x8_mcd_byte_SetDC(mcd->next, 0);
-      for( i = 0; i < 8; i++ )
-	ngfx_u8x8_mcd_byte_Send(mcd->next, ((uint8_t *)arg_ptr)[i]);
-      break;
-    case NGFX_U8X8_MSG_CAD_RESET:
-      return mcd->next->cb(mcd->next, msg, arg_int, arg_ptr);
-    case NGFX_U8X8_MSG_CAD_START_TRANSFER:
-      return mcd->next->cb(mcd->next, msg, arg_int, arg_ptr);
-    case NGFX_U8X8_MSG_CAD_END_TRANSFER:
-      return mcd->next->cb(mcd->next, msg, arg_int, arg_ptr);
-    default:
-      break;
-  }
-  return 1;
-}
 
-*/
 
 #include "u8x8.h"
 
@@ -235,7 +203,7 @@ uint8_t ngfx_u8x8_cad_110(ngfx_u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void 
       break;
     case NGFX_U8X8_MSG_CAD_SEND_DATA:
       ngfx_u8x8_byte_SetDC(u8x8, 0);
-      //ngfx_u8x8_byte_SendBytes(u8x8, arg_int, arg_ptr);
+
       //break;
       /* fall through */
     case NGFX_U8X8_MSG_CAD_INIT:
@@ -314,7 +282,7 @@ uint8_t ngfx_u8x8_cad_100(ngfx_u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void 
       break;
     case NGFX_U8X8_MSG_CAD_SEND_DATA:
       ngfx_u8x8_byte_SetDC(u8x8, 0);
-      //ngfx_u8x8_byte_SendBytes(u8x8, arg_int, arg_ptr);
+
       //break;
       /* fall through */
     case NGFX_U8X8_MSG_CAD_INIT:
@@ -346,7 +314,7 @@ uint8_t ngfx_u8x8_cad_001(ngfx_u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void 
       break;
     case NGFX_U8X8_MSG_CAD_SEND_DATA:
       ngfx_u8x8_byte_SetDC(u8x8, 1);
-      //ngfx_u8x8_byte_SendBytes(u8x8, arg_int, arg_ptr);
+
       //break;
       /* fall through */
     case NGFX_U8X8_MSG_CAD_INIT:
@@ -378,7 +346,7 @@ uint8_t ngfx_u8x8_cad_011(ngfx_u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void 
       break;
     case NGFX_U8X8_MSG_CAD_SEND_DATA:
       ngfx_u8x8_byte_SetDC(u8x8, 1);
-      //ngfx_u8x8_byte_SendBytes(u8x8, arg_int, arg_ptr);
+
       //break;
       /* fall through */
     case NGFX_U8X8_MSG_CAD_INIT:
@@ -422,7 +390,7 @@ uint8_t ngfx_u8x8_cad_st7920_spi(ngfx_u8x8_t *u8x8, uint8_t msg, uint8_t arg_int
       ngfx_u8x8_gpio_Delay(u8x8, NGFX_U8X8_MSG_DELAY_NANO, 1);
 
       /* this loop should be optimized: multiple bytes should be sent */
-      /* ngfx_u8x8_byte_SendBytes(u8x8, arg_int, arg_ptr); */
+
       data = (uint8_t *)arg_ptr;
     
       /* the following loop increases speed by 20% */
@@ -488,17 +456,17 @@ uint8_t ngfx_u8x8_cad_ssd13xx_i2c(ngfx_u8x8_t *u8x8, uint8_t msg, uint8_t arg_in
   {
     case NGFX_U8X8_MSG_CAD_SEND_CMD:
     case NGFX_U8X8_MSG_CAD_SEND_ARG:
-      /* 7 Nov 2016: Can this be improved?  */
-      //ngfx_u8x8_byte_SetDC(u8x8, 0);
+
+
       ngfx_u8x8_byte_StartTransfer(u8x8);
-      //ngfx_u8x8_byte_SendByte(u8x8, ngfx_u8x8_GetI2CAddress(u8x8));
+
       ngfx_u8x8_byte_SendByte(u8x8, 0x000);
       ngfx_u8x8_byte_SendByte(u8x8, arg_int);
       ngfx_u8x8_byte_EndTransfer(u8x8);      
       break;
     case NGFX_U8X8_MSG_CAD_SEND_DATA:
-      //ngfx_u8x8_byte_SetDC(u8x8, 1);
-    
+
+
       /* the FeatherWing OLED with the 32u4 transfer of long byte */
       /* streams was not possible. This is broken down to */
       /* smaller streams, 32 seems to be the limit... */
@@ -601,11 +569,11 @@ uint8_t ngfx_u8x8_cad_ssd13xx_fast_i2c(ngfx_u8x8_t *u8x8, uint8_t msg, uint8_t a
       /* speed improvement is about 6% compared to the classic version */
       // if ( in_transfer == 0 )
 	// {
-	//   ngfx_u8x8_byte_StartTransfer(u8x8);
-	//   ngfx_u8x8_byte_SendByte(u8x8, 0x000);	/* cmd byte for ssd13xx controller */
+
+
 	//   in_transfer = 1;
 	// }
-	//ngfx_u8x8_byte_SendByte(u8x8, arg_int);
+
       break;
     case NGFX_U8X8_MSG_CAD_SEND_ARG:
       ngfx_u8x8_byte_SendByte(u8x8, arg_int);
@@ -718,8 +686,8 @@ uint8_t ngfx_u8x8_cad_ld7032_i2c(ngfx_u8x8_t *u8x8, uint8_t msg, uint8_t arg_int
       ngfx_u8x8_byte_SendByte(u8x8, arg_int);
       break;
     case NGFX_U8X8_MSG_CAD_SEND_DATA:
-      //ngfx_u8x8_byte_SetDC(u8x8, 1);
-    
+
+
       /* the FeatherWing OLED with the 32u4 transfer of long byte */
       /* streams was not possible. This is broken down to */
       /* smaller streams, 32 seems to be the limit... */
@@ -788,7 +756,7 @@ uint8_t ngfx_u8x8_cad_uc16xx_i2c(ngfx_u8x8_t *u8x8, uint8_t msg, uint8_t arg_int
       }
       ngfx_u8x8_byte_SendByte(u8x8, arg_int);
       in_transfer = 1;
-      // is_data = 0;  // 20 Jun 2021: I assume that this is missing here
+
       break;
     case NGFX_U8X8_MSG_CAD_SEND_DATA:
       if ( in_transfer != 0 )
@@ -809,8 +777,8 @@ uint8_t ngfx_u8x8_cad_uc16xx_i2c(ngfx_u8x8_t *u8x8, uint8_t msg, uint8_t arg_int
 	ngfx_u8x8_byte_StartTransfer(u8x8);
       }
       in_transfer = 1;
-      // is_data = 1;  // 20 Jun 2021: I assume that this is missing here
-      
+
+
       p = (uint8_t *)arg_ptr;
       while( arg_int > 24 )
       {

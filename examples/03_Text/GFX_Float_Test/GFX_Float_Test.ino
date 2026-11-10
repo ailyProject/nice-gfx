@@ -1,5 +1,5 @@
 /*
-Tests the updated floating point plot function
+Tests the floating point plot function
 The datum is set to the centre of the 320 x 240 screen
 so numbers are printed the middle.
 

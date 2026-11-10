@@ -1,7 +1,7 @@
 #pragma once
 #include "../../Display/ControllerProfile.h"
 
-// NV3041A initialization ported from Arduino_GFX (BSD-licensed).
+// Register and timing reference: NV3041A datasheet.
 
 namespace nice_gfx { namespace controllers {
 inline void init_NV3041A(PanelSequence &s) {

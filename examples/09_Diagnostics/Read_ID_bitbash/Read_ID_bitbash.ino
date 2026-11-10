@@ -7,7 +7,7 @@
 // NOTE: This sketch does not work with parallel displays!
 
 // Original author unknown
-// Adapted by Bodmer 22/5/16, updated 16/9/16
+// Adaptation by Bodmer
 
 // Runtime pin object: NodeMCU GPIO numbering. Change constructor arguments for
 // other boards; this diagnostic intentionally bit-bangs its bidirectional SDA.

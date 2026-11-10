@@ -76,7 +76,7 @@ uint8_t ngfx_u8x8_d_a2printer_common(ngfx_u8x8_t *u8x8, uint8_t msg, NGFX_U8X8_U
     case NGFX_U8X8_MSG_DISPLAY_INIT:
       ngfx_u8x8_d_helper_display_init(u8x8);
       // no setup required
-      // ngfx_u8x8_cad_SendSequence(u8x8, ngfx_u8x8_d_a2printer_init_seq);
+
       break;
     case NGFX_U8X8_MSG_DISPLAY_SET_POWER_SAVE:
       // no powersave 
@@ -149,8 +149,8 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_a2printer_384x240_display_info =
   /* post_reset_wait_ms = */ 6, 
   /* sda_setup_time_ns = */ 20,		
   /* sck_pulse_width_ns = */  140,	
-  /* sck_clock_hz = */ 1000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
-  /* spi_mode = */ 0,		/* old: sck_takeover_edge, new: active high (bit 1), rising edge (bit 0) */
+  /* sck_clock_hz = */ 1000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
+  /* spi_mode = */ 0,		/* active high (bit 1), rising edge (bit 0) */
   /* i2c_bus_clock_100kHz = */ 4,
   /* data_setup_time_ns = */ 30,
   /* write_pulse_width_ns = */ 40,

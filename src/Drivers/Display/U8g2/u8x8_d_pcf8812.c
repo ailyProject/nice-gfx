@@ -52,7 +52,7 @@ static const uint8_t ngfx_u8x8_d_pcf8812_96x65_init_seq[] = {
   NGFX_U8X8_C(0x006),		                /* temp. control: b10 = 2 */
   NGFX_U8X8_C(0x013),		                /* bias system, 0x010..0x07 1:48 */
   NGFX_U8X8_C(0x09f),				/* contrast setting, 0..127 */
-  //NGFX_U8X8_CA(0x020 | 2, 0x080 | 0),				/* contrast setting, pcf8814 */
+
 
   NGFX_U8X8_C(0x024),		                /* deactivate chip (PD=1), horizontal increment (V=0), enter normal command set (H=0) */
     
@@ -263,7 +263,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_pcf8812_96x65_display_info =
   /* post_reset_wait_ms = */ 100, 
   /* sda_setup_time_ns = */ 100,	
   /* sck_pulse_width_ns = */ 100,	
-  /* sck_clock_hz = */ 4000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
+  /* sck_clock_hz = */ 4000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,
   /* data_setup_time_ns = */ 40,
@@ -298,7 +298,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_pcf8812_101x64_display_info =
   /* post_reset_wait_ms = */ 100, 
   /* sda_setup_time_ns = */ 100,	
   /* sck_pulse_width_ns = */ 100,	
-  /* sck_clock_hz = */ 4000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
+  /* sck_clock_hz = */ 4000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,
   /* data_setup_time_ns = */ 40,

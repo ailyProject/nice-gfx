@@ -1,7 +1,15 @@
 #pragma once
 #include "../Compiled.h"
 #include "RetainedStorage.h"
+#include "FrameGeometryStorage.h"
 #include <vector>
+#ifndef NICE_GFX_UI_SHAPE_INK_DAMAGE
+#if defined(CONFIG_IDF_TARGET_ESP32P4)
+#define NICE_GFX_UI_SHAPE_INK_DAMAGE 1
+#else
+#define NICE_GFX_UI_SHAPE_INK_DAMAGE 0
+#endif
+#endif
 
 namespace nice_gfx { namespace htmlui { namespace detail {
 
@@ -14,9 +22,19 @@ struct FrameGeometry {
   uint8_t alpha=255;
   uint8_t ellipsisCount=0;
   bool visible=true,inputVisible=true;
+#if NICE_GFX_UI_SHAPE_INK_DAMAGE
+  Rect paintRect;
+#endif
 };
+inline Rect framePaintBounds(const FrameGeometry &geometry){
+#if NICE_GFX_UI_SHAPE_INK_DAMAGE
+  return geometry.paintRect;
+#else
+  return geometry.rect;
+#endif
+}
 struct FrameGeometryCache {
-  RetainedVector<FrameGeometry> nodes;
+  FrameGeometryVector<FrameGeometry> nodes;
   RetainedVector<FrameTextLine> lines;
   std::vector<uint32_t> bands;
   size_t words=0;

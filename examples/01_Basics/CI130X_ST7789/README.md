@@ -21,7 +21,7 @@ MISO 不连接。模块没有 CS 引脚时，把 `Hardware.h` 中 `CI130X_TFT_CS
 
 当前 arduino-ci130x 的 `SPI` 是 **软件 SPI**，请求频率上限为 4 MHz；SD_SCK/SD_MOSI 的板上命名不表示此 core 提供了通用硬件 SPI 或 DMA。本例用 `ST7789_240x240_SPI`；NICE_GFX 的 ArduinoSpi 保留 core 的引脚资源和事务锁，并对符合条件的 CI13XX MODE0、无 MISO、正常任务上下文写入自动启用 masked-GPIO 批量快路径。其他情况使用 core 传输路径。请求速率和 `configuredHz` 均不是逻辑分析仪实测时钟。
 
-做同工作量基线比较时，可对整个库使用全局 C++ 编译参数 `-DNICE_GFX_CI13XX_FAST_SPI=0` 关闭批量快路径；默认值为 `1`。这个开关仅控制批量写入，CS/DC 等 FastPin 信号仍使用 masked GPIO，因此关闭开关得到的是“core bulk writer + 当前 FastPin”的基线。不能把它称为整个 GPIO 路径完全恢复旧版。仅在 `.ino` 中定义宏不足以改变单独编译的 `Bus.cpp`，应使用构建属性设置全局编译参数。
+做同工作量基线比较时，可对整个库使用全局 C++ 编译参数 `-DNICE_GFX_CI13XX_FAST_SPI=0` 关闭批量快路径；默认值为 `1`。这个开关仅控制批量写入，CS/DC 等 FastPin 信号仍使用 masked GPIO，因此关闭开关得到的是“core bulk writer + 当前 FastPin”的基线。仅在 `.ino` 中定义宏不足以改变单独编译的 `Bus.cpp`，应使用构建属性设置全局编译参数。
 
 ## 编译与显示
 
@@ -41,7 +41,7 @@ MISO 不连接。模块没有 CS 引脚时，把 `Hardware.h` 中 `CI130X_TFT_CS
 | --- | --- |
 | `INFO` | 输出尺寸、旋转、引脚、请求/配置速率、模式、每步像素数和状态 |
 | `RUN` / `PAUSE` | 启动/暂停移动方块 |
-| `FULL` | 两块 24×24 区域重绘，保持旧基线的每步 1152 像素工作量 |
+| `FULL` | 两块 24×24 区域重绘，每步提交 1152 像素 |
 | `STRIP` | 仅更新离开/进入的两条 4×24 区域，每步 192 像素；上电默认 |
 | `REDRAW` | 重绘静态画面并让方块回到左端 |
 | `R0` / `R1` / `R2` / `R3` | 选择四种旋转并重绘 |

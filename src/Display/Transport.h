@@ -1,11 +1,18 @@
 #pragma once
+#include "../Core/BuildConfig.h"
 #include "../Core/Status.h"
 #include "../Core/Pixel.h"
+#include "NativeStaging.h"
+#include "NativePresentation.h"
 #include <stddef.h>
 #include <stdint.h>
 #include <limits.h>
 #include <string.h>
 #include "../Core/Limits.h"
+
+#ifndef NICE_GFX_FRAME_REPAINT_INHERIT
+#define NICE_GFX_FRAME_REPAINT_INHERIT 0
+#endif
 
 namespace nice_gfx {
 
@@ -15,6 +22,15 @@ struct DirtyRect {
       : x(left), y(top), width(w), height(h) {}
   uint64_t pixels() const { return uint64_t(width) * uint64_t(height); }
 };
+
+#ifndef NICE_GFX_UI_RETAINED_CHART_CPU_CONTEXT
+#define NICE_GFX_UI_RETAINED_CHART_CPU_CONTEXT 0
+#endif
+#ifndef NICE_GFX_UI_RETAINED_CHART_INK
+#define NICE_GFX_UI_RETAINED_CHART_INK 0
+#endif
+struct RetainedRepaintRequest {uint64_t owner=0,revision=0;DirtyRect rect{};};
+struct RetainedRepaintReceipt {uintptr_t physicalBuffer=0;uint64_t allocationEpoch=0,previousToken=0,nextToken=0;bool retained=false;};
 
 struct TransportInfo {
   uint32_t frequency = 0;
@@ -32,6 +48,39 @@ struct TransportInfo {
 struct NativeFramebuffer {
   uint16_t *pixels = nullptr;
   size_t width = 0, height = 0, stride = 0, bytes = 0;
+  // Only the P4 MIPI transport sets this for its fenced, open atomic current
+  // back allocation. Authorizes synchronous accelerated RMW over complete
+  // owned cache lines during this mapping's serialized paint scope only.
+  // Generic/partial/unknown/guard-page native views keep the default false.
+  bool fencedAtomicMipiRmw = false;
+};
+
+// Immutable full picture for optional retained hardware composition. Copies
+// are owned by the backend. The caller changes revision whenever any pixel
+// changes and uses a fresh owner namespace for each resource-owner lifetime.
+struct FrameSource {
+  PixelView pixels;
+  uint64_t owner=0,revision=0;
+  // Optional exact delta from baseRevision. Borrowed for this blocking call;
+  // a cache without that exact base must rebuild the complete picture.
+  uint64_t baseRevision=0;
+  const DirtyRect *damage=nullptr;size_t damageCount=0;
+  FrameSource(PixelView image=PixelView(nullptr,0),uint64_t identity=0,uint64_t version=0)
+    :pixels(image),owner(identity),revision(version){}
+};
+
+// Optional synchronous full-screen composition from immutable full logical
+// pictures. The foreground ROI is opaque and samples sourceX/sourceY; pixels
+// outside it use background blended against black with backgroundKeep. Color
+// precision follows blendFrame(), including backend hardware quantization;
+// this does not promise the UI backdrop's exact floor-channel arithmetic.
+// Unsupported leaves visible output untouched. Once output writes begin, any
+// failure is a real error. Sources are released before the operation returns.
+struct OpaqueFrameComposition {
+  FrameSource background,foreground;
+  DirtyRect foregroundArea;
+  int32_t sourceX=0,sourceY=0;
+  uint8_t backgroundKeep=255;
 };
 
 // One call per span/transfer, never a virtual call per pixel. Transport and Panel
@@ -78,11 +127,31 @@ class Transport {
   virtual Status wait() = 0;
   // Commit composed framebuffer writes when the renderer closes a batch.
   virtual Status present() { return wait(); }
+  virtual Status beginWrite() { return Status::Ok; }
+  virtual Status cacheFrameSource(const FrameSource &) { return Status::Unsupported; }
+  virtual Status blitFrameSource(const DirtyRect &,const FrameSource &,int32_t,int32_t) { return Status::Unsupported; }
+  // Writes the whole requested region synchronously. An empty background
+  // selects solidColor. Unsupported must leave the visible output untouched.
+  virtual Status blendFrame(const DirtyRect &,const FrameSource &,const FrameSource &,uint8_t,uint16_t=0) { return Status::Unsupported; }
   // Optional whole-frame transaction. Regions are logical, validated dirty
   // rectangles and are borrowed only during beginFrame(). A backend may copy
   // preserved pixels into a back buffer here. wait()/present() inside an open
   // frame must only drain intermediate writes; commitFrame() publishes once.
   // The default commit preserves framebuffer transports that override present.
+  // Explicit write-discard contract. The caller must fully replace EVERY pixel
+  // in these regions before any read/alpha blend there, then commit or abort.
+  // No generic map, read/modify, transition or partial-cover caller may opt in.
+  // Unsupported MUST leave the transaction unopened and output untouched.
+  // Separate retained contract: damage minus retained centers is fully
+  // replaced; centers are restored from exact old-ink certificates. The
+  // exclusive mapped lease forbids other writers until certify+fenced commit.
+  // Unsupported leaves the transaction and receipts untouched.
+  virtual Status beginRetainedRepaintFrame(const DirtyRect *,size_t,const RetainedRepaintRequest *,size_t,RetainedRepaintReceipt *) { return Status::Unsupported; }
+  virtual Status mapRetainedRepaintFramebuffer(const RetainedRepaintReceipt *,size_t,NativeFramebuffer &) { return Status::Unsupported; }
+  virtual size_t retainedRepaintStorageBytes()const{return 0;}
+  virtual Status validateRetainedRepaintFrame(const RetainedRepaintReceipt *,size_t) { return Status::Unsupported; }
+  virtual Status certifyRetainedRepaintFrame(const RetainedRepaintReceipt *,size_t) { return Status::Unsupported; }
+  virtual Status beginRepaintFrame(const DirtyRect *,size_t) { return Status::Unsupported; }
   virtual Status beginFrame(const DirtyRect *, size_t) { return Status::Ok; }
   virtual Status commitFrame() { return present(); }
   virtual Status abortFrame() { return Status::Ok; }
@@ -102,10 +171,30 @@ class Transport {
     frame = NativeFramebuffer(); return Status::Unsupported;
   }
   virtual Status setPixelClockHz(uint32_t) { return Status::Unsupported; }
+  virtual bool supportsNativeStage()const{return false;}
+  virtual NativeStageTransfer copyNativeStage(const NativeFramebuffer &,const DirtyRect &,const NativeStageSource &)noexcept{return {};}
+  virtual NativeStageTransfer drainNativeStage()noexcept{return {};}
+  virtual NativeStageProviderStats nativeStageProviderStats()const{return {};}
+  virtual Status copySurfaceRows(const NativeFramebuffer &,int32_t,PixelView) { return Status::Unsupported; }
   virtual bool validOutputPin(int pin) const { return pin >= 0; }
   virtual TransportInfo info() const { return TransportInfo(); }
   virtual void output(int pin, bool high) = 0;
   virtual void delayMs(uint32_t ms) = 0;
+  // Appended capability slots preserve every existing virtual slot. Public
+  // wait/present/commit behavior stays synchronous for existing callers.
+  virtual bool supportsNativePresentationPipeline()const{return false;}
+  virtual Status beginNativeDrawing(const DirtyRect *,size_t,bool,NativeDrawingLease &lease){lease={};return Status::Unsupported;}
+  virtual Status mapNativeDrawing(const NativeDrawingLease &,NativeFramebuffer &frame){frame={};return Status::Unsupported;}
+  virtual NativeStageTransfer copyNativeDrawingStage(const NativeDrawingLease &,const NativeFramebuffer &,const DirtyRect &,const NativeStageSource &)noexcept{return {};}
+  virtual Status syncNativeDrawing(const NativeDrawingLease &)noexcept{return Status::Unsupported;}
+  virtual Status sealNativeDrawing(const NativeDrawingLease &)noexcept{return Status::Unsupported;}
+  virtual Status abortNativeDrawing(const NativeDrawingLease &)noexcept{return Status::Unsupported;}
+  virtual NativePresentationTransfer submitNativePresentation(const NativeDrawingLease &)noexcept{return {};}
+  virtual NativePresentationTransfer pollNativePresentation(const NativePresentationReceipt &,bool)noexcept{return {};}
+#if NICE_GFX_P4_NATIVE_PRESENTATION_OPAQUE_FILL
+  virtual NativeStageTransfer fillNativeDrawing(const NativeDrawingLease &,const NativeFramebuffer &,const DirtyRect &,uint16_t)noexcept{return {};}
+#endif
+  virtual Status composeOpaqueFrame(const OpaqueFrameComposition &) { return Status::Unsupported; }
  protected:
   Transport() {}
  private:

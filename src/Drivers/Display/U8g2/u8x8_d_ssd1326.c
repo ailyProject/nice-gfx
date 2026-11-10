@@ -46,7 +46,7 @@ static const uint8_t ngfx_u8x8_d_ssd1326_er_256x32_init_seq[] = {
   
   
   NGFX_U8X8_C(0x0ae),		                /* display off */
-  NGFX_U8X8_CA(0x0a8, 0x01f),		/* multiplex ratio: 0x03f * 1/64 duty - changed by CREESOO, acc. to datasheet, 100317*/ 
+  NGFX_U8X8_CA(0x0a8, 0x01f),		/* multiplex ratio: 0x03f * 1/64 duty, per datasheet (CREESOO)*/
   NGFX_U8X8_CA(0x0a1, 0x000),		/* display start line */
   NGFX_U8X8_CA(0x0a2, 0x000),		/* display offset, shift mapping ram counter */
   NGFX_U8X8_CA(0x0ad, 0x002),		/* master configuration: disable embedded DC-DC, enable internal VCOMH */
@@ -65,18 +65,18 @@ static const uint8_t ngfx_u8x8_d_ssd1326_er_256x32_init_seq[] = {
     
   NGFX_U8X8_CA(0x081, 0x027),		/* contrast, brightness, 0..128 */
   NGFX_U8X8_CA(0x0b1, 0x071),                    /* phase length */
-  //NGFX_U8X8_CA(0x0b2, 0x051),		/* frame frequency (row period) */
+
   NGFX_U8X8_CA(0x0b3, 0x0f0),		/* set display clock divide ratio/oscillator frequency (set clock as 135 frames/sec) */			
-  //NGFX_U8X8_CA(0x0b4, 0x002),                    /* set pre-charge compensation level (not documented in the SDD1325 datasheet, but used in the NHD init seq.) */
-  //NGFX_U8X8_CA(0x0b0, 0x028),                    /* enable pre-charge compensation (not documented in the SDD1325 datasheet, but used in the NHD init seq.) */
+
+
   NGFX_U8X8_CAA(0x0bb, 0x035, 0x0ff),                     /* set precharge */
   NGFX_U8X8_CA(0x0bc, 0x01f),                    /* pre-charge voltage level */
   NGFX_U8X8_CA(0x0be, 0x00f),                     /* VCOMH voltage */
   NGFX_U8X8_CA(0x0bf, 0x002|0x00d),           /* VSL voltage level (not documented in the SDD1325 datasheet, but used in the NHD init seq.) */
   NGFX_U8X8_C(0x0a4),				/* normal display mode */
     
-  //NGFX_U8X8_CA(0x023, 0x003),		/* graphics accelleration: fill pixel */
-    
+
+
   NGFX_U8X8_END_TRANSFER(),             	/* disable chip */
   NGFX_U8X8_END()             			/* end of sequence */
 };
@@ -104,7 +104,7 @@ static const uint8_t ngfx_u8x8_d_ssd1326_256x32_nhd_flip0_seq[] = {
 
 static const uint8_t ngfx_u8x8_d_ssd1326_256x32_nhd_flip1_seq[] = {
   NGFX_U8X8_START_TRANSFER(),             	/* enable chip, delay is part of the transfer start */
-  //NGFX_U8X8_CA(0x0a0, 0x005),		/* remap 00101 */
+
   NGFX_U8X8_CA(0x0a0, 0x001),		/* remap 00001 */
   NGFX_U8X8_END_TRANSFER(),             	/* disable chip */
   NGFX_U8X8_END()             			/* end of sequence */
@@ -227,7 +227,7 @@ static uint8_t ngfx_u8x8_d_ssd1326_256x32_generic(ngfx_u8x8_t *u8x8, uint8_t msg
 	  c--;
 	} while( c > 0 );
 	
-	//x += 4;
+
 	arg_int--;
       } while( arg_int > 0 );
       
@@ -251,7 +251,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_ssd1326_256x32_display_info =
   /* post_reset_wait_ms = */ 100, 		/**/
   /* sda_setup_time_ns = */ 100,		/* ssd1326  */
   /* sck_pulse_width_ns = */ 100,	/* ssd1326  */
-  /* sck_clock_hz = */ 4000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
+  /* sck_clock_hz = */ 4000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,
   /* data_setup_time_ns = */ 40,

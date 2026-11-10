@@ -1,7 +1,7 @@
 #pragma once
 #include "../../Display/ControllerProfile.h"
 
-// AXS15231B initialization ported from Arduino_GFX (BSD-licensed).
+// Register and timing reference: AXS15231B datasheet.
 
 namespace nice_gfx { namespace controllers {
 inline void init_AXS15231B(PanelSequence &s) {

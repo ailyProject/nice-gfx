@@ -45,7 +45,7 @@ static const uint8_t ngfx_u8x8_d_ssd1329_128x96_noname_init_seq[] = {
   
   NGFX_U8X8_C(0x0ae),		                /* display off */
   NGFX_U8X8_CA(0x0b3, 0x091),		/* set display clock divide ratio/oscillator frequency (set clock as 135 frames/sec) */			
-  NGFX_U8X8_CA(0x0a8, 0x05f),		/* multiplex ratio: 0x03f * 1/64 duty - changed by CREESOO, acc. to datasheet, 100317*/ 
+  NGFX_U8X8_CA(0x0a8, 0x05f),		/* multiplex ratio: 0x03f * 1/64 duty, per datasheet (CREESOO)*/
   NGFX_U8X8_CA(0x0a2, 0x000),		/* display offset, shift mapping ram counter */
   NGFX_U8X8_CA(0x0a1, 0x000),		/* display start line */
   NGFX_U8X8_CA(0x0ad, 0x002),		/* master configuration: disable embedded DC-DC, enable internal VCOMH */
@@ -248,7 +248,7 @@ static uint8_t ngfx_u8x8_d_ssd1329_128x96_generic(ngfx_u8x8_t *u8x8, uint8_t msg
 	  c--;
 	} while( c > 0 );
 	
-	//x += 4;
+
 	arg_int--;
       } while( arg_int > 0 );
       
@@ -272,7 +272,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_ssd1329_128x96_display_info =
   /* post_reset_wait_ms = */ 100, 		/**/
   /* sda_setup_time_ns = */ 100,		/* ssd1329  */
   /* sck_pulse_width_ns = */ 100,	/* ssd1329  */
-  /* sck_clock_hz = */ 4000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
+  /* sck_clock_hz = */ 4000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,
   /* data_setup_time_ns = */ 40,
@@ -465,7 +465,7 @@ static uint8_t ngfx_u8x8_d_ssd1329_96x96_generic(ngfx_u8x8_t *u8x8, uint8_t msg,
 	  c--;
 	} while( c > 0 );
 	
-	//x += 4;
+
 	arg_int--;
       } while( arg_int > 0 );
       
@@ -489,7 +489,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_ssd1329_96x96_display_info =
   /* post_reset_wait_ms = */ 100, 		/**/
   /* sda_setup_time_ns = */ 100,		/* ssd1329  */
   /* sck_pulse_width_ns = */ 100,	/* ssd1329  */
-  /* sck_clock_hz = */ 4000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
+  /* sck_clock_hz = */ 4000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,
   /* data_setup_time_ns = */ 40,

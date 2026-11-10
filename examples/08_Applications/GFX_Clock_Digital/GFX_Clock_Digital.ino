@@ -13,7 +13,7 @@
  ###### DON'T FORGET TO UPDATE THE Hardware.h FILE IN THIS SKETCH ######
  #########################################################################
 
- Based on clock sketch by Gilchrist 6/2/2014 1.0
+ Based on clock sketch by Gilchrist
 
 A few colour codes:
 

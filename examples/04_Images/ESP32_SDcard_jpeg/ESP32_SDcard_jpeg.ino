@@ -252,7 +252,7 @@ void jpegInfo() {
 //####################################################################################################
 // Show the execution time (optional)
 //####################################################################################################
-// WARNING: for UNO/AVR legacy reasons printing text to the screen with the Mega might not work for
+// WARNING: printing text to the screen with the Mega might not work for
 // sketch sizes greater than ~70KBytes because 16-bit address pointers are used in some libraries.
 
 // The Due will work fine with the HX8357_Due library.

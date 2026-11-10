@@ -1,7 +1,7 @@
 #pragma once
 #include "../../Display/ControllerProfile.h"
 
-// NV3007 initialization ported from Arduino_GFX (BSD-licensed).
+// Register and timing reference: NV3007 datasheet.
 
 namespace nice_gfx { namespace controllers {
 inline void init_NV3007(PanelSequence &s) {

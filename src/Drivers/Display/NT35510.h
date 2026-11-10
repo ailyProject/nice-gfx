@@ -1,7 +1,7 @@
 #pragma once
 #include "../../Display/ControllerProfile.h"
 
-// NT35510 16-bit register initialization ported from Arduino_GFX (BSD-licensed).
+// Register and timing reference: NT35510 datasheet.
 
 namespace nice_gfx { namespace controllers {
 inline void init_NT35510(PanelSequence &s) {

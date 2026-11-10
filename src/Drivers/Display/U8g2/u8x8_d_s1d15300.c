@@ -146,7 +146,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_s1d15300_lm6023_display_info =
   /* post_reset_wait_ms = */ 1, 
   /* sda_setup_time_ns = */ 200,		/* */
   /* sck_pulse_width_ns = */ 200,	/* half of cycle time (100ns according to datasheet), AVR: below 70: 8 MHz, >= 70 --> 4MHz clock */
-  /* sck_clock_hz = */ 1000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
+  /* sck_clock_hz = */ 1000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,
   /* data_setup_time_ns = */ 200,	/* st7565 datasheet, table 24, tds8 */
@@ -172,14 +172,14 @@ static const uint8_t ngfx_u8x8_d_s1d15300_lm6023_init_seq[] = {
   NGFX_U8X8_C(0x0a1),		                /* ADC set to reverse */
   NGFX_U8X8_C(0x0c0),		                /* common output mode */
   // Flipmode
-  //NGFX_U8X8_C(0x0a0),		                /* ADC set to reverse */
-  //NGFX_U8X8_C(0x0c8),		                /* common output mode */
-  
+
+
+
   NGFX_U8X8_C(0x0a6),		                /* display normal, bit val 0: LCD pixel off. */
   NGFX_U8X8_C(0x0a2),		                /* LCD bias 1/9 */
   NGFX_U8X8_C(0x02f),		                /* all power  control circuits on */
   NGFX_U8X8_CA(0x0f8, 0x000),		/* set booster ratio to 4x */
-  NGFX_U8X8_C(0x025),		                /* set V0 voltage resistor ratio to large,  issue 1678: changed from 0x23 to 0x25 */
+  NGFX_U8X8_C(0x025),		                /* set V0 voltage resistor ratio to large */
   NGFX_U8X8_CA(0x081, 170),			/* set contrast, contrast value NHD C12864, see issue 186, increased contrast to 180 (issue 219), reduced to 170 (issue 1678) */
   
   NGFX_U8X8_C(0x0ae),		                /* display off */
@@ -206,7 +206,7 @@ static const uint8_t ngfx_u8x8_d_s1d15300_lm6023_init_seq[] = {
 
 
     NGFX_U8X8_C(0x090), /* set contrast */
-    //NGFX_U8X8_C(0x0af), /* display on */
+
 
     NGFX_U8X8_C(0x0b0), /* set page address */
     NGFX_U8X8_C(0x01f), /* set column address upper */
@@ -264,7 +264,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_s1d15300_97x32_display_info =
   /* post_reset_wait_ms = */ 1, 
   /* sda_setup_time_ns = */ 200,		/* */
   /* sck_pulse_width_ns = */ 200,	/* half of cycle time (100ns according to datasheet), AVR: below 70: 8 MHz, >= 70 --> 4MHz clock */
-  /* sck_clock_hz = */ 1000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
+  /* sck_clock_hz = */ 1000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,
   /* data_setup_time_ns = */ 200,	/* st7565 datasheet, table 24, tds8 */
@@ -289,7 +289,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_s1d15300_100x32_display_info =
   /* post_reset_wait_ms = */ 1, 
   /* sda_setup_time_ns = */ 200,		/* */
   /* sck_pulse_width_ns = */ 200,	/* half of cycle time (100ns according to datasheet), AVR: below 70: 8 MHz, >= 70 --> 4MHz clock */
-  /* sck_clock_hz = */ 1000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
+  /* sck_clock_hz = */ 1000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,
   /* data_setup_time_ns = */ 200,	/* st7565 datasheet, table 24, tds8 */
@@ -313,7 +313,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_s1d15300_100x32i_display_info =
   /* post_reset_wait_ms = */ 1, 
   /* sda_setup_time_ns = */ 200,		/* */
   /* sck_pulse_width_ns = */ 200,	/* half of cycle time (100ns according to datasheet), AVR: below 70: 8 MHz, >= 70 --> 4MHz clock */
-  /* sck_clock_hz = */ 1000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
+  /* sck_clock_hz = */ 1000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,
   /* data_setup_time_ns = */ 200,	/* st7565 datasheet, table 24, tds8 */
@@ -346,7 +346,7 @@ static const uint8_t ngfx_u8x8_d_s1d15300_100x32_init_seq[] = {
 
 
     NGFX_U8X8_C(0x094), /* set contrast */
-    //NGFX_U8X8_C(0x0af), /* display on */
+
 
     NGFX_U8X8_C(0x0b0), /* set page address */
     NGFX_U8X8_C(0x010), /* set column address upper */

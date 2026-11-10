@@ -3,10 +3,7 @@
 #include "Common/LegacyRotation.h"
 
 namespace nice_gfx { namespace controllers {
-// ST7781R register values and power-up delays from Seeed's TFT Shield V1.
-// Adapted from TFT.cpp (2011 Seeed Technology Inc., Albert.Miao/Visweswara R).
-// SPDX-License-Identifier: LGPL-2.1-or-later
-// Original licensing notice and LGPL text: LICENSES/Seeed-TFT-LGPL-2.1.txt.
+// Register and timing reference: ST7781R datasheet.
 inline void init_ST7781R(PanelSequence &s) {
   const uint16_t setup[][2] = {
     {1,0x0100},{2,0x0700},{3,0x1030},{4,0},{8,0x0302},{0xA,0},{0xC,0},{0xD,0},{0xF,0}};

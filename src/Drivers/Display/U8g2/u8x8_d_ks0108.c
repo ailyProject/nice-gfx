@@ -200,7 +200,7 @@ uint8_t ngfx_u8x8_d_ks0108_128x64(ngfx_u8x8_t *u8x8, uint8_t msg, uint8_t arg_in
       //if ( v.x < 24 )
       //{
 	//u8x8->cad_cb(u8x8, NGFX_U8X8_MSG_CAD_START_TRANSFER, 4, NULL);
-	//ngfx_u8x8_ks0108_out(u8x8, &v, arg_ptr);
+
 	//u8x8->cad_cb(u8x8, NGFX_U8X8_MSG_CAD_END_TRANSFER, 0, NULL);
       //}    
       break;

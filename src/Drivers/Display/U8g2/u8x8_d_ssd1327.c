@@ -190,7 +190,7 @@ static uint8_t ngfx_u8x8_d_ssd1327_96x96_generic(ngfx_u8x8_t *u8x8, uint8_t msg,
 	  c--;
 	} while( c > 0 );
 	
-	//x += 4;
+
 	arg_int--;
       } while( arg_int > 0 );
       
@@ -221,15 +221,15 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_ssd1327_winstar_96x64_display_in
   /* post_reset_wait_ms = */ 100, 		/**/
   /* sda_setup_time_ns = */ 100,		/* */
   /* sck_pulse_width_ns = */ 100,	/*  */
-  /* sck_clock_hz = */ 4000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
+  /* sck_clock_hz = */ 4000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 1,	/* use 1 instead of 4, because the SSD1327 seems to be very slow */
   /* data_setup_time_ns = */ 40,
   /* write_pulse_width_ns = */ 60,	
   /* tile_width = */ 12,
   /* tile_height = */ 8,
-  /* default_x_offset = */ 16,		/* changed to 16, issue 1050 */
-  /* flipmode_x_offset = */ 16,		/* changed to 16, issue 1050 */
+  /* default_x_offset = */ 16,		/* module column offset */
+  /* flipmode_x_offset = */ 16,		/* module column offset */
   /* pixel_width = */ 96,
   /* pixel_height = */ 64
 };
@@ -280,13 +280,13 @@ static const uint8_t ngfx_u8x8_d_ssd1327_winstar_96x64_init_seq[] = {
   NGFX_U8X8_CA(0x0a1, 0x000),		/* display start line */  
   NGFX_U8X8_CA(0x0a2, 0x000),		/* display offset, shift mapping ram counter */
   
-  NGFX_U8X8_CA(0x0a8, 0x063),		/* multiplex ratio: 63* 1/64 duty */ /* changed to hex, issue 1050 */
-  
+  NGFX_U8X8_CA(0x0a8, 0x063),		/* multiplex ratio: 63* 1/64 duty */ /* hexadecimal multiplex ratio */
+
   NGFX_U8X8_CA(0x0ab, 0x001),		/* Enable internal VDD regulator (RESET) */
   NGFX_U8X8_CA(0x081, 0x053),		/* contrast, brightness, 0..128 */
   
   NGFX_U8X8_CA(0x0b1, 0x047),                    /* phase length */  
-  //NGFX_U8X8_CA(0x0b3, 0x001),		/* set display clock divide ratio/oscillator frequency  */			
+
   NGFX_U8X8_CA(0x0b3, 0x000),		/* set display clock divide ratio/oscillator frequency  */			
   
   NGFX_U8X8_C(0x0b9),				/* use linear lookup table */
@@ -349,7 +349,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_ssd1327_96x96_display_info =
   /* post_reset_wait_ms = */ 100, 		/**/
   /* sda_setup_time_ns = */ 100,		/* */
   /* sck_pulse_width_ns = */ 100,	/*  */
-  /* sck_clock_hz = */ 4000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
+  /* sck_clock_hz = */ 4000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 1,	/* use 1 instead of 4, because the SSD1327 seems to be very slow */
   /* data_setup_time_ns = */ 40,
@@ -385,21 +385,21 @@ static const uint8_t ngfx_u8x8_d_ssd1327_96x96_init_seq[] = {
   
   NGFX_U8X8_CA(0x0fd, 0x012),		/* unlock display, usually not required because the display is unlocked after reset */
   NGFX_U8X8_C(0x0ae),		                /* display off */
-  //NGFX_U8X8_CA(0x0a8, 0x03f),		/* multiplex ratio: 0x03f * 1/64 duty */
+
   NGFX_U8X8_CA(0x0a8, 0x05f),		/* multiplex ratio: 0x05f * 1/64 duty */
   NGFX_U8X8_CA(0x0a1, 0x000),		/* display start line */
-  //NGFX_U8X8_CA(0x0a2, 0x04c),		/* display offset, shift mapping ram counter */
-  
+
+
   NGFX_U8X8_CA(0x0a2, 0x020),		/* display offset, shift mapping ram counter */
   NGFX_U8X8_CA(0x0a0, 0x051),		/* remap configuration */
   
   
   NGFX_U8X8_CA(0x0ab, 0x001),		/* Enable internal VDD regulator (RESET) */
-  //NGFX_U8X8_CA(0x081, 0x070),		/* contrast, brightness, 0..128 */
+
   NGFX_U8X8_CA(0x081, 0x053),		/* contrast, brightness, 0..128 */
-  //NGFX_U8X8_CA(0x0b1, 0x055),                    /* phase length */
+
   NGFX_U8X8_CA(0x0b1, 0x051),                    /* phase length */  
-  //NGFX_U8X8_CA(0x0b3, 0x091),		/* set display clock divide ratio/oscillator frequency (set clock as 135 frames/sec) */			
+
   NGFX_U8X8_CA(0x0b3, 0x001),		/* set display clock divide ratio/oscillator frequency  */			
   
   //? NGFX_U8X8_CA(0x0ad, 0x002),		/* master configuration: disable embedded DC-DC, enable internal VCOMH */
@@ -407,9 +407,9 @@ static const uint8_t ngfx_u8x8_d_ssd1327_96x96_init_seq[] = {
   
   NGFX_U8X8_C(0x0b9),				/* use linear lookup table */
 
-  //NGFX_U8X8_CA(0x0bc, 0x010),                    /* pre-charge voltage level */
+
   NGFX_U8X8_CA(0x0bc, 0x008),                    /* pre-charge voltage level */
-  //NGFX_U8X8_CA(0x0be, 0x01c),                     /* VCOMH voltage */
+
   NGFX_U8X8_CA(0x0be, 0x007),                     /* VCOMH voltage */
   NGFX_U8X8_CA(0x0b6, 0x001),		/* second precharge */
   NGFX_U8X8_CA(0x0d5, 0x062),		/* enable second precharge, internal vsl (bit0 = 0) */
@@ -473,7 +473,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_ssd1327_ea_w128128_display_info 
   /* post_reset_wait_ms = */ 100, 		/**/
   /* sda_setup_time_ns = */ 100,		/* */
   /* sck_pulse_width_ns = */ 100,	/*  */
-  /* sck_clock_hz = */ 4000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
+  /* sck_clock_hz = */ 4000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 1,	/* use 1 instead of 4, because the SSD1327 seems to be very slow */
   /* data_setup_time_ns = */ 40,
@@ -493,21 +493,21 @@ static const uint8_t ngfx_u8x8_d_ssd1327_ea_w128128_init_seq[] = {
   
   NGFX_U8X8_CA(0x0fd, 0x012),		/* unlock display, usually not required because the display is unlocked after reset */
   NGFX_U8X8_C(0x0ae),		                /* display off */
-  //NGFX_U8X8_CA(0x0a8, 0x03f),		/* multiplex ratio: 0x03f * 1/64 duty */
+
   NGFX_U8X8_CA(0x0a8, 0x05f),		/* multiplex ratio: 0x05f * 1/64 duty */
   NGFX_U8X8_CA(0x0a1, 0x000),		/* display start line */
-  //NGFX_U8X8_CA(0x0a2, 0x04c),		/* display offset, shift mapping ram counter */
-  
+
+
   NGFX_U8X8_CA(0x0a2, 0x010),		/* display offset, shift mapping ram counter */
   NGFX_U8X8_CA(0x0a0, 0x051),		/* remap configuration */
   
   
   NGFX_U8X8_CA(0x0ab, 0x001),		/* Enable internal VDD regulator (RESET) */
-  //NGFX_U8X8_CA(0x081, 0x070),		/* contrast, brightness, 0..128 */
+
   NGFX_U8X8_CA(0x081, 0x053),		/* contrast, brightness, 0..128 */
-  //NGFX_U8X8_CA(0x0b1, 0x055),                    /* phase length */
+
   NGFX_U8X8_CA(0x0b1, 0x051),                    /* phase length */  
-  //NGFX_U8X8_CA(0x0b3, 0x091),		/* set display clock divide ratio/oscillator frequency (set clock as 135 frames/sec) */			
+
   NGFX_U8X8_CA(0x0b3, 0x001),		/* set display clock divide ratio/oscillator frequency  */			
   
   //? NGFX_U8X8_CA(0x0ad, 0x002),		/* master configuration: disable embedded DC-DC, enable internal VCOMH */
@@ -515,9 +515,9 @@ static const uint8_t ngfx_u8x8_d_ssd1327_ea_w128128_init_seq[] = {
   
   NGFX_U8X8_C(0x0b9),				/* use linear lookup table */
 
-  //NGFX_U8X8_CA(0x0bc, 0x010),                    /* pre-charge voltage level */
+
   NGFX_U8X8_CA(0x0bc, 0x008),                    /* pre-charge voltage level */
-  //NGFX_U8X8_CA(0x0be, 0x01c),                     /* VCOMH voltage */
+
   NGFX_U8X8_CA(0x0be, 0x007),                     /* VCOMH voltage */
   NGFX_U8X8_CA(0x0b6, 0x001),		/* second precharge */
   NGFX_U8X8_CA(0x0d5, 0x062),		/* enable second precharge, internal vsl (bit0 = 0) */
@@ -593,9 +593,9 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_ssd1327_128x128_display_info =
   /* post_reset_wait_ms = */ 100, 		/**/
   /* sda_setup_time_ns = */ 100,		/* */
   /* sck_pulse_width_ns = */ 100,	/*  */
-  /* sck_clock_hz = */ 4000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
+  /* sck_clock_hz = */ 4000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
   /* spi_mode = */ 0,		/* active high, rising edge */
-  /* i2c_bus_clock_100kHz = */ 1,	/* use 1 instead of 4, because the SSD1327 seems to be very slow, Update 9 Aug 2019: The OLED from aliexpress supports 400kHz */
+  /* i2c_bus_clock_100kHz = */ 1,	/* 100kHz for modules requiring a slower I2C bus; some modules support 400kHz */
   /* data_setup_time_ns = */ 40,
   /* write_pulse_width_ns = */ 60,	
   /* tile_width = */ 16,
@@ -630,22 +630,22 @@ static const uint8_t ngfx_u8x8_d_ssd1327_128x128_init_seq[] = {
 	
   NGFX_U8X8_CA(0x0fd, 0x012),		/* unlock display, usually not required because the display is unlocked after reset */
   NGFX_U8X8_C(0x0ae),		                /* display off */
-  //NGFX_U8X8_CA(0x0a8, 0x03f),		/* multiplex ratio: 0x03f * 1/64 duty */
-  //NGFX_U8X8_CA(0x0a8, 0x05f),		/* multiplex ratio: 0x05f * 1/64 duty */
+
+
   NGFX_U8X8_CA(0x0a8, 0x07f),       		 /* multiplex ratio: 0x05f * 1/128duty */
   NGFX_U8X8_CA(0x0a1, 0x000),		/* display start line */
-  //NGFX_U8X8_CA(0x0a2, 0x04c),		/* display offset, shift mapping ram counter */
-  
+
+
   NGFX_U8X8_CA(0x0a2, 0x000),		/* display offset, shift mapping ram counter */
   NGFX_U8X8_CA(0x0a0, 0x051),		/* remap configuration */
   
   
   NGFX_U8X8_CA(0x0ab, 0x001),		/* Enable internal VDD regulator (RESET) */
-  //NGFX_U8X8_CA(0x081, 0x070),		/* contrast, brightness, 0..128 */
+
   NGFX_U8X8_CA(0x081, 0x053),		/* contrast, brightness, 0..128 */
-  //NGFX_U8X8_CA(0x0b1, 0x055),                    /* phase length */
+
   NGFX_U8X8_CA(0x0b1, 0x051),                    /* phase length */  
-  //NGFX_U8X8_CA(0x0b3, 0x091),		/* set display clock divide ratio/oscillator frequency (set clock as 135 frames/sec) */			
+
   NGFX_U8X8_CA(0x0b3, 0x001),		/* set display clock divide ratio/oscillator frequency  */			
   
   //? NGFX_U8X8_CA(0x0ad, 0x002),		/* master configuration: disable embedded DC-DC, enable internal VCOMH */
@@ -653,9 +653,9 @@ static const uint8_t ngfx_u8x8_d_ssd1327_128x128_init_seq[] = {
   
   NGFX_U8X8_C(0x0b9),				/* use linear lookup table */
 
-  //NGFX_U8X8_CA(0x0bc, 0x010),                    /* pre-charge voltage level */
+
   NGFX_U8X8_CA(0x0bc, 0x008),                    /* pre-charge voltage level */
-  //NGFX_U8X8_CA(0x0be, 0x01c),                     /* VCOMH voltage */
+
   NGFX_U8X8_CA(0x0be, 0x007),                     /* VCOMH voltage */
   NGFX_U8X8_CA(0x0b6, 0x001),		/* second precharge */
   NGFX_U8X8_CA(0x0d5, 0x062),		/* enable second precharge, internal vsl (bit0 = 0) */
@@ -738,22 +738,22 @@ static const uint8_t ngfx_u8x8_d_ssd1327_zjy_128x128_init_seq[] = {
 	
   NGFX_U8X8_CA(0x0fd, 0x012),		/* unlock display, usually not required because the display is unlocked after reset */
   NGFX_U8X8_C(0x0ae),		                /* display off */
-  //NGFX_U8X8_CA(0x0a8, 0x03f),		/* multiplex ratio: 0x03f * 1/64 duty */
-  //NGFX_U8X8_CA(0x0a8, 0x05f),		/* multiplex ratio: 0x05f * 1/64 duty */
+
+
   NGFX_U8X8_CA(0x0a8, 0x07f),       		 /* multiplex ratio: 0x05f * 1/128duty */
   NGFX_U8X8_CA(0x0a1, 0x000),		/* display start line */
-  //NGFX_U8X8_CA(0x0a2, 0x04c),		/* display offset, shift mapping ram counter */
-  
+
+
   NGFX_U8X8_CA(0x0a2, 0x000),		/* display offset, shift mapping ram counter */
   NGFX_U8X8_CA(0x0a0, 0x051),		/* remap configuration */
   
   
   NGFX_U8X8_CA(0x0ab, 0x001),		/* Enable internal VDD regulator (RESET) */
-  //NGFX_U8X8_CA(0x081, 0x070),		/* contrast, brightness, 0..128 */
+
   NGFX_U8X8_CA(0x081, 0x053),		/* contrast, brightness, 0..128 */
-  //NGFX_U8X8_CA(0x0b1, 0x055),                    /* phase length */
+
   NGFX_U8X8_CA(0x0b1, 0x051),                    /* phase length */  
-  //NGFX_U8X8_CA(0x0b3, 0x091),		/* set display clock divide ratio/oscillator frequency (set clock as 135 frames/sec) */			
+
   NGFX_U8X8_CA(0x0b3, 0x001),		/* set display clock divide ratio/oscillator frequency  */			
   
   //? NGFX_U8X8_CA(0x0ad, 0x002),		/* master configuration: disable embedded DC-DC, enable internal VCOMH */
@@ -761,9 +761,9 @@ static const uint8_t ngfx_u8x8_d_ssd1327_zjy_128x128_init_seq[] = {
   
   NGFX_U8X8_C(0x0b9),				/* use linear lookup table */
 
-  //NGFX_U8X8_CA(0x0bc, 0x010),                    /* pre-charge voltage level */
+
   NGFX_U8X8_CA(0x0bc, 0x008),                    /* pre-charge voltage level */
-  //NGFX_U8X8_CA(0x0be, 0x01c),                     /* VCOMH voltage */
+
   NGFX_U8X8_CA(0x0be, 0x007),                     /* VCOMH voltage */
   
   NGFX_U8X8_CA(0x0b6, 0x001),		/* second precharge */
@@ -918,9 +918,9 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_ssd1327_128x96_display_info =
   /* post_reset_wait_ms = */ 100, 		/**/
   /* sda_setup_time_ns = */ 100,		/* */
   /* sck_pulse_width_ns = */ 100,	/*  */
-  /* sck_clock_hz = */ 4000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
+  /* sck_clock_hz = */ 4000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
   /* spi_mode = */ 0,		/* active high, rising edge */
-  /* i2c_bus_clock_100kHz = */ 1,	/* use 1 instead of 4, because the SSD1327 seems to be very slow, Update 9 Aug 2019: The OLED from aliexpress supports 400kHz */
+  /* i2c_bus_clock_100kHz = */ 1,	/* 100kHz for modules requiring a slower I2C bus; some modules support 400kHz */
   /* data_setup_time_ns = */ 40,
   /* write_pulse_width_ns = */ 60,	
   /* tile_width = */ 16,
@@ -956,18 +956,18 @@ static const uint8_t ngfx_u8x8_d_ssd1327_128x96_init_seq[] = {
 	
   NGFX_U8X8_CA(0x0fd, 0x012),		/* unlock display, usually not required because the display is unlocked after reset */
   NGFX_U8X8_C(0x0ae),		                /* display off */
-  //NGFX_U8X8_CA(0x0a8, 0x03f),		/* multiplex ratio: 0x03f * 1/64 duty */
+
   NGFX_U8X8_CA(0x0a8, 0x05f),		/* multiplex ratio: 0x05f * 1/64 duty */
-  //NGFX_U8X8_CA(0x0a8, 0x07f),       		 /* multiplex ratio: 0x05f * 1/128duty */
+
   NGFX_U8X8_CA(0x0a1, 0x000),		/* display start line */
-  //NGFX_U8X8_CA(0x0a2, 0x04c),		/* display offset, shift mapping ram counter */
-  
+
+
   NGFX_U8X8_CA(0x0a2, 0x020),		/* display offset, shift mapping ram counter */
   NGFX_U8X8_CA(0x0a0, 0x051),		/* remap configuration */
   
   
   NGFX_U8X8_CA(0x0ab, 0x001),		/* Enable internal VDD regulator (RESET) */
-  //NGFX_U8X8_CA(0x081, 0x070),		/* contrast, brightness, 0..128 */
+
   NGFX_U8X8_CA(0x081, 0x0df),		/* contrast, brightness, 0..128 (0xdf as per datasheet) */
   NGFX_U8X8_CA(0x0b1, 0x022),                    /* phase length */  
   NGFX_U8X8_CA(0x0b3, 0x050),		/* set display clock divide ratio/oscillator frequency  */			

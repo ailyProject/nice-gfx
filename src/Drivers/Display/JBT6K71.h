@@ -1,7 +1,7 @@
 #pragma once
 #include "../../Display/ControllerProfile.h"
 
-// JBT6K71 initialization ported from Arduino_GFX (BSD-licensed).
+// Register and timing reference: JBT6K71 datasheet.
 
 namespace nice_gfx { namespace controllers {
 inline void init_JBT6K71(PanelSequence &s) {

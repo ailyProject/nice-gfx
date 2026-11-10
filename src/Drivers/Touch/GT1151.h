@@ -4,12 +4,15 @@
 namespace nice_gfx {
 
 // GT1151 uses a checksummed report, not GT911's ready-bit/held-point protocol.
-// Protocol reference: espressif/esp-bsp, esp_lcd_touch_gt1151.
+// Protocol reference: GT1151 datasheet.
 class Gt1151 : public I2cTouch {
  public:
   static constexpr uint8_t MaxContacts = 10;
   struct Contact { uint16_t x=0,y=0,pressure=0; uint8_t id=0; };
-  struct Frame { Contact contacts[MaxContacts]; uint8_t count=0; };
+  struct Frame {
+    static constexpr bool ExplicitRelease = false;
+    Contact contacts[MaxContacts]; uint8_t count=0; bool ready=false;
+  };
   Gt1151(TouchI2cBus &bus, uint16_t w, uint16_t h, uint8_t address = 0x14)
       : I2cTouch(bus, w, h, address) {}
   bool read(RawTouch &out, uint16_t = 0) override {
@@ -42,7 +45,7 @@ class Gt1151 : public I2cTouch {
     uint8_t checksum = 0;
     for (size_t i = 0; i < bytes; ++i) checksum = uint8_t(checksum + report[i]);
     if (checksum || (report[0] & 15) != count) return badPacket();
-    Frame frame;frame.count=count;uint16_t seenIds=0;
+    Frame frame;frame.count=count;frame.ready=true;uint16_t seenIds=0;
     for (uint8_t i = 0; i < count; ++i) {
       const uint8_t *p = report + 1 + size_t(i) * 8;
       RawTouch candidate;

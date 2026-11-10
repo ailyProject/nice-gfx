@@ -1,8 +1,8 @@
 # Wio Field Lab / 随身观察仪
 
-Wio Terminal 的独立完整应用示例，版本 **v4.1 IR fix**。打开 [WioFieldLab.ino](WioFieldLab.ino) 即可编译上传；界面、图片、字体子集和业务代码均已包含，无需安装或运行 nice_gfx_editor。
+Wio Terminal 的独立完整应用示例。打开 [WioFieldLab.ino](WioFieldLab.ino) 即可编译上传；界面、图片、字体子集和业务代码均已包含，无需安装或运行 nice_gfx_editor。
 
-保留七页界面、透明绿叶素材、局部动效、首页右对齐，以及冷启动红外/静音卡死修复。单块 320×16 RGB565 绘图缓冲占 10240 字节，无需 PSRAM 或整屏缓存。
+应用包含七页界面、透明绿叶素材、局部动效和首页右对齐布局。单块 320×16 RGB565 绘图缓冲占 10240 字节，无需 PSRAM 或整屏缓存。
 
 ## 安装与运行
 

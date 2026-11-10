@@ -1,5 +1,5 @@
 #pragma once
-// Compatibility umbrella for the former mixed module-driver header.
+// Umbrella header for module drivers.
 #include "JD9853A.h"
 #include "ST7789P.h"
 #include "ST7781R.h"

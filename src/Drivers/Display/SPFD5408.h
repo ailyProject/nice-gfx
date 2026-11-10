@@ -3,9 +3,7 @@
 #include "Common/LegacyRotation.h"
 
 namespace nice_gfx { namespace controllers {
-// SPFD5408A / ILI932x startup from the author's SPFD5408 Arduino library.
-// Graphics library by ladyada/adafruit with init code from Rossum, modified
-// for SPFD5408 by Joao Lopes. Notices: LICENSES/SPFD5408-BSD.txt.
+// Register and timing references: SPFD5408A and ILI932x datasheets.
 inline void init_SPFD5408(PanelSequence &s) {
   s.writeRegister16(0,1); s.delay(50);
   const uint16_t setup[][2] = {

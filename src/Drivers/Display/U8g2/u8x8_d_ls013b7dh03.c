@@ -54,8 +54,8 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_ls013b7dh03_128x128_display_info
   /* post_reset_wait_ms = */ 6,
   /* sda_setup_time_ns = */ 227,	/* 227 nsec according to the datasheet */		
   /* sck_pulse_width_ns = */  255,	/* 450 nsec according to the datasheet */
-  /* sck_clock_hz = */ 1000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
-  /* spi_mode = */ 0,		/* changed from 2 to 0 (https://github.com/olikraus/u8g2/issues/1771) */
+  /* sck_clock_hz = */ 1000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
+  /* spi_mode = */ 0,		/* SPI mode 0. */
   /* i2c_bus_clock_100kHz = */ 4,
   /* data_setup_time_ns = */ 100,
   /* write_pulse_width_ns = */ 100,
@@ -133,8 +133,8 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_ls027b7dh01_400x240_display_info
   /* post_reset_wait_ms = */ 6,
   /* sda_setup_time_ns = */ 227,	/* 227 nsec according to the datasheet */		
   /* sck_pulse_width_ns = */  255,	/* 450 nsec according to the datasheet */
-  /* sck_clock_hz = */ 1000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
-  /* spi_mode = */ 0,		/* changed from 2 to 0 (https://github.com/olikraus/u8g2/issues/1771) */
+  /* sck_clock_hz = */ 1000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
+  /* spi_mode = */ 0,		/* SPI mode 0. */
   /* i2c_bus_clock_100kHz = */ 4,
   /* data_setup_time_ns = */ 100,
   /* write_pulse_width_ns = */ 100,
@@ -171,7 +171,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_ls027b7dh01_m0_400x240_display_i
   /* post_reset_wait_ms = */ 6,
   /* sda_setup_time_ns = */ 227,	/* 227 nsec according to the datasheet */		
   /* sck_pulse_width_ns = */  255,	/* 450 nsec according to the datasheet */
-  /* sck_clock_hz = */ 1000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
+  /* sck_clock_hz = */ 1000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
   /* spi_mode = */ 0,		/* active low, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,
   /* data_setup_time_ns = */ 100,
@@ -209,8 +209,8 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_ls013b7dh05_144x168_display_info
   /* post_reset_wait_ms = */ 6,
   /* sda_setup_time_ns = */ 227,	/* 227 nsec according to the datasheet */		
   /* sck_pulse_width_ns = */  255,	/* 450 nsec according to the datasheet */
-  /* sck_clock_hz = */ 1000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
-  /* spi_mode = */ 0,		/* changed from 2 to 0 (https://github.com/olikraus/u8g2/issues/1771) */
+  /* sck_clock_hz = */ 1000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
+  /* spi_mode = */ 0,		/* SPI mode 0. */
   /* i2c_bus_clock_100kHz = */ 4,
   /* data_setup_time_ns = */ 100,
   /* write_pulse_width_ns = */ 100,
@@ -248,8 +248,8 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_ls011b7dh03_160x68_display_info 
   /* post_reset_wait_ms = */ 6,
   /* sda_setup_time_ns = */ 227,	/* 227 nsec according to the datasheet */		
   /* sck_pulse_width_ns = */  255,	/* 450 nsec according to the datasheet */
-  /* sck_clock_hz = */ 1000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
-  /* spi_mode = */ 0,		/* changed from 2 to 0 (https://github.com/olikraus/u8g2/issues/1771) */
+  /* sck_clock_hz = */ 1000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
+  /* spi_mode = */ 0,		/* SPI mode 0. */
   /* i2c_bus_clock_100kHz = */ 4,
   /* data_setup_time_ns = */ 100,
   /* write_pulse_width_ns = */ 100,

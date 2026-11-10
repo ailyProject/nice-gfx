@@ -91,7 +91,7 @@ inline bool mediaJpeg(const MediaDesc &m){return m.bytesPerPixel==MediaJpeg;}
 // transparent-color prefix. The prefix is shared by all frames, not per pixel.
 constexpr uint8_t MediaRgb565ColorKey = 0x82;
 // Row-padded, MSB-left bits. Each frame contains its white=1 color plane,
-// followed by an optional opaque=1 mask plane. Resource layout stays ABI 17.
+// followed by an optional opaque=1 mask plane.
 constexpr uint8_t MediaMono1 = 0x41;
 constexpr uint8_t MediaMono1Masked = 0xc1;
 inline bool mediaColorKeyed(const MediaDesc &m) { return m.bytesPerPixel==MediaRgb565ColorKey; }
@@ -169,7 +169,7 @@ struct NodeDesc {
   const ShapeDesc *shape;
   const InputFieldDesc *inputField;
   const AnimationDesc *exitAnimation; // Optional one-shot Manual departure preset.
-  const MotionDesc *motion; // Optional compiled keyframes/options; null keeps the legacy fast path.
+  const MotionDesc *motion; // Optional compiled keyframes/options; null uses the preset sampler.
 };
 struct PageDesc {
   const char *path;

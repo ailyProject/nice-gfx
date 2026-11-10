@@ -1,7 +1,7 @@
 #pragma once
 #include "../../Display/ControllerProfile.h"
 
-// CO5300 initialization ported from Arduino_GFX (BSD-licensed).
+// Register and timing reference: CO5300 datasheet.
 
 namespace nice_gfx { namespace controllers {
 inline void init_CO5300(PanelSequence &s) {

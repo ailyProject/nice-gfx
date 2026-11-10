@@ -1,7 +1,7 @@
 #pragma once
 #include "../../Display/ControllerProfile.h"
 
-// ILI9806 initialization ported from Arduino_GFX (BSD-licensed).
+// Register and timing reference: ILI9806 datasheet.
 
 namespace nice_gfx { namespace controllers {
 inline void init_ILI9806(PanelSequence &s) {

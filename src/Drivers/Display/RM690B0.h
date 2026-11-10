@@ -1,7 +1,7 @@
 #pragma once
 #include "../../Display/ControllerProfile.h"
 
-// RM690B0 initialization ported from Arduino_GFX (BSD-licensed).
+// Register and timing reference: RM690B0 datasheet.
 
 namespace nice_gfx { namespace controllers {
 inline void init_RM690B0(PanelSequence &s) {

@@ -1,8 +1,8 @@
 #pragma once
 #include "../../Display/ControllerProfile.h"
 
-// 160 x 160 dual-gate data is based on Arduino_GFX. The 40/50/60 x 160
-// single-gate sequences are based on displaylib_16bit_PICO.
+// Register and timing reference: GC9D01 datasheet.
+// Panel profiles: 160 x 160 dual-gate; 40/50/60 x 160 single-gate.
 
 namespace nice_gfx { namespace controllers {
 inline void init_GC9D01_50(PanelSequence &s) {

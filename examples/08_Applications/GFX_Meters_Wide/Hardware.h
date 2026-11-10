@@ -2,7 +2,7 @@
 #include <NICE_GFX.h>
 #include <Platform/Arduino/TouchSpi.h>
 
-// Generated from examples/_shared/Hardware.h. Edit this sketch-local copy.
+// Hardware configuration for this sketch. Edit this file to match your board.
 // One owning display object for this example. Change the ordinary
 // constructor arguments below to match your wiring. Platform checks select
 // sample connections; no display pin or controller selection macros are used.

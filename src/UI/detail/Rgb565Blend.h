@@ -46,7 +46,9 @@ NICE_GFX_BLEND_INLINE uint16_t color(uint16_t foreground,uint16_t background,uin
 // Construction costs 128 small channel samples; each lookup uses three loads.
 class SolidBackgroundLut {
  public:
-  SolidBackgroundLut(uint16_t background,uint8_t alpha) {
+  SolidBackgroundLut()=default;
+  SolidBackgroundLut(uint16_t background,uint8_t alpha) {reset(background,alpha);}
+  void reset(uint16_t background,uint8_t alpha) {
     const uint32_t inverse=255u-alpha;
     uint32_t r=(background>>11)*inverse+127u;
     uint32_t g=((background>>5)&63u)*inverse+127u;

@@ -8,8 +8,7 @@
  This examples uses the hardware SPI only. Non-hardware SPI
  is just too slow (~8 times slower!)
  
- Based on clock sketch by Gilchrist 6/2/2014 1.0
- Updated by Bodmer
+ Based on clock sketch by Gilchrist; adaptation by Bodmer
 A few colour codes:
  
 code	color

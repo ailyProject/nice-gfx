@@ -14,7 +14,7 @@
  ###### DON'T FORGET TO UPDATE THE Hardware.h FILE IN THIS SKETCH ######
  #########################################################################
  
- Based on a sketch by Gilchrist 6/2/2014 1.0
+ Based on a sketch by Gilchrist
  */
 
 #include <SPI.h>

@@ -131,7 +131,7 @@ static Status captureFixedChrome(void *context,const detail::FixedChromeCache::W
   return result==Status::Ok?request.restored:result;
 }
 Status paintFixedChrome(int prefix,const DirtyRect &area,uint16_t *pixels,size_t capacity,size_t stride,FixedChromeApplied &applied){
-  applied=FixedChromeApplied{};
+  applied=FixedChromeApplied{};if(!nativeGpuPaintAllowed())return Status::Ok;
   if(foregroundCapture||buildingSurface||renderOrder!=PixelOrder::Native||!nativeOverlayTarget||stagingNativeTarget||renderingViewport||snapshotTransition||
      rasterFrame.preview.page||snapshotKeyboard.visible||displayPolicy.monochrome||!ppaBlendEnabled||!rgb565_ppa::Context::available()||paintOffsetX||paintOffsetY)return Status::Ok;
   const auto &p=*rasterFrame.current.page;const auto &cache=*paintCache;

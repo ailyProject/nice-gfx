@@ -1,5 +1,7 @@
 #pragma once
 #include "../VideoDisplay.h"
+#include "../../Drivers/Display/Video/ST7701_JC4880.h"
+#include "../../Drivers/Display/Video/JD9165_JC1060.h"
 #if defined(CONFIG_IDF_TARGET_ESP32S31) && SOC_LCD_RGB_SUPPORTED
 namespace nice_gfx { namespace detail {
 struct RgbDiagnosticsStorage {

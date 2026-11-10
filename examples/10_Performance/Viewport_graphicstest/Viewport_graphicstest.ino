@@ -1,7 +1,7 @@
 /*
  This sketch demonstrates the Adafruit graphicstest sketch running in a
- viewport (aka window) within the TFT screen area. To do this line 37 has
- been added. Line 39 draws a frame outside the viewport.
+ viewport (aka window) within the TFT screen area, with a frame drawn outside
+ the viewport.
 
  This sketch uses the TomThumb4x6 bitmap font only.
 

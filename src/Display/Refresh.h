@@ -1,60 +1,10 @@
 #pragma once
 #include "Panel.h"
 #include "DisplayAccess.h"
+#include "DirtyRegions.h"
 
 namespace nice_gfx {
 
-// Fixed storage. Merge when the enclosing rectangle costs no more than the two
-// original rectangles plus mergeSlack pixels. At capacity, merge the incoming
-// rectangle with the cheapest existing one; invalidation is never discarded.
-template<size_t Capacity = 16>
-class DirtyRegions {
-  static_assert(Capacity > 0, "DirtyRegions requires at least one slot");
- public:
-  explicit DirtyRegions(uint32_t mergeSlack = 32) : slack_(mergeSlack) {}
-  uint32_t mergeSlack() const { return slack_; }
-  size_t size() const { return count_; }
-  bool empty() const { return !count_; }
-  const DirtyRect &operator[](size_t index) const { return regions_[index]; }
-  void clear() { count_ = 0; }
-  void add(DirtyRect r, uint16_t width, uint16_t height) {
-    if (r.width <= 0 || r.height <= 0 || !width || !height) return;
-    const int64_t right = int64_t(r.x) + r.width, bottom = int64_t(r.y) + r.height;
-    if (right <= 0 || bottom <= 0 || r.x >= width || r.y >= height) return;
-    r.x = r.x < 0 ? 0 : r.x; r.y = r.y < 0 ? 0 : r.y;
-    r.width = int32_t((right < width ? right : width) - r.x);
-    r.height = int32_t((bottom < height ? bottom : height) - r.y);
-    for (size_t i = 0; i < count_;) {
-      const DirtyRect joined = unite(r, regions_[i]);
-      if (joined.pixels() <= r.pixels() + regions_[i].pixels() + slack_) {
-        r = joined; regions_[i] = regions_[--count_]; i = 0;
-      } else ++i;
-    }
-    if (count_ == Capacity) {
-      size_t best = 0;
-      uint64_t cost = UINT64_MAX;
-      for (size_t i = 0; i < count_; ++i) {
-        const uint64_t increase = unite(r, regions_[i]).pixels() - regions_[i].pixels();
-        if (increase < cost) { best = i; cost = increase; }
-      }
-      r = unite(r, regions_[best]); regions_[best] = regions_[--count_];
-      // Apply the same coalescing rule after the capacity-forced merge.
-      add(r, width, height);
-      return;
-    }
-    regions_[count_++] = r;
-  }
- private:
-  static DirtyRect unite(const DirtyRect &a, const DirtyRect &b) {
-    const int32_t left = a.x < b.x ? a.x : b.x, top = a.y < b.y ? a.y : b.y;
-    const int32_t right = a.x + a.width > b.x + b.width ? a.x + a.width : b.x + b.width;
-    const int32_t bottom = a.y + a.height > b.y + b.height ? a.y + a.height : b.y + b.height;
-    return DirtyRect(left, top, right - left, bottom - top);
-  }
-  DirtyRect regions_[Capacity];
-  size_t count_ = 0;
-  uint32_t slack_;
-};
 
 struct RefreshStats {
   size_t renderedTiles = 0, submittedTiles = 0;
@@ -72,6 +22,8 @@ struct FrameSlice {
   PixelView pixels{nullptr,0};
   bool solid = false;
   uint16_t color = 0;
+  bool written = false; // Backend already completed this slice's pixels.
+  FrameSource source;int32_t sourceX=0,sourceY=0;
 };
 
 // Single-task partial refresh independent of a UI framework. The caller owns
@@ -130,7 +82,13 @@ class RefreshScheduler {
     if(circularClip_!=enabled){circularClip_=enabled;invalidateAll();}
     return true;
   }
-  bool busy() const { return active_; }
+  bool busy() const {
+#if NICE_GFX_P4_NATIVE_PRESENTATION_PIPELINE
+    return active_||nativeReadyToken_;
+#else
+    return active_;
+#endif
+  }
   bool dirty() const { return !pending_.empty(); }
   size_t pendingRegions() const { return pending_.size(); }
   // Read-only snapshot before start(); invalidations remain pending until the
@@ -159,8 +117,19 @@ class RefreshScheduler {
 
   // Limit each ordinary raster tile without resizing caller-owned storage.
   // A bounded scheduler uses its renderer instead of draining direct surfaces.
+#if NICE_GFX_P4_NATIVE_PRESENTATION_PIPELINE
+  // Validation stays independent of retirement so invalid requests cannot
+  // drain an unrelated accepted presentation before being rejected.
+  bool validPixelBudget(size_t pixels)const {
+    return !(pixels&&panel_&&pixels<size_t(panel_->windowAlignmentX())*panel_->windowAlignmentY());
+  }
+#endif
   bool configurePixelBudget(size_t pixels) {
+#if NICE_GFX_P4_NATIVE_PRESENTATION_PIPELINE
+    if(active_||!validPixelBudget(pixels))return false;
+#else
     if(active_||(pixels&&panel_&&pixels<size_t(panel_->windowAlignmentX())*panel_->windowAlignmentY()))return false;
+#endif
     pixelBudget_=pixels;return true;
   }
   size_t pixelBudget() const {return pixelBudget_;}
@@ -169,6 +138,9 @@ class RefreshScheduler {
   // cancel() drains accepted DMA. Only capable rectangular backends use it.
   Status start(Renderer renderer, void *context = nullptr, PixelOrder order = PixelOrder::Native,
                const PixelView *surface = nullptr, const FrameSlice *slices = nullptr, size_t sliceCount = 0) {
+#if NICE_GFX_P4_NATIVE_PRESENTATION_PIPELINE
+    if(nativeReadyToken_)return Status::Busy;
+#endif
     if (active_) return Status::Busy;
     if (!panel_ || !panel_->ready()) return status_ = Status::NotInitialized;
     if (!renderer || !validBuffers()) {panel_->abortFrame();return status_ = Status::InvalidArgument;}
@@ -184,14 +156,14 @@ class RefreshScheduler {
       directCount_=0;
       if(surface){
         if(slices||!surface->valid()||surface->width!=screenWidth_||surface->height!=screenHeight_)return fail(Status::InvalidArgument);
-        directSlices_[0].area=DirtyRect(0,0,screenWidth_,screenHeight_);directSlices_[0].pixels=*surface;directCount_=1;
+        directSlices_[0]=FrameSlice{};directSlices_[0].area=DirtyRect(0,0,screenWidth_,screenHeight_);directSlices_[0].pixels=*surface;directCount_=1;
       }else{
         if(!sliceCount||sliceCount>6)return fail(Status::InvalidArgument);
         uint64_t covered=0;
         for(size_t i=0;i<sliceCount;++i){
           const auto &s=slices[i];const auto &r=s.area;
           if(r.x<0||r.y<0||r.width<=0||r.height<=0||int64_t(r.x)+r.width>screenWidth_||int64_t(r.y)+r.height>screenHeight_||
-             (!s.solid&&(!s.pixels.valid()||s.pixels.width!=size_t(r.width)||s.pixels.height!=size_t(r.height))))return fail(Status::InvalidArgument);
+             (!s.solid&&!s.written&&(!s.pixels.valid()||s.pixels.width!=size_t(r.width)||s.pixels.height!=size_t(r.height))))return fail(Status::InvalidArgument);
           for(size_t j=0;j<i;++j){const auto &a=directSlices_[j].area;
             if(r.x<a.x+a.width&&r.x+r.width>a.x&&r.y<a.y+a.height&&r.y+r.height>a.y)return fail(Status::InvalidArgument);
           }
@@ -212,7 +184,7 @@ class RefreshScheduler {
         const int32_t bottom=dirty.y+dirty.height<a.y+a.height?dirty.y+dirty.height:a.y+a.height;
         if(right<=left||bottom<=top)continue;
         if(left%ax||top%ay||(right-left)%ax||(bottom-top)%ay)direct_=false;
-        else if(!slice.solid){
+        else if(!slice.solid&&!slice.written){
           const auto &v=slice.pixels;
           const PixelView pixels(v.data+2*(size_t(top-a.y)*v.stride+size_t(left-a.x)),
                                  size_t(right-left),size_t(bottom-top),v.stride,v.order);
@@ -227,8 +199,94 @@ class RefreshScheduler {
     prepared_ = inFlight_ = -1; active_ = true;
     return status_ = Status::Ok;
   }
+
+#if NICE_GFX_P4_NATIVE_PRESENTATION_PIPELINE
+  bool canPrepareNative()const {
+    return panel_&&panel_->supportsNativePresentationPipeline()&&!nativeReadyToken_&&
+      (!active_||nativePresentPending_)&&!pending_.empty();
+  }
+  Status reserveNativeDamage(uint64_t token){
+    if(!token||!canPrepareNative())return Status::Busy;
+    nativeReadyWork_=pending_;pending_.clear();nativeReadyToken_=token;
+    nativeReadyStats_=RefreshStats{};
+    return Status::Ok;
+  }
+  size_t preparedNativeRegions(uint64_t token)const {
+    return token&&token==nativeReadyToken_?nativeReadyWork_.size():0;
+  }
+  bool preparedNativeRegion(uint64_t token,size_t index,DirtyRect &area)const {
+    if(!token||token!=nativeReadyToken_||index>=nativeReadyWork_.size())return false;
+    area=nativeReadyWork_[index];return true;
+  }
+  Status restoreNativeDamage(uint64_t token){
+    if(!token||token!=nativeReadyToken_)return Status::IoError;
+    for(size_t i=0;i<nativeReadyWork_.size();++i)
+      pending_.add(nativeReadyWork_[i],panel_->width(),panel_->height());
+    nativeReadyWork_.clear();nativeReadyToken_=0;nativeReadyLease_=NativeDrawingLease{};
+    return Status::Ok;
+  }
+  Status prepareNativeSurface(uint64_t token,const NativeDrawingLease &lease,const NativeFramebuffer &frame){
+    if(!token||token!=nativeReadyToken_||!lease.owner||!lease.frame||!lease.epoch||
+       !panel_->frameOpen()||!frame.pixels||!frame.fencedAtomicMipiRmw||
+       frame.width!=panel_->width()||frame.height!=panel_->height()||frame.stride<frame.width||
+       frame.height>SIZE_MAX/frame.stride/2||frame.bytes!=frame.stride*frame.height*2)return Status::IoError;
+    for(size_t i=0;i<nativeReadyWork_.size();++i){const DirtyRect &area=nativeReadyWork_[i];
+      const PixelView pixels(frame.pixels+size_t(area.y)*frame.stride+area.x,
+        size_t(area.width),size_t(area.height),frame.stride,PixelOrder::Native);
+      const uint32_t started=profilingClock_?profilingClock_():0;
+      Status status=panel_->flush(area.x,area.y,pixels,false);
+      if(status==Status::Ok)status=panel_->syncNativeDrawing(lease);
+      if(profilingClock_)nativeReadyStats_.submitMicros+=uint32_t(profilingClock_()-started);
+      if(status!=Status::Ok)return status;
+      ++nativeReadyStats_.submittedTiles;++nativeReadyStats_.directBlits;
+      nativeReadyStats_.directPixels+=area.pixels();
+    }
+    const Status sealed=panel_->sealNativeDrawing(lease);
+    if(sealed==Status::Ok)nativeReadyLease_=lease;
+    return sealed;
+  }
+  Status acceptNativePresentation(uint64_t token,const NativePresentationTransfer &transfer){
+    if(active_||nativePresentPending_||!token||token!=nativeReadyToken_||
+       !transfer.accepted)return Status::IoError;
+    const bool matched=transfer.receipt.owner==nativeReadyLease_.owner&&transfer.receipt.frame==nativeReadyLease_.frame&&
+      transfer.receipt.epoch==nativeReadyLease_.epoch&&transfer.receipt.target==nativeReadyLease_.target;
+    nativeUncertainAccepted_=!matched||transfer.retired||(transfer.receipt.required!=1&&transfer.receipt.required!=2);
+    work_=nativeReadyWork_;nativeReadyWork_.clear();nativeReadyToken_=0;
+    nativeReadyLease_=NativeDrawingLease{};nativeReceipt_=transfer.receipt;
+    stats_=nativeReadyStats_;nativeReadyStats_=RefreshStats{};
+    nativePresentPending_=active_=true;status_=nativeUncertainAccepted_?Status::IoError:transfer.status;
+    return nativeUncertainAccepted_?Status::IoError:Status::Ok;
+  }
+  bool nativePresentationPending()const{return nativePresentPending_;}
+  bool nativePresentationUncertain()const{return nativeUncertainAccepted_;}
+  const NativePresentationReceipt &lastNativeRetirement()const{return nativeLastRetired_;}
+  Status lastNativeRetirementStatus()const{return nativeLastRetiredStatus_;}
+  Status pollNativePresentation(bool wait,bool &retired){
+    retired=false;
+    if(!active_||!nativePresentPending_)return Status::InvalidArgument;
+    if(nativeUncertainAccepted_)return status_=Status::IoError;
+    const uint32_t started=profilingClock_?profilingClock_():0;
+    const NativePresentationTransfer result=panel_->pollNativePresentation(nativeReceipt_,wait);
+    if(profilingClock_)stats_.submitMicros+=uint32_t(profilingClock_()-started);
+    if(result.retired){
+      if(!result.accepted||result.receipt.owner!=nativeReceipt_.owner||result.receipt.frame!=nativeReceipt_.frame||
+         result.receipt.epoch!=nativeReceipt_.epoch||result.receipt.target!=nativeReceipt_.target||
+         result.receipt.baseline!=nativeReceipt_.baseline||result.receipt.required!=nativeReceipt_.required)
+        return status_=Status::IoError;
+      if(result.status!=Status::Ok)requeue();else work_.clear();
+      nativeLastRetired_=result.receipt;nativeLastRetiredStatus_=result.status;
+      nativeReceipt_=NativePresentationReceipt{};nativePresentPending_=active_=false;
+      prepared_=inFlight_=-1;clearDirect();retired=true;
+    }
+    return status_=result.status==Status::Unsupported?Status::IoError:result.status;
+  }
+#endif
+
   Status step(bool waitForTransfer = false) {
     if (!active_) return status_;
+#if NICE_GFX_P4_NATIVE_PRESENTATION_PIPELINE
+    if(nativePresentPending_){bool retired=false;return pollNativePresentation(waitForTransfer,retired);}
+#endif
     if (!panel_->ready()) return fail(Status::NotInitialized);
     if (panel_->width() != screenWidth_ || panel_->height() != screenHeight_ ||
         panel_->rotation() != rotation_) {
@@ -252,13 +310,15 @@ class RefreshScheduler {
       if(!source)return completeFrame();
       inFlight_=0;const uint32_t submittedAt=profilingClock_?profilingClock_():0;
       Status s;
-      if(source->solid){
+      if(source->written){s=Status::Ok;}
+      else if(source->solid){
         s=panel_->window(r.x,r.y,r.x+r.width-1,r.y+r.height-1);
         if(s==Status::Ok)s=panel_->fill(source->color,uint32_t(r.pixels()));
       }else{
         const auto &v=source->pixels;
         const PixelView pixels(v.data+2*(size_t(r.y-source->area.y)*v.stride+size_t(r.x-source->area.x)),size_t(r.width),size_t(r.height),v.stride,v.order);
-        s=panel_->flush(r.x,r.y,pixels,true);
+        s=source->source.owner?panel_->blitFrameSource(r,source->source,source->sourceX+r.x-source->area.x,source->sourceY+r.y-source->area.y):Status::Unsupported;
+        if(s==Status::Unsupported)s=panel_->flush(r.x,r.y,pixels,true);
       }
       if(profilingClock_)stats_.submitMicros+=uint32_t(profilingClock_()-submittedAt);
       if(s!=Status::Ok)return fail(s);
@@ -345,6 +405,13 @@ class RefreshScheduler {
   // Cancel drains accepted transfers and retains the entire frame as dirty.
   Status cancel() {
     if (!active_) return status_;
+#if NICE_GFX_P4_NATIVE_PRESENTATION_PIPELINE
+    if(nativePresentPending_){
+      // The View owns the accepted publication ticket. Its typed retirement
+      // path must consume that exact receipt before this scheduler can cancel.
+      return nativeUncertainAccepted_?Status::IoError:Status::Busy;
+    }
+#endif
     const Status s = panel_->abortFrame();
     requeue(); active_ = false; prepared_ = inFlight_ = -1;clearDirect();
     return status_ = s;
@@ -411,6 +478,17 @@ class RefreshScheduler {
     active_=false;prepared_=inFlight_=-1;clearDirect();work_.clear();return status_=Status::Ok;
   }
   Backend *panel_;
+#if NICE_GFX_P4_NATIVE_PRESENTATION_PIPELINE
+  DirtyRegions<Capacity> nativeReadyWork_;
+  uint64_t nativeReadyToken_=0;
+  NativeDrawingLease nativeReadyLease_{};
+  NativePresentationReceipt nativeReceipt_{};
+  NativePresentationReceipt nativeLastRetired_{};
+  Status nativeLastRetiredStatus_=Status::Ok;
+  RefreshStats nativeReadyStats_{};
+  bool nativePresentPending_=false;
+  bool nativeUncertainAccepted_=false;
+#endif
   uint16_t *buffers_[2];
   size_t capacity_;
   size_t pixelBudget_=0;

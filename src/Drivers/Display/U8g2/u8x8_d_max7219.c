@@ -76,9 +76,9 @@ static const uint8_t ngfx_u8x8_d_max7219_init_seq[] = {
   NGFX_U8X8_END_TRANSFER(),             	/* disable chip */
 
 
-  //NGFX_U8X8_CA(12, 0),				/* shutdown */
-    
-  //NGFX_U8X8_END_TRANSFER(),             	/* disable chip */
+
+
+
   NGFX_U8X8_END()             			/* end of sequence */
 };
 
@@ -143,7 +143,7 @@ static uint8_t ngfx_u8x8_d_max7219_generic(ngfx_u8x8_t *u8x8, uint8_t msg, uint8
       /* transfer always has to start at x pos 0 (u8x8 is not supported) */
       /* also y pos has to be 0 */
       /* arg_int is ignored */
-      //x = ((ngfx_u8x8_tile_t *)arg_ptr)->x_pos;    
+
 
       c = ((ngfx_u8x8_tile_t *)arg_ptr)->cnt;	/* number of tiles */
       ptr = ((ngfx_u8x8_tile_t *)arg_ptr)->tile_ptr;	/* data ptr to the tiles */
@@ -179,7 +179,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_max7219_32x8_display_info =
   /* post_reset_wait_ms = */ 100, 
   /* sda_setup_time_ns = */ 100,	
   /* sck_pulse_width_ns = */ 100,	
-  /* sck_clock_hz = */ 4000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
+  /* sck_clock_hz = */ 4000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,
   /* data_setup_time_ns = */ 40,
@@ -226,7 +226,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_max7219_16x16_display_info =
   /* post_reset_wait_ms = */ 100, 
   /* sda_setup_time_ns = */ 100,	
   /* sck_pulse_width_ns = */ 100,	
-  /* sck_clock_hz = */ 4000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
+  /* sck_clock_hz = */ 4000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,
   /* data_setup_time_ns = */ 40,
@@ -281,7 +281,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_max7219_8x8_display_info =
   /* post_reset_wait_ms = */ 100, 
   /* sda_setup_time_ns = */ 100,	
   /* sck_pulse_width_ns = */ 100,	
-  /* sck_clock_hz = */ 4000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
+  /* sck_clock_hz = */ 4000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,
   /* data_setup_time_ns = */ 40,
@@ -376,9 +376,9 @@ static const uint8_t ngfx_u8x8_d_max7219_8_init_seq[] = {
   NGFX_U8X8_END_TRANSFER(),             	/* disable chip */
 
 
-  //NGFX_U8X8_CA(12, 0),				/* shutdown */
-    
-  //NGFX_U8X8_END_TRANSFER(),             	/* disable chip */
+
+
+
   NGFX_U8X8_END()             			/* end of sequence */
 };
 
@@ -422,7 +422,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_max7219_64x8_display_info =
   /* post_reset_wait_ms = */ 100, 
   /* sda_setup_time_ns = */ 100,	
   /* sck_pulse_width_ns = */ 100,	
-  /* sck_clock_hz = */ 4000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
+  /* sck_clock_hz = */ 4000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,
   /* data_setup_time_ns = */ 40,

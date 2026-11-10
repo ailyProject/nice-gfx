@@ -156,7 +156,7 @@ static const uint8_t ngfx_u8x8_d_ssd1312_128x32_init_seq[] = {
   NGFX_U8X8_C(0x0a1),				/* segment remap a0/a1*/
   NGFX_U8X8_C(0x0c0),				/* c0: scan dir normal, c8: reverse */
   
-  /* 11 Aug 2025: The value below doesn't mach the bits 4 and 5, actually 0x12 would enable the alternate odd/even remapping */
+  /* The value below does not set bits 4 and 5; 0x12 would enable alternate odd/even remapping. */
   /* probably the correct configuration value should be 0x00, see https://github.com/olikraus/u8g2/issues/2690 ??? */
   NGFX_U8X8_CA(0x0da, 0x012),		/* com pin HW config, sequential com pin config (bit 4), disable left/right remap (bit 5) */
 
@@ -187,7 +187,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_ssd1312_128x32_display_info =
   /* post_reset_wait_ms = */ 100, /* far east OLEDs need much longer setup time */
   /* sda_setup_time_ns = */ 50,		/* SSD1306: 15ns, but cycle time is 100ns, so use 100/2 */
   /* sck_pulse_width_ns = */ 50,	/* SSD1306: 20ns, but cycle time is 100ns, so use 100/2, AVR: below 70: 8 MHz, >= 70 --> 4MHz clock */
-  /* sck_clock_hz = */ 8000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns, increased to 8MHz (issue 215) */
+  /* sck_clock_hz = */ 8000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns, increased to 8MHz (issue 215) */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,
   /* data_setup_time_ns = */ 40,
@@ -247,7 +247,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_ssd1312_120x32_display_info =
   /* post_reset_wait_ms = */ 100, /* far east OLEDs need much longer setup time */
   /* sda_setup_time_ns = */ 50,		/* SSD1306: 15ns, but cycle time is 100ns, so use 100/2 */
   /* sck_pulse_width_ns = */ 50,	/* SSD1306: 20ns, but cycle time is 100ns, so use 100/2, AVR: below 70: 8 MHz, >= 70 --> 4MHz clock */
-  /* sck_clock_hz = */ 8000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns, increased to 8MHz (issue 215) */
+  /* sck_clock_hz = */ 8000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns, increased to 8MHz (issue 215) */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,
   /* data_setup_time_ns = */ 40,
@@ -306,7 +306,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_ssd1312_120x28_display_info =
   /* post_reset_wait_ms = */ 100, /* far east OLEDs need much longer setup time */
   /* sda_setup_time_ns = */ 50,		/* SSD1306: 15ns, but cycle time is 100ns, so use 100/2 */
   /* sck_pulse_width_ns = */ 50,	/* SSD1306: 20ns, but cycle time is 100ns, so use 100/2, AVR: below 70: 8 MHz, >= 70 --> 4MHz clock */
-  /* sck_clock_hz = */ 8000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns, increased to 8MHz (issue 215) */
+  /* sck_clock_hz = */ 8000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns, increased to 8MHz (issue 215) */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,
   /* data_setup_time_ns = */ 40,

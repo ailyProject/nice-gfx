@@ -77,14 +77,10 @@
   },
   {
     "path": "README.txt",
-    "sha256": "897d51da3f3122acfd2a9ed54095cc505c55a1c56cac043e8ba2da21ceadd90f"
+    "sha256": "e6fcee6fc825878df211c558f9bdd7bd8a6d38c4e7e14982dbfd7380de78cfc0"
   },
   {
     "path": "SOURCE-MANIFEST.json",
     "sha256": "61318295731c9a786c349f6affaaa74c4d6f7346268b11ce7f1ba3cabca61c57"
-  },
-  {
-    "path": "VALIDATION.txt",
-    "sha256": "8a847ccdc750fb03d59fc86cba5776571aee32822fd0a1b83bfeddc97fb72870"
   }
 ]

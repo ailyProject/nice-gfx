@@ -65,7 +65,7 @@ void refreshMotionPending() {
   if(project)for(const auto &pending:pageMotions[history.back()])if(pending.ending){motionCompletionPending=true;break;}
 }
 void cancelVisibilityMotions(int root,bool includeRoot=true) {
-  // Immediate visibility keeps legacy main clocks/poses intact. A departure
+  // Immediate visibility keeps main animation clocks/poses intact. A departure
   // hidden by an ancestor is canceled, and an unpresented End cannot later
   // fire from a frame that never displayed that node.
   for(auto &m:pageMotions[history.back()]){

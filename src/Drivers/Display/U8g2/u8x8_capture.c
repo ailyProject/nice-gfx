@@ -204,7 +204,7 @@ static void ngfx_u8x8_capture_memory_copy(uint8_t *dest, uint8_t *src, uint16_t 
 static void ngfx_u8x8_capture_DrawTiles(ngfx_u8x8_capture_t *capture, uint8_t tx, uint8_t ty, uint8_t tile_cnt, uint8_t *tile_ptr)
 {
   uint8_t *dest_ptr = capture->buffer;
-  //printf("tile pos: %d %d, cnt=%d\n", tx, ty, tile_cnt);
+
   if ( dest_ptr == NULL )
     return;
   dest_ptr += (uint16_t)ty*capture->tile_width*8;

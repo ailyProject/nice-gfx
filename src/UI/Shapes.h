@@ -4,6 +4,15 @@
 #include <algorithm>
 #include <math.h>
 
+#ifndef NICE_GFX_UI_SHAPE_RASTER_FAST_PATH
+#define NICE_GFX_UI_SHAPE_RASTER_FAST_PATH 0
+#endif
+#if NICE_GFX_UI_SHAPE_RASTER_FAST_PATH && (defined(__GNUC__) || defined(__clang__))
+#define NICE_GFX_SHAPE_RASTER_INLINE __attribute__((always_inline)) inline
+#else
+#define NICE_GFX_SHAPE_RASTER_INLINE inline
+#endif
+
 namespace nice_gfx { namespace htmlui {
 
 inline bool validShape(const NodeDesc &node) {
@@ -23,6 +32,21 @@ inline bool validShape(const NodeDesc &node) {
 namespace shape_raster {
 struct Point { float x,y; };
 constexpr float PixelEpsilon=1e-4f;
+// The fast domain includes every finite float whose rounded integer is
+// representable. Preserve the old math call outside that domain. Truncation
+// plus one exact comparison produces exactly ceilf/floorf then int32_t.
+NICE_GFX_SHAPE_RASTER_INLINE int32_t pixelCeil(float value){
+#if NICE_GFX_UI_SHAPE_RASTER_FAST_PATH
+  if(value>=-2147483648.0f&&value<2147483648.0f){const int32_t integral=int32_t(value);return integral+int32_t(value>float(integral));}
+#endif
+  return int32_t(ceilf(value));
+}
+NICE_GFX_SHAPE_RASTER_INLINE int32_t pixelFloor(float value){
+#if NICE_GFX_UI_SHAPE_RASTER_FAST_PATH
+  if(value>=-2147483648.0f&&value<2147483648.0f){const int32_t integral=int32_t(value);return integral-int32_t(value<float(integral));}
+#endif
+  return int32_t(floorf(value));
+}
 inline Rect intersection(Rect a,Rect b) {
   const int32_t left=std::max(a.x,b.x),top=std::max(a.y,b.y);
   const int32_t right=int32_t(std::min(int64_t(a.x)+a.width,int64_t(b.x)+b.width));
@@ -33,19 +57,19 @@ inline Rect intersection(Rect a,Rect b) {
 // coordinates. Cropping only bounds the loops; it never changes geometry.
 template<class Canvas> struct Raster {
   Canvas &canvas;Rect clip;
-  void span(int32_t y,float first,float last,uint16_t color) {
+  NICE_GFX_SHAPE_RASTER_INLINE void span(int32_t y,float first,float last,uint16_t color) {
     if(first>last||y<clip.y||y>=clip.y+clip.height)return;
-    const int32_t left=int32_t(ceilf(std::max(first,float(clip.x))-PixelEpsilon));
-    const int32_t right=int32_t(floorf(std::min(last,float(clip.x+clip.width-1))+PixelEpsilon));
+    const int32_t left=pixelCeil(std::max(first,float(clip.x))-PixelEpsilon);
+    const int32_t right=pixelFloor(std::min(last,float(clip.x+clip.width-1))+PixelEpsilon);
     if(left<=right)canvas.fillRect(left,y,right-left+1,1,color);
   }
-  bool rows(float top,float bottom,int32_t &first,int32_t &last) const {
+  NICE_GFX_SHAPE_RASTER_INLINE bool rows(float top,float bottom,int32_t &first,int32_t &last) const {
     if(top>bottom||bottom<clip.y||top>clip.y+clip.height-1)return false;
-    first=int32_t(ceilf(std::max(top,float(clip.y))-PixelEpsilon));
-    last=int32_t(floorf(std::min(bottom,float(clip.y+clip.height-1))+PixelEpsilon));
+    first=pixelCeil(std::max(top,float(clip.y))-PixelEpsilon);
+    last=pixelFloor(std::min(bottom,float(clip.y+clip.height-1))+PixelEpsilon);
     return first<=last;
   }
-  static bool ellipseSpan(float cx,float cy,float rx,float ry,int32_t y,float &left,float &right) {
+  static NICE_GFX_SHAPE_RASTER_INLINE bool ellipseSpan(float cx,float cy,float rx,float ry,int32_t y,float &left,float &right) {
     if(rx<0||ry<0)return false;
     const float dy=y-cy;
     if(fabsf(dy)>ry)return false;
@@ -139,7 +163,11 @@ template<class Canvas> struct Raster {
     const Point corners[4]={{a.x+nx,a.y+ny},{b.x+nx,b.y+ny},{b.x-nx,b.y-ny},{a.x-nx,a.y-ny}};
     for(int32_t y=first;y<=last;++y) {
       float left=0,right=0;bool found=false;
-      const auto include=[&](float x){if(!found){left=right=x;found=true;}else{left=std::min(left,x);right=std::max(right,x);}};
+      const auto include=[&](float x)
+#if NICE_GFX_UI_SHAPE_RASTER_FAST_PATH && (defined(__GNUC__) || defined(__clang__))
+        __attribute__((always_inline))
+#endif
+        {if(!found){left=right=x;found=true;}else{left=std::min(left,x);right=std::max(right,x);}};
       for(int i=0,j=3;i<4;j=i++) {
         const Point &c=corners[j],&d=corners[i];
         if(c.y==d.y){if(y==c.y){include(c.x);include(d.x);}}

@@ -2,8 +2,7 @@
 #include <stdint.h>
 namespace nice_gfx {
 // Register commands use one lane; pixels use four lanes. All imported GRAM
-// controllers have the 4-byte [opcode,0,register,0] header. CH13613 defaults
-// remain unchanged; new profiles explicitly enable RAMWRC continuation.
+// controllers have the 4-byte [opcode,0,register,0] header. Profiles explicitly enable RAMWRC continuation when supported.
 struct QspiProtocol {
   uint8_t commandOpcode = 0x02, pixelOpcode = 0x32, readOpcode = 0x0B;
   uint8_t continuationCommand = 0x3C;

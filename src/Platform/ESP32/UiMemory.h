@@ -4,6 +4,10 @@
 #include <stdlib.h>
 #include <esp_heap_caps.h>
 namespace nice_gfx { namespace platform {
+inline void *allocateUiNativeStage(size_t bytes) {
+  return heap_caps_aligned_alloc(64,bytes,MALLOC_CAP_INTERNAL|MALLOC_CAP_DMA|MALLOC_CAP_8BIT);
+}
+inline void freeUiNativeStage(void *p) { heap_caps_free(p); }
 inline void *allocateUiTile(size_t pixels) {
   return heap_caps_calloc(pixels, sizeof(uint16_t), MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA);
 }
@@ -15,14 +19,14 @@ inline void *allocateUiMetadata(size_t bytes,size_t reserve) {
 }
 inline void *allocateRetained(size_t bytes) {
   void *memory = nullptr;
-#if defined(CONFIG_IDF_TARGET_ESP32S3)
+#if defined(CONFIG_IDF_TARGET_ESP32S3) || defined(CONFIG_IDF_TARGET_ESP32S31)
   if (bytes >= 1024) memory = heap_caps_malloc(bytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
 #endif
   return memory ? memory : ::malloc(bytes);
 }
 inline void freeUiMemory(void *memory) { heap_caps_free(memory); }
 constexpr bool retainedMemoryPreferred() {
-#if defined(CONFIG_IDF_TARGET_ESP32S3)
+#if defined(CONFIG_IDF_TARGET_ESP32S3) || defined(CONFIG_IDF_TARGET_ESP32S31)
   return true;
 #else
   return false;

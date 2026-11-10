@@ -80,7 +80,7 @@ static const uint8_t ngfx_u8x8_d_ist3088_320x240_flip1_seq[] = {
 
 static uint8_t ngfx_u8x8_d_ist3088_generic(ngfx_u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *arg_ptr)
 {
-  //uint16_t x;
+
   int i;
   uint8_t y;
   uint8_t c;
@@ -206,7 +206,7 @@ static const uint8_t ngfx_u8x8_d_ist3088_320x240_init_seq[] = {
   NGFX_U8X8_CCAA(0x0, 0x02, 0x01, 0x4c), 			// Polarity Control
 
   NGFX_U8X8_CCAA(0x0, 0x06, 0x00, 0x03), 			// Entry mode: h/v increment  
-  //NGFX_U8X8_CCAA(0x0, 0x04, 0x07, 0x61), 			// Power Control 2: 0x07: 1/16 Bias, Vout1 x 4
+
   NGFX_U8X8_CCAA(0x0, 0x04, 0x04, 0x61), 			// Power Control 2: 0x07: 1/16 Bias, Vout1 x 4
   NGFX_U8X8_CCAA(0x0, 0x05, 0x00, 0x6a), 			// Contrast, 0..255, 
 
@@ -225,8 +225,8 @@ static const uint8_t ngfx_u8x8_d_ist3088_320x240_init_seq[] = {
   NGFX_U8X8_CCAA(0x0, 0x0e, 239, 0x00), 			// Y End and Y Start
 
   /* enable LCD (will be done by powersave0) */
-  //NGFX_U8X8_CCAA(0x0, 0x07, 0x00, 0x01), 			// Display Control Bit 2: BW, 1: Invert, 0: Display enable
-    
+
+
   NGFX_U8X8_END_TRANSFER(),             	/* disable chip */
   NGFX_U8X8_END()           			/* end of sequence */
 };

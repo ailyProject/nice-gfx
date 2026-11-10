@@ -267,6 +267,50 @@ template<>class BoardDisplay<BoardPresetId::WaveshareTouchLcd4B>:private detail:
   bool backlightHigh() const override {return false;}
 };
 #endif
+#if defined(CONFIG_IDF_TARGET_ESP32P4) && SOC_MIPI_DSI_SUPPORTED
+template<>class BoardDisplay<BoardPresetId::Jc1060P470CIWY>:public detail::FixedBoardDisplay<MipiDisplay<VideoController::JD9165,1024,600>,BoardPresetId::Jc1060P470CIWY> {
+  using Base=detail::FixedBoardDisplay<MipiDisplay<VideoController::JD9165,1024,600>,BoardPresetId::Jc1060P470CIWY>;
+ public:
+  // Reuse preset wiring/timings when choosing an alternate public MIPI sink.
+  static MipiConfig configuration(){
+    MipiConfig c;c.reset=5;c.dsi.num_data_lanes=2;c.dsi.lane_bit_rate_mbps=750;
+    c.dpi.dpi_clock_freq_mhz=52.0f;c.dpi.num_fbs=2;c.frameAtomic=true;
+    c.dpi.video_timing.h_size=1024;c.dpi.video_timing.v_size=600;
+    c.dpi.video_timing.hsync_pulse_width=24;
+    c.dpi.video_timing.hsync_back_porch=136;
+    c.dpi.video_timing.hsync_front_porch=160;
+    c.dpi.video_timing.vsync_pulse_width=2;
+    c.dpi.video_timing.vsync_back_porch=21;
+    c.dpi.video_timing.vsync_front_porch=12;
+    c.acquireLdo=true;c.ldo.chan_id=3;c.ldo.voltage_mv=2500;
+    c.init=VideoInitOverride(video::JD9165_JC1060_Init,sizeof(video::JD9165_JC1060_Init)/sizeof(VideoInitCommand));
+    return c;
+  }
+ public:BoardDisplay():Base(configuration()){}
+};
+#endif
+#if defined(CONFIG_IDF_TARGET_ESP32P4) && SOC_MIPI_DSI_SUPPORTED
+template<>class BoardDisplay<BoardPresetId::Jc4880P443CIW>:public detail::FixedBoardDisplay<MipiDisplay<VideoController::ST7701,480,800>,BoardPresetId::Jc4880P443CIW> {
+  using Base=detail::FixedBoardDisplay<MipiDisplay<VideoController::ST7701,480,800>,BoardPresetId::Jc4880P443CIW>;
+ public:
+  // Reuse preset wiring/timings when choosing an alternate public MIPI sink.
+  static MipiConfig configuration(){
+    MipiConfig c;c.reset=5;c.dsi.num_data_lanes=2;c.dsi.lane_bit_rate_mbps=500;
+    c.dpi.dpi_clock_freq_mhz=34.0f;c.dpi.num_fbs=1;
+    c.dpi.video_timing.h_size=480;c.dpi.video_timing.v_size=800;
+    c.dpi.video_timing.hsync_pulse_width=12;
+    c.dpi.video_timing.hsync_back_porch=42;
+    c.dpi.video_timing.hsync_front_porch=42;
+    c.dpi.video_timing.vsync_pulse_width=2;
+    c.dpi.video_timing.vsync_back_porch=8;
+    c.dpi.video_timing.vsync_front_porch=166;
+    c.acquireLdo=true;c.ldo.chan_id=3;c.ldo.voltage_mv=2500;
+    c.init=VideoInitOverride(video::ST7701_JC4880_Init,sizeof(video::ST7701_JC4880_Init)/sizeof(VideoInitCommand));
+    return c;
+  }
+ public:BoardDisplay():Base(configuration()){}
+};
+#endif
 using AiVoxDisplay=BoardDisplay<BoardPresetId::AiVox>;
 using CubicCoreCarDisplay=BoardDisplay<BoardPresetId::CubicCoreCar>;
 using CustomSpiDisplay=BoardDisplay<BoardPresetId::CustomSpi>;
@@ -276,6 +320,8 @@ using Esp32S31Korvo1Display=BoardDisplay<BoardPresetId::Esp32S31Korvo1>;
 using Esp32Display=BoardDisplay<BoardPresetId::Esp32>;
 using Esp32S3Ili9341Display=BoardDisplay<BoardPresetId::Esp32S3Ili9341>;
 using HeltecWiFiLoRa32V3Display=BoardDisplay<BoardPresetId::HeltecWiFiLoRa32V3>;
+using Jc1060P470CIWYDisplay=BoardDisplay<BoardPresetId::Jc1060P470CIWY>;
+using Jc4880P443CIWDisplay=BoardDisplay<BoardPresetId::Jc4880P443CIW>;
 using LilygoTDisplayS3Display=BoardDisplay<BoardPresetId::LilygoTDisplayS3>;
 using Linkbit213TricolorDisplay=BoardDisplay<BoardPresetId::Linkbit213Tricolor>;
 using LinkbitDisplay=BoardDisplay<BoardPresetId::Linkbit>;
@@ -341,6 +387,8 @@ using Esp32S31Korvo1Display=nice_gfx::Esp32S31Korvo1Display;
 using Esp32Display=nice_gfx::Esp32Display;
 using Esp32S3Ili9341Display=nice_gfx::Esp32S3Ili9341Display;
 using HeltecWiFiLoRa32V3Display=nice_gfx::HeltecWiFiLoRa32V3Display;
+using Jc1060P470CIWYDisplay=nice_gfx::Jc1060P470CIWYDisplay;
+using Jc4880P443CIWDisplay=nice_gfx::Jc4880P443CIWDisplay;
 using LilygoTDisplayS3Display=nice_gfx::LilygoTDisplayS3Display;
 using Linkbit213TricolorDisplay=nice_gfx::Linkbit213TricolorDisplay;
 using LinkbitDisplay=nice_gfx::LinkbitDisplay;

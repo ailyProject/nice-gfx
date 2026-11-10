@@ -257,7 +257,7 @@ void drawIcon(const unsigned short* icon, int16_t x, int16_t y, int8_t width, in
 
   gfx.startWrite();
   const bool savedSwapBytes = gfx.getSwapBytes();
-  gfx.setSwapBytes(true); // Legacy uint16 streaming used explicit byte swapping.
+  gfx.setSwapBytes(true); // Swap bytes for uint16 streaming.
 
   // Set up a window the right size to stream pixels into
   gfx.setAddrWindow(x, y, width, height);

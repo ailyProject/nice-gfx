@@ -41,28 +41,28 @@
 
 /* no powersave mode for the LC7981 */
 // static const uint8_t ngfx_u8x8_d_lc7981_powersave0_seq[] = {
-//   NGFX_U8X8_START_TRANSFER(),             	/* enable chip, delay is part of the transfer start */
-//   NGFX_U8X8_END_TRANSFER(),             	/* disable chip */
-//   NGFX_U8X8_END()             			/* end of sequence */
+
+
+
 // };
 
 // static const uint8_t ngfx_u8x8_d_lc7981_powersave1_seq[] = {
-//   NGFX_U8X8_START_TRANSFER(),             	/* enable chip, delay is part of the transfer start */
-//   NGFX_U8X8_END_TRANSFER(),             	/* disable chip */
-//   NGFX_U8X8_END()             			/* end of sequence */
+
+
+
 // };
 
 /* no hardware flip for the LC7981 */
 // static const uint8_t ngfx_u8x8_d_lc7981_flip0_seq[] = {
-//   NGFX_U8X8_START_TRANSFER(),             	/* enable chip, delay is part of the transfer start */
-//   NGFX_U8X8_END_TRANSFER(),             	/* disable chip */
-//   NGFX_U8X8_END()             			/* end of sequence */
+
+
+
 // };
 
 // static const uint8_t ngfx_u8x8_d_lc7981_flip1_seq[] = {
-//   NGFX_U8X8_START_TRANSFER(),             	/* enable chip, delay is part of the transfer start */
-//   NGFX_U8X8_END_TRANSFER(),             	/* disable chip */
-//   NGFX_U8X8_END()             			/* end of sequence */
+
+
+
 // };
 
 
@@ -125,7 +125,7 @@ static uint8_t ngfx_u8x8_d_lc7981_common(ngfx_u8x8_t *u8x8, uint8_t msg, NGFX_U8
 	for( j = 0; j < c; j++ )
 	  ngfx_u8x8_cad_SendArg(u8x8, reverse_byte(*ptr++));
 	
-	//ngfx_u8x8_cad_SendData(u8x8, c, ptr);	/* note: SendData can not handle more than 255 bytes, send one line of data */
+
 	//ptr += u8x8->display_info->tile_width;
 	
 	y += u8x8->display_info->tile_width;
@@ -195,7 +195,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_lc7981_160x80_display_info =
   /* post_reset_wait_ms = */ 10, 	
   /* sda_setup_time_ns = */ 30,		
   /* sck_pulse_width_ns = */ 65,	/* half of cycle time  */
-  /* sck_clock_hz = */ 4000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
+  /* sck_clock_hz = */ 4000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,
   /* ... to here, values are ignored, because this is a parallel interface only */
@@ -267,7 +267,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_lc7981_160x160_display_info =
   /* post_reset_wait_ms = */ 10, 	
   /* sda_setup_time_ns = */ 30,		
   /* sck_pulse_width_ns = */ 65,	/* half of cycle time  */
-  /* sck_clock_hz = */ 4000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
+  /* sck_clock_hz = */ 4000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,
   /* ... to here, values are ignored, because this is a parallel interface only */
@@ -339,7 +339,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_lc7981_240x128_display_info =
   /* post_reset_wait_ms = */ 10, 	
   /* sda_setup_time_ns = */ 30,		
   /* sck_pulse_width_ns = */ 65,	/* half of cycle time  */
-  /* sck_clock_hz = */ 4000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
+  /* sck_clock_hz = */ 4000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,
   /* ... to here, values are ignored, because this is a parallel interface only */
@@ -412,7 +412,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_lc7981_240x64_display_info =
   /* post_reset_wait_ms = */ 10, 	
   /* sda_setup_time_ns = */ 30,		
   /* sck_pulse_width_ns = */ 65,	/* half of cycle time  */
-  /* sck_clock_hz = */ 4000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
+  /* sck_clock_hz = */ 4000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,
   /* ... to here, values are ignored, because this is a parallel interface only */
@@ -484,7 +484,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_lc7981_128x128_display_info =
   /* post_reset_wait_ms = */ 10, 	
   /* sda_setup_time_ns = */ 30,		
   /* sck_pulse_width_ns = */ 65,	/* half of cycle time  */
-  /* sck_clock_hz = */ 4000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
+  /* sck_clock_hz = */ 4000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,
   /* ... to here, values are ignored, because this is a parallel interface only */

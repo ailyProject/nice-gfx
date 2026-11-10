@@ -1,7 +1,7 @@
 #pragma once
 #include "../../Display/ControllerProfile.h"
 
-// NV3023 initialization ported from Arduino_GFX (BSD-licensed).
+// Register and timing reference: NV3023 datasheet.
 
 namespace nice_gfx { namespace controllers {
 inline void init_NV3023(PanelSequence &s) {

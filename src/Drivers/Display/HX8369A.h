@@ -1,7 +1,7 @@
 #pragma once
 #include "../../Display/ControllerProfile.h"
 
-// HX8369A initialization ported from Arduino_GFX (BSD-licensed).
+// Register and timing reference: HX8369A datasheet.
 
 namespace nice_gfx { namespace controllers {
 inline void init_HX8369A(PanelSequence &s) {

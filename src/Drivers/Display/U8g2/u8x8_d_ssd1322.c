@@ -63,22 +63,8 @@ static const uint8_t ngfx_u8x8_d_ssd1322_powersave1_seq[] = {
 /* topbit (msb) is sent last */
 /* example: b = 0x083 will send 0xff, 0x00, 0x00, 0xf0 */
 
-/* 4 Jan 2017: I think this procedure not required any more. Delete? */
-/*
-static uint8_t ngfx_u8x8_write_byte_to_16gr_device(ngfx_u8x8_t *u8x8, uint8_t b)
-{
-  static uint8_t buf[4];
-  static uint8_t map[4] = { 0, 0x00f, 0x0f0, 0x0ff };
-  buf [3] = map[b & 3];
-  b>>=2;
-  buf [2] = map[b & 3];
-  b>>=2;
-  buf [1] = map[b & 3];
-  b>>=2;
-  buf [0] = map[b & 3];
-  return ngfx_u8x8_cad_SendData(u8x8, 4, buf);
-}
-*/
+
+
 
 
 /*
@@ -211,7 +197,7 @@ uint8_t ngfx_u8x8_d_ssd1322_common(ngfx_u8x8_t *u8x8, uint8_t msg, uint8_t arg_i
 	  c--;
 	} while( c > 0 );
 	
-	//x += 2;
+
 	arg_int--;
       } while( arg_int > 0 );
       
@@ -250,7 +236,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_ssd1322_256x64_display_info =
   /* post_reset_wait_ms = */ 100, /* far east OLEDs need much longer setup time */
   /* sda_setup_time_ns = */ 50,		/* SSD1322: 15ns, but cycle time is 100ns, so use 100/2 */
   /* sck_pulse_width_ns = */ 50,	/* SSD1322: 20ns, but cycle time is 100ns, so use 100/2, AVR: below 70: 8 MHz, >= 70 --> 4MHz clock */
-  /* sck_clock_hz = */ 10000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns, increased to 8MHz (issue 215), 10 MHz (issue 301) */
+  /* sck_clock_hz = */ 10000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns, increased to 8MHz (issue 215), 10 MHz (issue 301) */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,
   /* data_setup_time_ns = */ 10,
@@ -276,7 +262,7 @@ static const uint8_t ngfx_u8x8_d_ssd1322_256x64_init_seq[] = {
   NGFX_U8X8_CA(0xca, 0x3f),			/* multiplex ratio 1/64 Duty (0x0F~0x3F) */  
   NGFX_U8X8_CA(0xa2, 0x00),			/* display offset, shift mapping ram counter */  
   NGFX_U8X8_CA(0xa1, 0x00),			/* display start line */  
-  //NGFX_U8X8_CAA(0xa0, 0x14, 0x11),	/* Set Re-Map / Dual COM Line Mode */  
+
   NGFX_U8X8_CAA(0xa0, 0x06, 0x011),	/* Set Re-Map / Dual COM Line Mode */  
   NGFX_U8X8_CA(0xab, 0x01),			/* Enable Internal VDD Regulator */  
   NGFX_U8X8_CAA(0xb4, 0xa0, 0x005|0x0fd),	/* Display Enhancement A */  
@@ -347,7 +333,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_ssd1322_zjy_256x64_display_info 
   /* post_reset_wait_ms = */ 100, /* far east OLEDs need much longer setup time */
   /* sda_setup_time_ns = */ 50,		/* SSD1322: 15ns, but cycle time is 100ns, so use 100/2 */
   /* sck_pulse_width_ns = */ 50,	/* SSD1322: 20ns, but cycle time is 100ns, so use 100/2, AVR: below 70: 8 MHz, >= 70 --> 4MHz clock */
-  /* sck_clock_hz = */ 10000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns, increased to 8MHz (issue 215), 10 MHz (issue 301) */
+  /* sck_clock_hz = */ 10000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns, increased to 8MHz (issue 215), 10 MHz (issue 301) */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,
   /* data_setup_time_ns = */ 10,
@@ -373,7 +359,7 @@ static const uint8_t ngfx_u8x8_d_ssd1322_zjy_256x64_init_seq[] = {
   NGFX_U8X8_CA(0xca, 0x3f),			/* multiplex ratio 1/64 Duty (0x0F~0x3F) */  
   NGFX_U8X8_CA(0xa2, 0x00),			/* display offset, shift mapping ram counter */  
   NGFX_U8X8_CA(0xa1, 0x00),			/* display start line */  
-  //NGFX_U8X8_CAA(0xa0, 0x14, 0x11),	/* Set Re-Map / Dual COM Line Mode */  
+
   NGFX_U8X8_CAA(0xa0, 0x16, 0x011),	/* Set Re-Map / Dual COM Line Mode */  
   NGFX_U8X8_CA(0xab, 0x01),			/* Enable Internal VDD Regulator */  
   NGFX_U8X8_CAA(0xb4, 0xa0, 0x005|0x0fd),	/* Display Enhancement A */  
@@ -445,7 +431,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_ssd1322_240x128_display_info =
   /* post_reset_wait_ms = */ 100, /* far east OLEDs need much longer setup time */
   /* sda_setup_time_ns = */ 50,		/* SSD1322: 15ns, but cycle time is 100ns, so use 100/2 */
   /* sck_pulse_width_ns = */ 50,	/* SSD1322: 20ns, but cycle time is 100ns, so use 100/2, AVR: below 70: 8 MHz, >= 70 --> 4MHz clock */
-  /* sck_clock_hz = */ 10000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns, increased to 8MHz (issue 215), 10 MHz (issue 301) */
+  /* sck_clock_hz = */ 10000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns, increased to 8MHz (issue 215), 10 MHz (issue 301) */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,
   /* data_setup_time_ns = */ 10,
@@ -471,7 +457,7 @@ static const uint8_t ngfx_u8x8_d_ssd1322_240x128_init_seq[] = {
   NGFX_U8X8_CA(0xca, 0x7f),			/* multiplex ratio 1/128 Duty (0x0F~0x7F) */  
   NGFX_U8X8_CA(0xa2, 0x00),			/* display offset, shift mapping ram counter */  
   NGFX_U8X8_CA(0xa1, 0x00),			/* display start line */  
-  //NGFX_U8X8_CAA(0xa0, 0x14, 0x11),	/* Set Re-Map / Dual COM Line Mode */  
+
   NGFX_U8X8_CAA(0xa0, 0x36, 0x011),	/* Set Re-Map / Dual COM Line Mode */  
   NGFX_U8X8_CA(0xab, 0x01),			/* Enable Internal VDD Regulator */  
   NGFX_U8X8_CAA(0xb4, 0xa0, 0x005|0x0fd),	/* Display Enhancement A */  
@@ -566,7 +552,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_ssd1322_topwin_240x128_display_i
   /* post_reset_wait_ms = */ 100, /* far east OLEDs need much longer setup time */
   /* sda_setup_time_ns = */ 50,		/* SSD1322: 15ns, but cycle time is 100ns, so use 100/2 */
   /* sck_pulse_width_ns = */ 50,	/* SSD1322: 20ns, but cycle time is 100ns, so use 100/2, AVR: below 70: 8 MHz, >= 70 --> 4MHz clock */
-  /* sck_clock_hz = */ 10000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns, increased to 8MHz (issue 215), 10 MHz (issue 301) */
+  /* sck_clock_hz = */ 10000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns, increased to 8MHz (issue 215), 10 MHz (issue 301) */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,
   /* data_setup_time_ns = */ 10,
@@ -726,7 +712,7 @@ uint8_t ngfx_u8x8_d_ssd1322_common2(ngfx_u8x8_t *u8x8, uint8_t msg, uint8_t arg_
 	  c--;
 	} while( c > 0 );
 	
-	//x += 2;
+
 	arg_int--;
       } while( arg_int > 0 );
       
@@ -764,7 +750,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_ssd1322_128x64_display_info =
   /* post_reset_wait_ms = */ 100, /* far east OLEDs need much longer setup time */
   /* sda_setup_time_ns = */ 50,		/* SSD1322: 15ns, but cycle time is 100ns, so use 100/2 */
   /* sck_pulse_width_ns = */ 50,	/* SSD1322: 20ns, but cycle time is 100ns, so use 100/2, AVR: below 70: 8 MHz, >= 70 --> 4MHz clock */
-  /* sck_clock_hz = */ 10000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns, increased to 8MHz (issue 215), 10 MHz (issue 301) */
+  /* sck_clock_hz = */ 10000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns, increased to 8MHz (issue 215), 10 MHz (issue 301) */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,
   /* data_setup_time_ns = */ 10,
@@ -815,20 +801,20 @@ static const uint8_t ngfx_u8x8_d_ssd1322_128x64_init_seq[] = {
 	
 	0x16 = 00010110
 */
-  //NGFX_U8X8_CAA(0xa0, 0x14, 0x11),	/* Set Re-Map / Dual COM Line Mode */  
-  //NGFX_U8X8_CAA(0xa0, 0x06, 0x011),	/* Set Re-Map / Dual COM Line Mode */  
+
+
   NGFX_U8X8_CAA(0xa0, 0x16, 0x011),	/* Set Re-Map / Dual COM Line Mode (NHD-2.7-12864WDW3-M datasheet) */  
   NGFX_U8X8_CA(0xc7, 0x0f),			/* Set Scale Factor of Segment Output Current Control */  
   NGFX_U8X8_CA(0xc1, 0x9f),			/* contrast */  
-  //NGFX_U8X8_CA(0xb1, 0xe2),			/* Phase 1 (Reset) & Phase 2 (Pre-Charge) Period Adjustment */  
+
   NGFX_U8X8_CA(0xb1, 0xf2),			/* Phase 1 (Reset) & Phase 2 (Pre-Charge) Period Adjustment (NHD-2.7-12864WDW3-M datasheet) */  
   NGFX_U8X8_CA(0xbb, 0x1f),			/* precharge  voltage */    
-  //NGFX_U8X8_CAA(0xb4, 0xa0, 0x005|0x0fd),	/* Display Enhancement A */  
+
   NGFX_U8X8_CAA(0xb4, 0xa0, 0x0fd),	/* Display Enhancement A (NHD-2.7-12864WDW3-M datasheet) */  
   NGFX_U8X8_CA(0xbe, 0x04),			/* vcomh (NHD-2.7-12864WDW3-M datasheet) */  
   NGFX_U8X8_C(0xb9),		                /* linear grayscale */
-  //NGFX_U8X8_CAA(0xd1, 0x082|0x020, 0x020),	/* Display Enhancement B */  
-  //NGFX_U8X8_CA(0xb6, 0x08),			/* precharge  period */  
+
+
   NGFX_U8X8_C(0xa6),		                /* normal display */
   NGFX_U8X8_C(0xa9),		                /* exit partial display */
 

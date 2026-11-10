@@ -461,7 +461,7 @@ uint8_t ngfx_u8x8_byte_sed1520(ngfx_u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, 
 static void i2c_delay(ngfx_u8x8_t *u8x8) NGFX_U8X8_NOINLINE;
 static void i2c_delay(ngfx_u8x8_t *u8x8)
 {
-  //ngfx_u8x8_gpio_Delay(u8x8, NGFX_U8X8_MSG_DELAY_10MICRO, u8x8->display_info->i2c_bus_clock_100kHz);
+
   ngfx_u8x8_gpio_Delay(u8x8, NGFX_U8X8_MSG_DELAY_I2C, u8x8->display_info->i2c_bus_clock_100kHz);
 }
 
@@ -547,7 +547,7 @@ static void i2c_write_bit(ngfx_u8x8_t *u8x8, uint8_t val)
 
 static void i2c_read_bit(ngfx_u8x8_t *u8x8)
 {
-  //uint8_t val;
+
   /* do not drive SDA */
   i2c_read_sda(u8x8);
   i2c_delay(u8x8);

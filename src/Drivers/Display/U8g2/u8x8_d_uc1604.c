@@ -166,7 +166,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_uc1604_128x64_display_info =
   /* post_reset_wait_ms = */ 10, 	
   /* sda_setup_time_ns = */ 30,		
   /* sck_pulse_width_ns = */ 65,	/* half of cycle time  */
-  /* sck_clock_hz = */ 8000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
+  /* sck_clock_hz = */ 8000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,
   /* data_setup_time_ns = */ 30,	
@@ -195,8 +195,8 @@ static const uint8_t ngfx_u8x8_d_uc1604_jlx12864_init_seq[] = {
   NGFX_U8X8_C(0x0eb),            			/* LCD bias Bits 0/1: 00=6 01=7, 10=8, 11=9 */
 
   
-  //NGFX_U8X8_C(0x023),            			/* Bit 0/1: Temp compenstation, Bit 2: Multiplex Rate 0=96, 1=128 */
-  //NGFX_U8X8_C(0x027),            			/* Bit 0/1: Temp compenstation, Bit 2: Multiplex Rate 0=96, 1=128 */
+
+
 
   NGFX_U8X8_C(0x0c2),            			/* Map control, Bit 2: MY=1, Bit 1: MX=0 */
   NGFX_U8X8_C(0x0a0),            			/* 0xa0: 76Hz FPS, controller default: 0x0a1: 95Hz FPS */
@@ -259,7 +259,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_uc1604_192x64_display_info =
   /* post_reset_wait_ms = */ 10, 	
   /* sda_setup_time_ns = */ 30,		
   /* sck_pulse_width_ns = */ 65,	/* half of cycle time  */
-  /* sck_clock_hz = */ 8000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
+  /* sck_clock_hz = */ 8000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,
   /* data_setup_time_ns = */ 30,	
@@ -288,8 +288,8 @@ static const uint8_t ngfx_u8x8_d_uc1604_jlx19264_init_seq[] = {
   NGFX_U8X8_C(0x0eb),            			/* LCD bias Bits 0/1: 00=6 01=7, 10=8, 11=9 */
 
   
-  //NGFX_U8X8_C(0x023),            			/* Bit 0/1: Temp compenstation, Bit 2: Multiplex Rate 0=96, 1=128 */
-  //NGFX_U8X8_C(0x027),            			/* Bit 0/1: Temp compenstation, Bit 2: Multiplex Rate 0=96, 1=128 */
+
+
 
   NGFX_U8X8_C(0x0c4),            			/* Map control, Bit 2: MY=1, Bit 1: MX=0 */
   NGFX_U8X8_C(0x0a0),            			/* 0xa0: 76Hz FPS, controller default: 0x0a1: 95Hz FPS */

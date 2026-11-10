@@ -1,14 +1,8 @@
 //
-// Code adapted by Bodmer as an example for NICE_GFX, this runs on any
-// NICE_GFX compatible processor so ignore the technical limitations
-// detailed in the original header below. Assorted changes have been
-// made including removal of the display mirror kludge.
+// NICE_GFX example by Bodmer, compatible with NICE_GFX-supported processors.
 
 //--------------------------------------------------------------------------
-// Uncanny eyes for Adafruit 1.5" OLED (product #1431) or 1.44" TFT LCD
-// (#2088).  Works on PJRC Teensy 3.x and on Adafruit M0 and M4 boards
-// (Feather, Metro, etc.).  This code uses features specific to these
-// boards and WILL NOT work on normal Arduino or other boards!
+// Uncanny eyes animation.
 //
 // SEE FILE "config.h" FOR MOST CONFIGURATION (graphics, pins, display type,
 // etc.).  Probably won't need to edit THIS file unless you're doing some

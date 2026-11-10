@@ -1,7 +1,7 @@
 #pragma once
 #include "../../Display/ControllerProfile.h"
 
-// NT39125 initialization ported from Arduino_GFX (BSD-licensed).
+// Register and timing reference: NT39125 datasheet.
 
 namespace nice_gfx { namespace controllers {
 inline void init_NT39125(PanelSequence &s) {

@@ -32,8 +32,8 @@
   ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.  
 
 
-  6 Nov 2016: Not yet finished
-  
+  Not yet finished
+
   There are two controller:
   UC1611s		160x256
   UC1611			160x240
@@ -156,7 +156,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_uc1611_240x64_display_info =
   /* post_reset_wait_ms = */ 10, 	/* uc1611 datasheet, page 67 */
   /* sda_setup_time_ns = */ 10,		/* uc1611 datasheet, page 64, actually 0 */
   /* sck_pulse_width_ns = */ 60,	/* half of cycle time  */
-  /* sck_clock_hz = */ 8000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
+  /* sck_clock_hz = */ 8000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,
   /* data_setup_time_ns = */ 30,	/* uc1611 datasheet, page 60 */
@@ -179,7 +179,7 @@ static const uint8_t ngfx_u8x8_d_uc1611_ea_dogm240_init_seq[] = {
   NGFX_U8X8_C(0x0a3),            			/* line rate */
   NGFX_U8X8_CA(0x081, 0x0a4),		/* set contrast, EA default: 0x0b7 */
   
-  //NGFX_U8X8_C(0x0a9),            			/* display enable */
+
 
   NGFX_U8X8_C(0x0d1),            			/* display pattern */  
   NGFX_U8X8_C(0x089),            			/* auto increment */
@@ -248,7 +248,7 @@ static const uint8_t ngfx_u8x8_d_uc1611_ea_dogxl240_init_seq[] = {
   NGFX_U8X8_C(0x0a3),            			/* line rate */
   NGFX_U8X8_CA(0x081, 0x08f),		/* set contrast */
   
-  //NGFX_U8X8_C(0x0a9),            			/* display enable */
+
 
   NGFX_U8X8_C(0x0d1),            			/* display pattern */  
   NGFX_U8X8_C(0x089),            			/* auto increment */
@@ -274,7 +274,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_uc1611_240x128_display_info =
   /* post_reset_wait_ms = */ 10, 	/* uc1611 datasheet, page 67 */
   /* sda_setup_time_ns = */ 10,		/* uc1611 datasheet, page 64, actually 0 */
   /* sck_pulse_width_ns = */ 60,	/* half of cycle time  */
-  /* sck_clock_hz = */ 8000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
+  /* sck_clock_hz = */ 8000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,
   /* data_setup_time_ns = */ 30,	/* uc1611 datasheet, page 60 */
@@ -342,7 +342,7 @@ static const uint8_t ngfx_u8x8_d_uc1611_ew50850_init_seq[] = {
   NGFX_U8X8_C(0x0a3),            			/* line rate */
   NGFX_U8X8_CA(0x081, 75),			/* set contrast */
   
-  //NGFX_U8X8_C(0x0a9),            			/* display enable */
+
 
   NGFX_U8X8_C(0x0d2),            			/* gray level mode: 16 gray shades */  
   NGFX_U8X8_C(0x089),            			/* auto increment */
@@ -367,7 +367,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_uc1611_ew50850_display_info =
   /* post_reset_wait_ms = */ 10, 	/* uc1611 datasheet, page 67 */
   /* sda_setup_time_ns = */ 10,		/* uc1611 datasheet, page 64, actually 0 */
   /* sck_pulse_width_ns = */ 60,	/* half of cycle time  */
-  /* sck_clock_hz = */ 8000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
+  /* sck_clock_hz = */ 8000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,
   /* data_setup_time_ns = */ 30,	/* uc1611 datasheet, page 60 */
@@ -524,7 +524,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_uc1611_cg160160_display_info =
   /* post_reset_wait_ms = */ 10, 	/* uc1611 datasheet, page 67 */
   /* sda_setup_time_ns = */ 10,		/* uc1611 datasheet, page 64, actually 0 */
   /* sck_pulse_width_ns = */ 60,	/* half of cycle time  */
-  /* sck_clock_hz = */ 8000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
+  /* sck_clock_hz = */ 8000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,
   /* data_setup_time_ns = */ 30,	/* uc1611 datasheet, page 60 */
@@ -572,11 +572,11 @@ static const uint8_t ngfx_u8x8_d_uc1611_cg160160_init_seq[] = {
   NGFX_U8X8_C(0x0ea),            			/* bias ratio, default: 0x0ea */
   NGFX_U8X8_CA(0x081, 0x090),		/* set contrast, CG160160: 0x090 */
   
-  //NGFX_U8X8_CA(0x0f1, 159),			/* set COM end */
-  //NGFX_U8X8_CA(0x0f2, 0),			/* display line start */
-  //NGFX_U8X8_CA(0x0f3, 159),			/* display line end */
-  
-  //NGFX_U8X8_C(0x0a9),            			/* display enable */
+
+
+
+
+
 
   NGFX_U8X8_C(0x089),            			/* RAM Address Control: auto increment */
   NGFX_U8X8_C(0x0d1),            			/* display pattern */  
@@ -647,7 +647,7 @@ static const uint8_t ngfx_u8x8_d_uc1611_ids4073_init_seq[] = {
   NGFX_U8X8_C(0x0a3),            			/* line rate */
   NGFX_U8X8_CA(0x081, 0x08f),		/* set contrast */
   
-  //NGFX_U8X8_C(0x0a9),            			/* display enable */
+
 
   NGFX_U8X8_C(0x0d1),            			/* display pattern */  
   NGFX_U8X8_C(0x089),            			/* auto increment */
@@ -674,7 +674,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_uc1611_256x128_display_info =
   /* post_reset_wait_ms = */ 10, 	/* uc1611 datasheet, page 67 */
   /* sda_setup_time_ns = */ 10,		/* uc1611 datasheet, page 64, actually 0 */
   /* sck_pulse_width_ns = */ 60,	/* half of cycle time  */
-  /* sck_clock_hz = */ 8000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
+  /* sck_clock_hz = */ 8000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,
   /* data_setup_time_ns = */ 30,	/* uc1611 datasheet, page 60 */

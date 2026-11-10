@@ -34,7 +34,7 @@
   REQUESTED IN
     https://github.com/olikraus/u8g2/issues/1642
     
-  STATUS 13 Aug 2022: NOT TESTED, MAY NOT WORK..
+  STATUS: NOT TESTED, MAY NOT WORK..
 
 
   0x030	ext 00
@@ -87,7 +87,7 @@ static const uint8_t ngfx_u8x8_d_st75256_256x128_powersave1_seq[] = {
   NGFX_U8X8_END()             			/* end of sequence */
 };
 
-/* marked as unused to avoid compiler warning, issue 1802 */
+
 #ifdef NOT_USED
 static const uint8_t ngfx_u8x8_d_st75256_jlx256128_flip0_seq[] = {
   NGFX_U8X8_START_TRANSFER(),             	/* enable chip, delay is part of the transfer start */
@@ -95,7 +95,7 @@ static const uint8_t ngfx_u8x8_d_st75256_jlx256128_flip0_seq[] = {
   NGFX_U8X8_CA( 0xbc, 0x00 ),			/* data scan dir */
   NGFX_U8X8_A( 0xa6 ),				/* ??? */
 
-  //NGFX_U8X8_C( 0x030 ),				/* select 00 commands */
+
   NGFX_U8X8_C( 0x00c ),				/* data format LSB top */
   NGFX_U8X8_END_TRANSFER(),             	/* disable chip */
   NGFX_U8X8_END()             			/* end of sequence */
@@ -107,7 +107,7 @@ static const uint8_t ngfx_u8x8_d_st75256_jlx256128_flip1_seq[] = {
   NGFX_U8X8_CA( 0xbc, 0x03 ),			/* data scan dir */
   NGFX_U8X8_A( 0xa6 ),				/* ??? */
 
-  //NGFX_U8X8_C( 0x030 ),				/* select 00 commands */
+
   NGFX_U8X8_C( 0x008 ),				/* data format MSB top */
   NGFX_U8X8_END_TRANSFER(),             	/* disable chip */
   NGFX_U8X8_END()             			/* end of sequence */
@@ -120,7 +120,7 @@ static const uint8_t ngfx_u8x8_d_st75256_jlx172104_flip0_seq[] = {
   NGFX_U8X8_CA( 0xbc, 0x02 ),			/* data scan dir */
   NGFX_U8X8_A( 0xa6 ),				/* ??? */
 
-  //NGFX_U8X8_C( 0x030 ),				/* select 00 commands */
+
   NGFX_U8X8_C( 0x00c ),				/* data format LSB top */
   NGFX_U8X8_END_TRANSFER(),             	/* disable chip */
   NGFX_U8X8_END()             			/* end of sequence */
@@ -132,13 +132,13 @@ static const uint8_t ngfx_u8x8_d_st75256_jlx172104_flip1_seq[] = {
   NGFX_U8X8_CA( 0xbc, 0x01 ),			/* data scan dir */
   NGFX_U8X8_A( 0xa6 ),				/* ??? */
 
-  //NGFX_U8X8_C( 0x030 ),				/* select 00 commands */
+
   NGFX_U8X8_C( 0x008 ),				/* data format MSB top */
   NGFX_U8X8_END_TRANSFER(),             	/* disable chip */
   NGFX_U8X8_END()             			/* end of sequence */
 };
 
-/* marked as unused to avoid compiler warning, issue 1802 */
+
 #ifdef NOT_USED
 static const uint8_t ngfx_u8x8_d_st75256_jlx256160_flip0_seq[] = {
   NGFX_U8X8_START_TRANSFER(),             	/* enable chip, delay is part of the transfer start */
@@ -146,7 +146,7 @@ static const uint8_t ngfx_u8x8_d_st75256_jlx256160_flip0_seq[] = {
   NGFX_U8X8_CA( 0xbc, 0x00 ),			/* data scan dir */
   NGFX_U8X8_A( 0xa6 ),				/* ??? */
 
-  //NGFX_U8X8_C( 0x030 ),				/* select 00 commands */
+
   NGFX_U8X8_C( 0x00c ),				/* data format LSB top */
   NGFX_U8X8_END_TRANSFER(),             	/* disable chip */
   NGFX_U8X8_END()             			/* end of sequence */
@@ -158,7 +158,7 @@ static const uint8_t ngfx_u8x8_d_st75256_jlx256160_flip1_seq[] = {
   NGFX_U8X8_CA( 0xbc, 0x03 ),			/* data scan dir */
   NGFX_U8X8_A( 0xa6 ),				/* ??? */
 
-  //NGFX_U8X8_C( 0x030 ),				/* select 00 commands */
+
   NGFX_U8X8_C( 0x008 ),				/* data format MSB top */
   NGFX_U8X8_END_TRANSFER(),             	/* disable chip */
   NGFX_U8X8_END()             			/* end of sequence */
@@ -180,7 +180,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_st75160_jm16096_display_info =
   /* post_reset_wait_ms = */ 5, 		/**/
   /* sda_setup_time_ns = */ 20,		/* */
   /* sck_pulse_width_ns = */ 40,	/*  */
-  /* sck_clock_hz = */ 4000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
+  /* sck_clock_hz = */ 4000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,	/* 400KHz */
   /* data_setup_time_ns = */ 15,
@@ -202,19 +202,19 @@ static const uint8_t ngfx_u8x8_d_st75160_jm16096_init_seq[] = {
   NGFX_U8X8_C( 0x030 ),				/* select 00 commands */
   NGFX_U8X8_C( 0x094 ),				/* sleep out */
 
-  //NGFX_U8X8_C( 0x030 ),				/* select 00 commands */
+
   NGFX_U8X8_C( 0x0ae ),				/* display off */
 
   NGFX_U8X8_C( 0x031 ),				/* select 01 commands */
   NGFX_U8X8_CA( 0x0d7, 0x09f ),		/* disable auto read */  
 
-  //NGFX_U8X8_C( 0x031 ),				/* select 01 commands */
+
   NGFX_U8X8_C( 0x032 ),				/* analog circuit set */
   NGFX_U8X8_A( 0x000 ),				/* code example: OSC Frequency adjustment */
   NGFX_U8X8_A( 0x001 ),				/* Frequency on booster capacitors 1 = 6KHz? */
   NGFX_U8X8_A( 0x004 ),				/* Bias: 1: 1/13, 2: 1/12, 3: 1/11, 4:1/10, 5:1/9 */
     
-  //NGFX_U8X8_C( 0x031 ),				/* select 01 commands */
+
   NGFX_U8X8_C( 0x020 ),				/* gray levels */
   NGFX_U8X8_A( 0x01 ),
   NGFX_U8X8_A( 0x03 ),
@@ -238,26 +238,26 @@ static const uint8_t ngfx_u8x8_d_st75160_jm16096_init_seq[] = {
   NGFX_U8X8_CAA(0x75, 0, 0x4f),		/* row range */
   NGFX_U8X8_CAA(0x15, 0, 239),		/* col range */
   
-  //NGFX_U8X8_C( 0x030 ),				/* select 00 commands */
+
   NGFX_U8X8_CA( 0xbc, 0x02 ),			/* data scan dir */
   NGFX_U8X8_A( 0xa6 ),				/* ??? */
 
-  //NGFX_U8X8_C( 0x030 ),				/* select 00 commands */
+
   NGFX_U8X8_C( 0x00c ),				/* data format LSB top */
 
-  //NGFX_U8X8_C( 0x030 ),				/* select 00 commands */ 
+
   NGFX_U8X8_C( 0xca ),				/* display control, 3 args follow  */
   NGFX_U8X8_A( 0x00 ),				/* 0x00: no clock division, 0x04: devide clock */
   NGFX_U8X8_A( 95 ),				/* 1/96 duty */
   NGFX_U8X8_A( 0x20 ),				/* nline off */ 
 
-  //NGFX_U8X8_C( 0x030 ),				/* select 00 commands */ 
+
   NGFX_U8X8_CA( 0x0f0, 0x010 ),		/* monochrome mode  = 0x010*/
 
-  //NGFX_U8X8_C( 0x030 ),				/* select 00 commands */
+
   NGFX_U8X8_CAA( 0x81, 0x18, 0x04 ),	/* Volume control */
 
-  //NGFX_U8X8_C( 0x030 ),				/* select 00 commands */
+
   NGFX_U8X8_CA( 0x020, 0x00b ),		/* Power control: Regulator, follower & booster on */
   NGFX_U8X8_DLY(100),
 
@@ -286,7 +286,7 @@ uint8_t ngfx_u8x8_d_st75160_jm16096(ngfx_u8x8_t *u8x8, uint8_t msg, uint8_t arg_
 	      else
 		ngfx_u8x8_cad_SendArg(u8x8, (((ngfx_u8x8_tile_t *)arg_ptr)->y_pos));
               ngfx_u8x8_cad_SendArg(u8x8, 0x04f);
-              //ngfx_u8x8_cad_SendArg(u8x8, (((ngfx_u8x8_tile_t *)arg_ptr)->y_pos));
+
               ngfx_u8x8_cad_SendCmd(u8x8, 0x015 );	/* col */
               ngfx_u8x8_cad_SendArg(u8x8, x+u8x8->x_offset);
               ngfx_u8x8_cad_SendArg(u8x8, 255);
@@ -313,7 +313,7 @@ uint8_t ngfx_u8x8_d_st75160_jm16096(ngfx_u8x8_t *u8x8, uint8_t msg, uint8_t arg_
               ngfx_u8x8_cad_EndTransfer(u8x8);
               return 1;
         case NGFX_U8X8_MSG_DISPLAY_SETUP_MEMORY:
-            //ngfx_u8x8_SetI2CAddress(u8x8, 0x078);		/* lowest I2C adr of the ST75256 */
+
 	    ngfx_u8x8_d_helper_display_setup_memory(u8x8, &ngfx_u8x8_st75160_jm16096_display_info);
             return 1;
         case NGFX_U8X8_MSG_DISPLAY_INIT:

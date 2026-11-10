@@ -34,9 +34,11 @@ CompressedSurface *compressedSurfaceFor(const PageDesc &p){
   for(auto &entry:compressedSurfaces)if(entry.page==&p&&entry.words)return &entry;
   return nullptr;
 }
-bool compressedSurfaceReady(int index)const{
+bool compressedSurfaceReady(int index,bool bodyOnly=false)const{
   if(index<0||!project||size_t(index)>=pages.size()||pages[size_t(index)].empty())return false;
-  for(const auto &entry:compressedSurfaces)if(entry.page==&project->pages[index]&&entry.words&&sameSurfaceState(entry.key,pages[size_t(index)]))return true;
+  const auto &p=project->pages[index];
+  for(const auto &entry:compressedSurfaces)if(entry.page==&p&&entry.words&&
+    (bodyOnly?sameSurfaceBodyState(p,entry.key,pages[size_t(index)]):sameSurfaceState(entry.key,pages[size_t(index)])))return true;
   return false;
 }
 void clearCompressedPage(const PageDesc *page){
@@ -68,7 +70,10 @@ bool beginCompressedSurface(Surface &surface){
   // A cold key must not extend the lifetime of a full RAM map/media image.
   // Ineligible or incompressible keys are tried once, until their pixels change.
   for(const auto &value:surface.key)if(value.imageOverride){clearCompressedPage(surface.page);++surfaceStats.compressedRejected;return false;}
-  if(auto *existing=compressedSurfaceFor(*surface.page))if(sameSurfaceState(existing->key,surface.key)){existing->used=++surfaceClock;return true;}
+  // Preserve an immutable older bar sample when every body node still
+  // matches. Re-encoding each clock tick would churn the bank even though
+  // decoding followed by the ordinary small chrome repair remains exact.
+  if(auto *existing=compressedSurfaceFor(*surface.page))if(sameSurfaceBodyState(*surface.page,existing->key,surface.key)){existing->used=++surfaceClock;return true;}
   const size_t index=size_t(surface.page-project->pages);
   if(index>=compressedSurfaces.size()){++surfaceStats.compressedRejected;return false;}
   compressedBuilder=CompressedBuilder{};
@@ -109,6 +114,7 @@ void publishCompressedSurface(){
 }
 bool stepCompressedSurfaces(){
   if(!compressedStorage||refresh->busy())return false;
+  ProfileTimer encodeTimer(*this,&RuntimeStats::compressedEncodeMicros);
   if(compressedBuilder.surface&&!compressedBuilderValid())compressedBuilder=CompressedBuilder{};
   if(!compressedBuilder.surface){
     for(auto &entry:surfaces)if(entry.ready&&!entry.compressionAttempted){beginCompressedSurface(entry);if(!compressedBuilder.surface)return true;break;}
@@ -135,17 +141,30 @@ bool stepCompressedSurfaces(){
     if(!budget)return true;
   }
 }
-Surface *restoreSurfacePage(const PageDesc &p,const PageDesc *excludePageA=nullptr,const PageDesc *excludePageB=nullptr){
+Surface *restoreSurfacePage(const PageDesc &p,const PageDesc *excludePageA=nullptr,const PageDesc *excludePageB=nullptr,
+                            const Surface *excludeSlotA=nullptr,const Surface *excludeSlotB=nullptr,
+                            const RetainedVector<State> *exactKey=nullptr){
   if(!project||!compressedStorage||refresh->busy())return nullptr;
-  for(auto &entry:surfaces)if(entry.page==&p&&entry.ready)return &entry;
-  auto *record=compressedSurfaceFor(p);if(!record)return nullptr;
+  if(!p.width||!p.height||size_t(p.height)>SIZE_MAX/size_t(p.width)/2)return nullptr;
   const size_t pixels=size_t(p.width)*p.height;
+  for(auto &entry:surfaces)if(entry.page==&p&&entry.ready){
+    if(exactKey&&(!panelSourceExactKey(p,entry.key,*exactKey)||nativeSourceOverlap(p,*exactKey,reinterpret_cast<uintptr_t>(entry.pixels),pixels*2,true)))continue;
+    return &entry;
+  }
+  auto *record=compressedSurfaceFor(p);if(!record||(exactKey&&!panelSourceExactKey(p,record->key,*exactKey)))return nullptr;
+  // Count actual restoration work, including validation and slot selection.
+  // A raw hit above performs no decode and contributes to neither counter.
+  ProfileTimer restoreTimer(*this,&RuntimeStats::compressedRestoreMicros);
+  ++stats.compressedRestoreCalls;
   if(record->offset>compressedCapacity||record->words>compressedCapacity-record->offset||
      !rle565::validate(compressedStorage+record->offset,record->words,pixels)){
     clearCompressedPage(&p);++surfaceStats.compressedRejected;return nullptr;
   }
   Surface *slot=nullptr;
   for(auto &entry:surfaces){
+    if(&entry==excludeSlotA||&entry==excludeSlotB)continue;
+    if(exactKey&&(reinterpret_cast<uintptr_t>(entry.pixels)>UINTPTR_MAX-pixels*2||nativeSourceOverlap(p,*exactKey,reinterpret_cast<uintptr_t>(entry.pixels),pixels*2,true)))continue;
+    if(systemModalBasePinned(entry)){++stats.systemModalBaseWriterPinSkips;continue;}
     if(&entry==snapshotSurface||&entry==previewSurface||&entry==snapshotAnimationSurface||
        (entry.page&&(entry.page==excludePageA||entry.page==excludePageB)))continue;
     if(entry.page==&p){slot=&entry;break;}
@@ -158,5 +177,7 @@ Surface *restoreSurfacePage(const PageDesc &p,const PageDesc *excludePageA=nullp
   ++slot->pixelsRevision;slot->presentedAtFrame=UINT64_MAX;slot->ready=false;slot->page=nullptr;slot->key=record->key;slot->geometry=record->geometry;
   if(!rle565::decode(compressedStorage+record->offset,record->words,slot->pixels,pixels))return nullptr;
   slot->page=&p;slot->row=p.height;slot->column=0;slot->paused=false;slot->ready=true;slot->compressionAttempted=true;
-  record->used=slot->used=++surfaceClock;++surfaceStats.compressedRestores;return slot;
+  record->used=slot->used=++surfaceClock;++surfaceStats.compressedRestores;
+  stats.compressedRestorePixels+=pixels;stats.compressedRestoreBytes+=record->words*sizeof(uint16_t);
+  return slot;
 }

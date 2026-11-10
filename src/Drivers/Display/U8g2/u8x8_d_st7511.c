@@ -32,7 +32,6 @@
   ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.  
 
 
-  20 May 2019:
   https://github.com/olikraus/u8g2/issues/876
   Probably HW Flip does not work 
 
@@ -158,8 +157,8 @@ uint8_t ngfx_u8x8_d_st7511_avd_320x240(ngfx_u8x8_t *u8x8, uint8_t msg, uint8_t a
 #ifdef NGFX_U8X8_WITH_SET_CONTRAST
     case NGFX_U8X8_MSG_DISPLAY_SET_CONTRAST:
       // not sure how to implement this....
-      // ngfx_u8x8_cad_StartTransfer(u8x8);
-      // ngfx_u8x8_cad_EndTransfer(u8x8);
+
+
       break;
 #endif
     case NGFX_U8X8_MSG_DISPLAY_DRAW_TILE:
@@ -298,8 +297,8 @@ uint8_t ngfx_u8x8_d_st7511_640x320(ngfx_u8x8_t *u8x8, uint8_t msg, uint8_t arg_i
 #ifdef NGFX_U8X8_WITH_SET_CONTRAST
     case NGFX_U8X8_MSG_DISPLAY_SET_CONTRAST:
       // not sure how to implement this....
-      // ngfx_u8x8_cad_StartTransfer(u8x8);
-      // ngfx_u8x8_cad_EndTransfer(u8x8);
+
+
       break;
 #endif
     case NGFX_U8X8_MSG_DISPLAY_DRAW_TILE:

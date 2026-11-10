@@ -62,14 +62,14 @@ static const uint8_t ngfx_u8x8_d_st7302_122x250_powersave1_seq[] = {
 
 static const uint8_t ngfx_u8x8_d_st7302_122x250_flip0_seq[] = {
   NGFX_U8X8_START_TRANSFER(),             	/* enable chip, delay is part of the transfer start */
-  //NGFX_U8X8_CA(0x36, 0x60), 			// Memory Control 
+
   NGFX_U8X8_END_TRANSFER(),             	/* disable chip */
   NGFX_U8X8_END()             			/* end of sequence */
 };
 
 static const uint8_t ngfx_u8x8_d_st7302_122x250_flip1_seq[] = {
   NGFX_U8X8_START_TRANSFER(),             	/* enable chip, delay is part of the transfer start */
-  //NGFX_U8X8_CA(0x36, 0xa0), 			// Memory Control 
+
   NGFX_U8X8_END_TRANSFER(),             	/* disable chip */
   NGFX_U8X8_END()             			/* end of sequence */
 };
@@ -90,7 +90,7 @@ static uint8_t *ngfx_u8x8_st7302_convert_60(ngfx_u8x8_t *u8x8, uint8_t *p)
   
   memset(buf, 0, 6);
   
-  //   NGFX_U8X8_CA(0x36, 0x60), 			// Memory Control 
+
 
 
   // first row, left 12 pixel
@@ -258,7 +258,7 @@ static uint8_t *ngfx_u8x8_st7302_convert_a0(ngfx_u8x8_t *u8x8, uint8_t *p)
   
   memset(buf, 0, 6);
   
-  //   NGFX_U8X8_CA(0x36, 0x0), 			// Memory Control 
+
 
 
   // first row, left 12 pixel
@@ -341,45 +341,7 @@ static const uint8_t ngfx_u8x8_d_st7302_122x250_init_seq[] = {
   NGFX_U8X8_C(0x39), 				// enable Low Power Mode...: 8Hz, see above
   NGFX_U8X8_DLY(100),
 
-  /*
-  NGFX_U8X8_CAA(0x2A, 0x19, 0x3a), 			// col addr  0x14 < col < 0x3b
-  NGFX_U8X8_CAA(0x2B, 115, 115), 			// row addr (0..250, y in u8g2), 0 is top row in u8g2
-  NGFX_U8X8_C(0x2C), 			// write start
-  NGFX_U8X8_D1(0xff), 			// pixel data
-  NGFX_U8X8_D1(0xff), 			// pixel data
-  NGFX_U8X8_D1(0xff), 			// pixel data
-  
-  NGFX_U8X8_D1(0xff), 			// pixel data
-  NGFX_U8X8_D1(0xff), 			// pixel data
-  NGFX_U8X8_D1(0xff), 			// pixel data
 
-  NGFX_U8X8_D1(0xff), 			// pixel data
-  NGFX_U8X8_D1(0xff), 			// pixel data
-  NGFX_U8X8_D1(0xff), 			// pixel data
-  
-  NGFX_U8X8_D1(0xff), 			// pixel data
-  NGFX_U8X8_D1(0xff), 			// pixel data
-  NGFX_U8X8_D1(0xff), 			// pixel data
-
-  NGFX_U8X8_CAA(0x2A, 0x19, 0x3a), 			// col addr  0x14 < col < 0x3b
-  NGFX_U8X8_CAA(0x2B, 116, 116), 			// row addr (0..250, y in u8g2), 0 is top row in u8g2
-  NGFX_U8X8_C(0x2C), 			// write start
-  NGFX_U8X8_D1(0x80), 			// pixel data
-  NGFX_U8X8_D1(0x00), 			// pixel data
-  NGFX_U8X8_D1(0x00), 			// pixel data
-  
-  NGFX_U8X8_D1(0x00), 			// pixel data
-  NGFX_U8X8_D1(0x00), 			// pixel data
-  NGFX_U8X8_D1(0x00), 			// pixel data
-
-  NGFX_U8X8_D1(0x00), 			// pixel data
-  NGFX_U8X8_D1(0x00), 			// pixel data
-  NGFX_U8X8_D1(0x00), 			// pixel data
-  
-  NGFX_U8X8_D1(0x00), 			// pixel data
-  NGFX_U8X8_D1(0x00), 			// pixel data
-  NGFX_U8X8_D1(0x00), 			// pixel data
-  */
 
   NGFX_U8X8_END_TRANSFER(),             	/* disable chip */
   NGFX_U8X8_END()           			/* end of sequence */
@@ -399,7 +361,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_st7302_122x250_display_info =
   /* post_reset_wait_ms = */ 3, 		/**/
   /* sda_setup_time_ns = */ 10,		/* */
   /* sck_pulse_width_ns = */ 30,	/*  */
-  /* sck_clock_hz = */ 2000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
+  /* sck_clock_hz = */ 2000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,	/* 400KHz */
   /* data_setup_time_ns = */ 15,
@@ -414,7 +376,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_st7302_122x250_display_info =
 
 uint8_t ngfx_u8x8_d_st7302_122x250(ngfx_u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *arg_ptr)
 {
-  // uint16_t x;
+
   uint8_t c, i, y;
   uint8_t *ptr;
   switch(msg)
@@ -454,9 +416,9 @@ uint8_t ngfx_u8x8_d_st7302_122x250(ngfx_u8x8_t *u8x8, uint8_t msg, uint8_t arg_i
       break;
 #endif
     case NGFX_U8X8_MSG_DISPLAY_DRAW_TILE:
-      // x = ((ngfx_u8x8_tile_t *)arg_ptr)->x_pos;    
+
       // x *= 8;
-      // x += u8x8->x_offset;
+
       y= (((ngfx_u8x8_tile_t *)arg_ptr)->y_pos);
       y*=4;
     

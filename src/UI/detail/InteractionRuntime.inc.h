@@ -14,7 +14,19 @@ void acquireOwner(int i,Drag kind) {
 void recognizeCoordinated(int32_t dx,int32_t dy,uint32_t now) {
   const auto decision=detail::decideGesture(dx,dy);
   if(decision==detail::GestureDecision::Pending)return;
-  if(decision==detail::GestureDecision::Reject){drag=Drag::Consumed;cancelTarget();return;}
+  if(decision==detail::GestureDecision::Reject){
+    // A free two-axis canvas explicitly claims Both before recognition. Its
+    // diagonal motion is intentional; ordinary axis-only contacts still reject.
+    if(pointerClaim>=0&&pointerClaimAxis==GestureAxis::Both&&allowX&&allowY&&
+       policy(pointerClaim).axis==GestureAxis::Both&&policy(pointerClaim).ownership!=GestureOwnership::Parent){
+      const bool horizontal=std::abs(dx)>=std::abs(dy);
+      const SwipeDirection direction=horizontal?(dx<0?SwipeDirection::Left:SwipeDirection::Right):(dy<0?SwipeDirection::Up:SwipeDirection::Down);
+      const auto *edge=contactModal<0?swipeBinding(direction,true):nullptr;
+      if(edge&&edge->overrideControls)claimGesture(edge,now);else acquireOwner(pointerClaim,Drag::Custom);
+      return;
+    }
+    drag=Drag::Consumed;cancelTarget();return;
+  }
   const bool horizontal=decision==detail::GestureDecision::X;
   const SwipeDirection direction=horizontal?(dx<0?SwipeDirection::Left:SwipeDirection::Right):(dy<0?SwipeDirection::Up:SwipeDirection::Down);
   const bool axisAllowed=horizontal?allowX:allowY;

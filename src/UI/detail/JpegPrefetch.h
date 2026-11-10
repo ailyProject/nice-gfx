@@ -3,9 +3,13 @@
 #include "JpegPrefetchSlots.h"
 
 #ifndef NICE_GFX_UI_JPEG_PREFETCH
+#if defined(CONFIG_IDF_TARGET_ESP32P4)
+#define NICE_GFX_UI_JPEG_PREFETCH 1
+#else
 #define NICE_GFX_UI_JPEG_PREFETCH 0
 #endif
-#if NICE_GFX_UI_JPEG_PREFETCH && NICE_GFX_UI_CAN_BORROW_JPEG_FLASH
+#endif
+#if NICE_GFX_UI_JPEG_PREFETCH && NICE_GFX_UI_CAN_DECODE_JPEG_FRAMEBUFFER
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <freertos/semphr.h>
@@ -26,7 +30,7 @@ struct JpegPrefetchKey {
   bool operator==(const JpegPrefetchKey &other)const{return bytes==other.bytes&&count==other.count&&width==other.width&&height==other.height&&sampling==other.sampling;}
   JpegMediaCache::FramebufferPlan plan()const{return {bytes,count,width,height,sampling};}
 };
-// Optional S31/DROM-only look-ahead. The worker owns a separate decoder and
+// Immutable Flash look-ahead. The worker owns a separate decoder and
 // four decoded PSRAM buffers. It never borrows a View, Image, LCD framebuffer,
 // mutable media descriptor, or the owner's decoder statistics.
 class JpegPrefetch {
@@ -52,7 +56,7 @@ class JpegPrefetch {
     for(size_t i=0;plans&&i<count&&accepted<4;++i){const auto &p=plans[i];
       JpegHeader header;
       if(!p.bytes||!p.count||!p.width||!p.height||(p.width&15)||(p.height&15)||
-         size_t(p.width)>SIZE_MAX/2/p.height||size_t(p.width)*p.height*2>budget_||!jpegCanBorrowFlash(p.bytes,p.count)||
+         size_t(p.width)>SIZE_MAX/2/p.height||size_t(p.width)*p.height*2>budget_||!jpegImmutableFramebufferSource(p.bytes,p.count)||
          !jpegHeader(p.bytes,p.count,header)||header.width!=p.width||header.height!=p.height||header.sampling!=p.sampling)continue;
       keys[accepted++]=JpegPrefetchKey(p);
     }
@@ -145,7 +149,10 @@ class JpegPrefetch {
         xSemaphoreTake(lock_,portMAX_DELAY);buffers_[work.token.index]=next;stats_.outputBytes=total-old.capacity;xSemaphoreGive(lock_);
         heap_caps_free(old.pixels);
         if(required>budget_||total-old.capacity>budget_-required)allocated=false;
-        else {size_t capacity=0;jpeg_decode_memory_alloc_cfg_t config{};config.buffer_direction=JPEG_DEC_ALLOC_OUTPUT_BUFFER;
+#if defined(CONFIG_IDF_TARGET_ESP32P4)
+        if(heap_caps_get_free_size(MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT)<required+2u*1024u*1024u)allocated=false;
+#endif
+        if(allocated){size_t capacity=0;jpeg_decode_memory_alloc_cfg_t config{};config.buffer_direction=JPEG_DEC_ALLOC_OUTPUT_BUFFER;
           next.pixels=static_cast<uint16_t *>(jpeg_alloc_decoder_mem(required,&config,&capacity));next.capacity=capacity;
           if(!next.pixels||capacity!=required){heap_caps_free(next.pixels);next=Buffer{};allocated=false;}}
         xSemaphoreTake(lock_,portMAX_DELAY);buffers_[work.token.index]=next;stats_.outputBytes=total-old.capacity+next.capacity;xSemaphoreGive(lock_);

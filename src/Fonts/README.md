@@ -1,6 +1,6 @@
 # 内置等宽点阵字体
 
-只需 `#include <NICE_GFX.h>`，用 `setFont()` 选择字体。主头文件包含二十二套点阵字体和四套灰度平滑字体的声明，字模在各自独立的 `.cpp` 中定义一次。没有字体启用宏、全局注册表或注册构造函数；屏幕与 Sprite 各自保存所选字体的指针，多个源文件共享同一份数据。平滑字体的选择、背景混合与空间优化见 [字体调用方法](../../docs/font.md)。早期新增像素字体见 [新增字体说明](EditorFonts.md)；新增楷体、粗黑体、重宋体及更大像素字库见 [扩展设备字体](ExtendedDeviceFonts.md)，包含完整许可、源码锁定和离线生成方式。
+只需 `#include <NICE_GFX.h>`，用 `setFont()` 选择字体。主头文件包含二十二套点阵字体和四套灰度平滑字体的声明，字模在各自独立的 `.cpp` 中定义一次。没有字体启用宏、全局注册表或注册构造函数；屏幕与 Sprite 各自保存所选字体的指针，多个源文件共享同一份数据。平滑字体的选择、背景混合与空间优化见 [字体调用方法](../../docs/font.md)。像素字体来源与生成方式见 [像素字体说明](EditorFonts.md)；楷体、粗黑体、重宋体及扩展像素字库见 [扩展设备字体](ExtendedDeviceFonts.md)，包含完整许可、源码锁定和离线生成方式。
 
 | 字体对象（位于 `nice_gfx::fonts`） | 字符格 | 字形及索引字节 | 字符范围 |
 | --- | --- | ---: | --- |
@@ -63,7 +63,7 @@ void setup() {
 void loop() {}
 ```
 
-只有实际引用的两套英文字体需要进入这个示例的固件。声明所有字体不会自动选择或引用它们。显示对象构造后不选择任何内置字体：默认构建中，未调用 `setFont()` 时文本宽高为 0、不绘制文字。`setFont(nullptr)` 清除对象字体；若全工程显式启用了旧字体，则恢复旧默认字体。
+只有实际引用的两套英文字体需要进入这个示例的固件。声明所有字体不会自动选择或引用它们。显示对象构造后不选择任何内置字体：未调用 `setFont()` 时文本宽高为 0、不绘制文字。`setFont(nullptr)` 清除对象字体。
 
 `setFont()` 同时接受 `const nice_gfx::MonoFont &` 和指针；`getFont()` 返回当前对象字体指针，未选择时为 `nullptr`。字体描述对象必须在使用期间保持有效，内置及生成的字体均具有静态生命周期。切换字体会重置正在接收的 UTF-8 序列。无需注册，任何 `.cpp` 都能直接选择字体。
 
@@ -126,7 +126,7 @@ gfx.setFont(nice_gfx::fonts::ProjectCN);
 
 ## 来源、授权及重现
 
-二十二套均可免费用于商业产品，分发时保留对应字体的版权及许可文件。OFL 字体及派生字模维持 OFL 1.1 许可，不单独出售字体；字体许可不要求使用它的应用程序改用 OFL。新增派生名称避开上游保留名称。新增四套扩展中文及两套像素字体的具体来源、字数、许可证和生成命令见 [扩展设备字体](ExtendedDeviceFonts.md)。其余来源如下：
+二十二套均可免费用于商业产品，分发时保留对应字体的版权及许可文件。OFL 字体及派生字模维持 OFL 1.1 许可，不单独出售字体；字体许可不要求使用它的应用程序改用 OFL。派生名称避开上游保留名称。四套扩展中文及两套像素字体的具体来源、字数、许可证和生成命令见 [扩展设备字体](ExtendedDeviceFonts.md)。其余来源如下：
 
 - Tom Thumb：Brian J. Swetland、Vassilii Khachaturov 原始小字体，Robey Pointer 改进；保留 [BSD 原始声明](licenses/TomThumb.txt)。[作者说明](https://robey.lag.net/2010/01/23/tiny-monospace-font.html)还提供 MIT / CC0 / CC-BY 3.0 授权。
 - ProFont：Carl Osterwald、Stephen C. Gilardi、Andrew Welch，[MIT 许可](licenses/ProFont-MIT.txt)，[上游来源和授权](https://github.com/olikraus/u8g2/wiki/fntgrpprofont)。
@@ -139,15 +139,15 @@ gfx.setFont(nice_gfx::fonts::ProjectCN);
 
 字模的来源、版权和固定版本记录在各字体头文件及 [许可目录](licenses) 中。预览图和目录数据位于 [字体文档资源](../../docs/assets/fonts)。正常编译不下载字体，也不依赖原始 BDF/OTF 或字体生成工具。需要更新字模时，应一并更新源码、来源记录、预览与编辑器字体资源。
 
-## 从旧字体接口迁移
+## 按用途选择字体
 
-字体统一由 `setFont()` 选择，不再提供数字编号、FreeFont 或 VLW 加载接口。删除旧 `LOAD_*` / `SMOOTH_FONT` 和入口字体宏配置，使用独立的 MonoFont 对象或生成项目子集。常用替换为：
+字体由 `setFont()` 选择，使用独立的 MonoFont 对象或生成项目子集。常用选择如下：
 
-| 原用途 | 对象选择 |
+| 用途 | 对象选择 |
 | --- | --- |
 | 小字号 ASCII | `setFont(nice_gfx::fonts::TomThumb4x6)` 或 `ProFont6x12` |
 | 常规文本 | `setFont(nice_gfx::fonts::Fixed6x13)` 或 `GfxSansLatin16` |
 | 大数字和标题 | `setFont(nice_gfx::fonts::Spleen12x24)`，按需设置整数倍率 |
 | 中文界面 | `setFont(nice_gfx::fonts::GfxSansCN12)`、`GfxSansCN16` 或生成所需字形子集 |
 
-`drawString/drawNumber/drawFloat` 使用当前对象字体，不再传字体编号。单字绘制使用 `drawChar(codepoint, x, y)`，其颜色、背景和倍率由对象文本设置决定。字体切换后重新测量文本宽度和行高，避免沿用旧比例字库的基线和布局常量。`getFont()` 返回当前字体指针，`setFont(nullptr)` 清除该对象的字体选择。
+`drawString/drawNumber/drawFloat` 使用当前对象字体。单字绘制使用 `drawChar(codepoint, x, y)`，其颜色、背景和倍率由对象文本设置决定。字体切换后重新测量文本宽度和行高，以匹配所选字体的基线和布局。`getFont()` 返回当前字体指针，`setFont(nullptr)` 清除该对象的字体选择。

@@ -166,7 +166,7 @@ uint8_t ngfx_u8x8_d_ssd1320_common(ngfx_u8x8_t *u8x8, uint8_t msg, uint8_t arg_i
           c--;
         } while( c > 0 );
       
-      //x += 2;
+
       arg_int--;
     } while( arg_int > 0 );
     
@@ -200,8 +200,8 @@ static uint8_t *ngfx_u8x8_ssd1320_8to32_2(NGFX_U8X8_UNUSED ngfx_u8x8_t *u8x8, ui
     for( i = 0; i < 8; i++ )
     {
       v = 0;
-      if ( a&1 ) v |= 0xf0;     // changed from 0x0f to 0xf0, https://github.com/olikraus/u8g2/issues/1816
-      if ( b&1 ) v |= 0x0f;     // changed from 0xf0 to 0x0f, https://github.com/olikraus/u8g2/issues/1816
+      if ( a&1 ) v |= 0xf0;
+      if ( b&1 ) v |= 0x0f;
       *dest = v;
       dest+=4;
       a >>= 1;
@@ -272,7 +272,7 @@ uint8_t ngfx_u8x8_d_ssd1320_common_2(ngfx_u8x8_t *u8x8, uint8_t msg, uint8_t arg
           c--;
         } while( c > 0 );
       
-      //x += 2;
+
       arg_int--;
     } while( arg_int > 0 );
     
@@ -314,7 +314,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_d_ssd1320_cs1_160x32_display_inf
   /* post_reset_wait_ms = */ 100, /* far east OLEDs need much longer setup time */
   /* sda_setup_time_ns = */ 50,		/* ssd1320: 15ns, but cycle time is 100ns, so use 100/2 */
   /* sck_pulse_width_ns = */ 50,	/* ssd1320: 20ns, but cycle time is 100ns, so use 100/2, AVR: below 70: 8 MHz, >= 70 --> 4MHz clock */
-  /* sck_clock_hz = */ 10000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns, increased to 8MHz (issue 215), 10 MHz (issue 301) */
+  /* sck_clock_hz = */ 10000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns, increased to 8MHz (issue 215), 10 MHz (issue 301) */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,
   /* data_setup_time_ns = */ 10,
@@ -341,14 +341,14 @@ static const uint8_t ngfx_u8x8_d_ssd1320_cs1_160x32_init_seq[] = {
     NGFX_U8X8_CA(0xa2, 0x00),			/* display start line */  
 
     NGFX_U8X8_C(0xa0),	                /* Set Segment Re-Map: column address 0 mapped to SEG0  CS1 */ 
-    // NGFX_U8X8_C(0xa1),	                /* Set Segment Re-Map: column address 0 mapped to SEG0  CS2 */ 
+
 
     NGFX_U8X8_C(0xc8),	             /* Set COM Output Scan Direction: normal mode CS1 */
-    // NGFX_U8X8_C(0xc0),			        /* Set COM Output Scan Direction: normal mode CS2 */
-    
+
+
     NGFX_U8X8_CA(0xd3, 0x72),        /* CS1 */
-    // NGFX_U8X8_CA(0xd3, 0x92),        /* CS2 */
-    
+
+
     NGFX_U8X8_CA(0xda, 0x12),	    /* Set SEG Pins Hardware Configuration:  */  
     NGFX_U8X8_CA(0x81, 0x5a),			/* contrast */  
     NGFX_U8X8_CA(0xd9, 0x22),			/* Set Phase Length */  
@@ -429,7 +429,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_d_ssd1320_cs1_160x132_display_in
   /* post_reset_wait_ms = */ 100, /* far east OLEDs need much longer setup time */
   /* sda_setup_time_ns = */ 50,		/* ssd1320: 15ns, but cycle time is 100ns, so use 100/2 */
   /* sck_pulse_width_ns = */ 50,	/* ssd1320: 20ns, but cycle time is 100ns, so use 100/2, AVR: below 70: 8 MHz, >= 70 --> 4MHz clock */
-  /* sck_clock_hz = */ 10000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns, increased to 8MHz (issue 215), 10 MHz (issue 301) */
+  /* sck_clock_hz = */ 10000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns, increased to 8MHz (issue 215), 10 MHz (issue 301) */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,
   /* data_setup_time_ns = */ 10,
@@ -444,7 +444,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_d_ssd1320_cs1_160x132_display_in
 
 
 /* the following sequence will work, but requires contrast to be very high */
-/* added #ifdef to avoid compiler warning, issue 1802 */
+
 #ifdef NOT_USED
 static const uint8_t ngfx_u8x8_d_ssd1320_cs1_160x132_init_seq[] = {
     
@@ -458,14 +458,14 @@ static const uint8_t ngfx_u8x8_d_ssd1320_cs1_160x132_init_seq[] = {
     NGFX_U8X8_CA(0xa2, 0x00),			/* display start line */  
 
     NGFX_U8X8_C(0xa0),	                /* Set Segment Re-Map: column address 0 mapped to SEG0  CS1 */ 
-    // NGFX_U8X8_C(0xa1),	                /* Set Segment Re-Map: column address 0 mapped to SEG0  CS2 */ 
+
 
     NGFX_U8X8_C(0xc8),	             /* Set COM Output Scan Direction: normal mode CS1 */
-    // NGFX_U8X8_C(0xc0),			        /* Set COM Output Scan Direction: normal mode CS2 */
-  
+
+
     NGFX_U8X8_CA(0xd3, 0x0e),        /* CS1 */
-    // NGFX_U8X8_CA(0xd3, 0x92),        /* CS2 */
-    
+
+
     NGFX_U8X8_CA(0xda, 0x12),	    /* Set SEG Pins Hardware Configuration:  */  
     NGFX_U8X8_CA(0x81, 0x5a),			/* contrast */  
     NGFX_U8X8_CA(0xd9, 0x22),			/* Set Phase Length */  
@@ -537,10 +537,10 @@ static const uint8_t ngfx_u8x8_d_ssd1320_160x132_init_seq[] = {
     NGFX_U8X8_CA(0xa2, 0x00),	/* display start line */  
 
     NGFX_U8X8_C(0xa0),	                /* Set Segment Re-Map: column address 0 mapped to SEG0  CS1 */ 
-    // NGFX_U8X8_C(0xa1),	      	/* Set Segment Re-Map: column address 0 mapped to SEG0  CS2 */ 
+
 
     NGFX_U8X8_C(0xc8),	             	/* Set COM Output Scan Direction: normal mode CS1 */
-    // NGFX_U8X8_C(0xc0),		/* Set COM Output Scan Direction: normal mode CS2 */
+
 
     NGFX_U8X8_CA(0xad, 0x10), 		/* select Iref: 0x00 external (reset default), 0x10 internal */
     NGFX_U8X8_CA(0xbc, 0x1e), 		/* pre-charge voltage level 0x00..0x1f, reset default: 0x1e */
@@ -552,16 +552,16 @@ static const uint8_t ngfx_u8x8_d_ssd1320_160x132_init_seq[] = {
 
   
     NGFX_U8X8_CA(0xd3, 0x0e),        /* CS1 */
-    // NGFX_U8X8_CA(0xd3, 0x92),        /* CS2 */
-    
+
+
     NGFX_U8X8_CA(0xda, 0x12),	/* Set SEG Pins Hardware Configuration:  */  
     NGFX_U8X8_CA(0x81, 0x6b),			/* contrast */  
-    //NGFX_U8X8_CA(0xd9, 0x22),			/* Set Phase Length */  
-    //NGFX_U8X8_CA(0xdb, 0x30),		  /* VCOMH Deselect Level */
-    //NGFX_U8X8_CA(0xad, 0x10),			/* Internal IREF Enable */  
+
+
+
     NGFX_U8X8_CA(0x20, 0x00),	    /* Memory Addressing Mode: Horizontal */  
-    //NGFX_U8X8_CA(0x8d, 0x01),			/* unknown in SSD1320 datasheet, disable internal charge pump 1 */  
-    //NGFX_U8X8_CA(0xac, 0x00),			/* unknown in SSD1320 datasheet, disable internal charge pump 2 */  
+
+
     NGFX_U8X8_C(0xa4),		        	/* display RAM on */  
     NGFX_U8X8_C(0xa6),		          /* normal display */
 
@@ -582,7 +582,7 @@ uint8_t ngfx_u8x8_d_ssd1320_160x132(ngfx_u8x8_t *u8x8, uint8_t msg, uint8_t arg_
 
     case NGFX_U8X8_MSG_DISPLAY_INIT:
         ngfx_u8x8_d_helper_display_init(u8x8);
-       // ngfx_u8x8_cad_SendSequence(u8x8, ngfx_u8x8_d_ssd1320_cs1_160x132_init_seq);
+
         ngfx_u8x8_cad_SendSequence(u8x8, ngfx_u8x8_d_ssd1320_160x132_init_seq);
       break;
 
@@ -639,7 +639,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_d_ssd1320_160x80_display_info =
   /* post_reset_wait_ms = */ 100, /* far east OLEDs need much longer setup time */
   /* sda_setup_time_ns = */ 50,		/* ssd1320: 15ns, but cycle time is 100ns, so use 100/2 */
   /* sck_pulse_width_ns = */ 50,	/* ssd1320: 20ns, but cycle time is 100ns, so use 100/2, AVR: below 70: 8 MHz, >= 70 --> 4MHz clock */
-  /* sck_clock_hz = */ 10000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns, increased to 8MHz (issue 215), 10 MHz (issue 301) */
+  /* sck_clock_hz = */ 10000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns, increased to 8MHz (issue 215), 10 MHz (issue 301) */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,
   /* data_setup_time_ns = */ 10,
@@ -755,7 +755,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_d_ssd1320_128x72_display_info =
   /* post_reset_wait_ms = */ 100, /* far east OLEDs need much longer setup time */
   /* sda_setup_time_ns = */ 50,		/* ssd1320: 15ns, but cycle time is 100ns, so use 100/2 */
   /* sck_pulse_width_ns = */ 50,	/* ssd1320: 20ns, but cycle time is 100ns, so use 100/2, AVR: below 70: 8 MHz, >= 70 --> 4MHz clock */
-  /* sck_clock_hz = */ 10000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns, increased to 8MHz (issue 215), 10 MHz (issue 301) */
+  /* sck_clock_hz = */ 10000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns, increased to 8MHz (issue 215), 10 MHz (issue 301) */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,
   /* data_setup_time_ns = */ 10,
@@ -832,8 +832,8 @@ static const uint8_t ngfx_u8x8_d_ssd1320_128x72_init_seq[] = {
     NGFX_U8X8_CA(0xad, 0x10), 		/* select Iref: 0x00 external (reset default), 0x10 internal (datasheet: 0x00, but no difference with 0x10) */
     NGFX_U8X8_CA(0xbc, 0x1e), 		/* pre-charge voltage level 0x00..0x1f, reset default: 0x1e (128x72 init code)*/
     NGFX_U8X8_C(0xbf),		        	/* select linear LUT */  
-    //NGFX_U8X8_DLY(1),
-  
+
+
     NGFX_U8X8_CA(0xd5, 0x11 ), 		/* Bit 0..3: clock ratio 1, 2, 4, 8, ...256, reset=0x1, Bit 4..7: F_osc 0..15 (128x72 init code)*/
 
     NGFX_U8X8_CA(0xd3, 0x2c),        /* display offset */

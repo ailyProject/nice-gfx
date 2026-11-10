@@ -1,7 +1,7 @@
 #pragma once
 #include "../../Display/ControllerProfile.h"
 
-// HX8352C initialization ported from Arduino_GFX (BSD-licensed).
+// Register and timing reference: HX8352C datasheet.
 
 namespace nice_gfx { namespace controllers {
 inline void init_HX8352C(PanelSequence &s) {

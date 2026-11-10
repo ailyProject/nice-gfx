@@ -1,7 +1,7 @@
 #pragma once
 #include "../../Display/ControllerProfile.h"
 
-// OTM8009A 16-bit register initialization ported from Arduino_GFX (BSD-licensed).
+// Register and timing reference: OTM8009A datasheet.
 
 namespace nice_gfx { namespace controllers {
 inline void init_OTM8009A(PanelSequence &s) {

@@ -136,7 +136,7 @@ void NICE_GFX::drawCircleHelper( int32_t x0, int32_t y0, int32_t rr, uint8_t cor
 ** Function name:           fillCircle
 ** Description:             draw a filled circle
 ***************************************************************************************/
-// Optimised midpoint circle algorithm, changed to horizontal lines (faster in sprites)
+// Optimised midpoint circle algorithm, using horizontal lines (faster in sprites)
 // Improved algorithm avoids repetition of lines
 void NICE_GFX::fillCircle(int32_t x0, int32_t y0, int32_t r, uint32_t color)
 {
@@ -175,7 +175,7 @@ void NICE_GFX::fillCircle(int32_t x0, int32_t y0, int32_t r, uint32_t color)
 ** Function name:           fillCircleHelper
 ** Description:             Support function for fillRoundRect()
 ***************************************************************************************/
-// Support drawing roundrects, changed to horizontal lines (faster in sprites)
+// Support drawing roundrects, using horizontal lines (faster in sprites)
 void NICE_GFX::fillCircleHelper(int32_t x0, int32_t y0, int32_t r, uint8_t cornername, int32_t delta, uint32_t color)
 {
   int32_t f     = 1 - r;
@@ -354,7 +354,7 @@ void NICE_GFX::drawRoundRect(int32_t x, int32_t y, int32_t w, int32_t h, int32_t
 ** Function name:           fillRoundRect
 ** Description:             Draw a rounded corner filled rectangle
 ***************************************************************************************/
-// Fill a rounded rectangle, changed to horizontal lines (faster in sprites)
+// Fill a rounded rectangle, using horizontal lines (faster in sprites)
 void NICE_GFX::fillRoundRect(int32_t x, int32_t y, int32_t w, int32_t h, int32_t r, uint32_t color)
 {
   WriteScope write(*this);

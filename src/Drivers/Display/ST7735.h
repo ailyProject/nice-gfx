@@ -1,7 +1,8 @@
 #pragma once
 #include "../../Display/ControllerProfile.h"
 
-  // Frame control init for RobotLCD, taken from https://github.com/arduino-libraries/TFT, Adafruit_ST7735.cpp l. 263, commit 61b8a7e
+// Register and timing reference: ST7735 datasheet.
+// Frame control is configured for the RobotLCD panel profile.
 
 namespace nice_gfx { namespace controllers {
 inline void init_ST7735(PanelSequence &s) {

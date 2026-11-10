@@ -20,7 +20,7 @@ void setup() {
 
   // Initialise the TFT screen
   gfx.begin();
-  exampleAttachTouch(gfx); // Runtime XPT2046 pins in ExampleBoard.h
+  exampleAttachTouch(gfx); // Runtime XPT2046 pins in Hardware.h
 
   // Set the rotation to the orientation you wish to use in your project before calibration
   // (the touch coordinates returned then correspond to that rotation only)

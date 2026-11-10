@@ -5,7 +5,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <new>
-#if defined(CONFIG_IDF_TARGET_ESP32S31)
+#if defined(CONFIG_IDF_TARGET_ESP32S31) || defined(CONFIG_IDF_TARGET_ESP32P4)
 #include <esp_heap_caps.h>
 #endif
 
@@ -43,14 +43,23 @@ class ShapeOverlayCache {
   };
   using Allocate=void *(*)(size_t);
   using Free=void (*)(void *);
-  static constexpr size_t DefaultBudget=2u*1024u*1024u,SlotCount=64;
+  static constexpr size_t DefaultBudget=2u*1024u*1024u;
+#if defined(CONFIG_IDF_TARGET_ESP32P4)
+  static constexpr size_t SlotCount=512;
+#else
+  static constexpr size_t SlotCount=64;
+#endif
   explicit ShapeOverlayCache(size_t budget=DefaultBudget,Allocate allocate=allocateMemory,Free release=freeMemory)
       :budget_(budget),allocate_(allocate),free_(release){}
   ~ShapeOverlayCache(){clear();}
   ShapeOverlayCache(const ShapeOverlayCache &)=delete;
   ShapeOverlayCache &operator=(const ShapeOverlayCache &)=delete;
   void clear(){for(auto &slot:slots_)discard(slot);clock_=hits_=misses_=evictions_=0;}
-  size_t bytes()const{return bytes_;}
+  size_t bytes()const{return bytes_
+#if defined(CONFIG_IDF_TARGET_ESP32P4)
+    +slots_.count*sizeof(Slot)
+#endif
+    ;}
   uint64_t hits()const{return hits_;}
   uint64_t misses()const{return misses_;}
   uint64_t evictions()const{return evictions_;}
@@ -76,7 +85,7 @@ class ShapeOverlayCache {
       Recorder recorder{pixels,stride,int32_t(box.width),int32_t(box.height)};
       const Rect local{0,0,box.width,box.height};
       renderShape(recorder,shape,local,local,radius);
-      slot->key=key;slot->hash=hash;slot->pixels=pixels;slot->stride=stride;slot->bytes=bytes;bytes_+=bytes;
+      slot->key=key;slot->hash=hash;slot->pixels=pixels;slot->stride=stride;slot->bytes=bytes;bytes_+=bytes;index(*slot);
     }
     slot->used=++clock_;
     output={slot->pixels,key.width,key.height,slot->stride,slot->bytes};return true;
@@ -125,10 +134,43 @@ class ShapeOverlayCache {
     output={slot->nativeSpans,slot->nativeCount,slot->nativeBytes,key.width,key.height,nullptr,0};output.certify();return true;
   }
 
+  // A conservative interior rectangle certified by the final opaque runs.
+  // It is useful for damage hidden behind a shape; a bounding box alone is
+  // insufficient for cut corners, holes, outlines or antialiased edges.
+  bool opaqueInterior(const ShapeDesc &shape,Rect box,uint8_t radius,Rect &output){
+    output={0,0,0,0};NativeTexture texture;
+    if(!resolveNative(shape,box,radius,texture))return false;
+    Key key{};if(!makeKey(shape,box,radius,key))return false;Slot *slot=find(key,hashKey(key));if(!slot)return false;
+    if(!slot->opaqueReady){
+      Rect best{0,0,0,0};size_t at=0;const size_t center=texture.width/2;
+      const size_t widths[4]={texture.width,texture.width*7/8,texture.width*3/4,texture.width/2};
+      size_t starts[4]{};
+      for(size_t y=0;y<texture.height;++y){
+        size_t coveredLeft=0,coveredRight=0;
+        while(at<texture.count&&texture.spans[at].y<y)++at;
+        size_t row=at;
+        while(row<texture.count&&texture.spans[row].y==y){
+          size_t left=texture.spans[row].x,right=left+texture.spans[row].width;++row;
+          while(row<texture.count&&texture.spans[row].y==y&&texture.spans[row].x<=right){right=std::max(right,size_t(texture.spans[row].x)+texture.spans[row].width);++row;}
+          if(left<=center&&center<right){coveredLeft=left;coveredRight=right;}
+        }
+        at=row;
+        for(size_t candidate=0;candidate<4;++candidate){const size_t width=widths[candidate],left=(texture.width-width)/2,right=left+width;
+          if(!width||coveredLeft>left||coveredRight<right){starts[candidate]=y+1;continue;}
+          const size_t height=y+1-starts[candidate];
+          if(width*height>size_t(best.width)*size_t(best.height))best={int32_t(left),int32_t(starts[candidate]),int32_t(width),int32_t(height)};
+        }
+      }
+      slot->opaque=best;slot->opaqueReady=true;
+    }
+    output=slot->opaque;output.x+=box.x;output.y+=box.y;return output.width>0&&output.height>0;
+  }
+
  private:
   struct Key {ShapeDesc shape{};ShapePoint points[64]{};uint16_t width=0,height=0;uint8_t radius=0;};
   struct Slot {Key key{};uint32_t *pixels=nullptr;size_t stride=0,bytes=0;uint32_t hash=0;uint64_t used=0;
-    NativeSpan *nativeSpans=nullptr;size_t nativeCount=0,nativeBytes=0;bool nativeReady=false;};
+    NativeSpan *nativeSpans=nullptr;size_t nativeCount=0,nativeBytes=0;bool nativeReady=false;
+    Rect opaque{0,0,0,0};bool opaqueReady=false;};
   bool makeKey(const ShapeDesc &shape,Rect box,uint8_t radius,Key &key)const{
     // Match the bounded integer-translation domain checked by the native
     // shape parity suite; unusual coordinates retain the ordinary rasterizer.
@@ -148,7 +190,11 @@ class ShapeOverlayCache {
     if(shape.count)memcpy(key.points,shape.points,size_t(shape.count)*sizeof(ShapePoint));return true;
   }
   static bool occupied(const Slot &slot){return slot.pixels||slot.nativeReady;}
-  Slot *find(const Key &key,uint32_t hash){for(auto &entry:slots_)if(occupied(entry)&&entry.hash==hash&&sameKey(entry.key,key))return &entry;return nullptr;}
+  static constexpr size_t LookupSize=SlotCount*2;
+  void index(Slot &slot){size_t at=slot.hash&(LookupSize-1);while(lookup_[at]&&lookup_[at]!=&slot)at=(at+1)&(LookupSize-1);lookup_[at]=&slot;}
+  void unindex(Slot &slot){size_t at=slot.hash&(LookupSize-1);while(lookup_[at]&&lookup_[at]!=&slot)at=(at+1)&(LookupSize-1);if(!lookup_[at])return;lookup_[at]=nullptr;
+    for(size_t next=(at+1)&(LookupSize-1);lookup_[next];next=(next+1)&(LookupSize-1)){auto *entry=lookup_[next];lookup_[next]=nullptr;index(*entry);}}
+  Slot *find(const Key &key,uint32_t hash){for(size_t at=hash&(LookupSize-1);lookup_[at];at=(at+1)&(LookupSize-1)){auto *entry=lookup_[at];if(entry->hash==hash&&sameKey(entry->key,key))return entry;}return nullptr;}
   struct Recorder {
     uint32_t *pixels;size_t stride;int32_t width,height;
     void fillRect(int32_t x,int32_t y,int32_t w,int32_t h,uint32_t color){
@@ -174,22 +220,36 @@ class ShapeOverlayCache {
   }
   Slot *lru(Slot *keep=nullptr){Slot *oldest=nullptr;for(auto &slot:slots_)if(&slot!=keep&&occupied(slot)&&(!oldest||slot.used<oldest->used))oldest=&slot;return oldest;}
   void releaseArgb(Slot &slot){if(slot.pixels){free_(slot.pixels);bytes_-=slot.bytes;slot.pixels=nullptr;slot.stride=slot.bytes=0;}}
-  void discard(Slot &slot){if(slot.pixels){free_(slot.pixels);bytes_-=slot.bytes;}if(slot.nativeSpans){free_(slot.nativeSpans);bytes_-=slot.nativeBytes;}slot=Slot{};}
+  void discard(Slot &slot){if(occupied(slot))unindex(slot);if(slot.pixels){free_(slot.pixels);bytes_-=slot.bytes;}if(slot.nativeSpans){free_(slot.nativeSpans);bytes_-=slot.nativeBytes;}slot=Slot{};}
   static void *allocateMemory(size_t bytes){
-#if defined(CONFIG_IDF_TARGET_ESP32S31)
+#if defined(CONFIG_IDF_TARGET_ESP32S31) || defined(CONFIG_IDF_TARGET_ESP32P4)
     return heap_caps_aligned_alloc(64,bytes,MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT);
 #else
     return allocateAlignedMemory<64>(bytes);
 #endif
   }
   static void freeMemory(void *memory){
-#if defined(CONFIG_IDF_TARGET_ESP32S31)
+#if defined(CONFIG_IDF_TARGET_ESP32S31) || defined(CONFIG_IDF_TARGET_ESP32P4)
     heap_caps_free(memory);
 #else
     freeAlignedMemory<64>(memory);
 #endif
   }
-  Slot slots_[SlotCount];size_t budget_=0,bytes_=0;uint64_t clock_=0,hits_=0,misses_=0,evictions_=0;
+#if defined(CONFIG_IDF_TARGET_ESP32P4)
+  // Dense instrument pages can contain >100 independent shapes. Keep bounded
+  // metadata in PSRAM rather than evicting each vector before its next frame
+  // or consuming the internal SRAM needed by tiles and input control.
+  struct SlotArray{
+    Slot *data=nullptr;size_t count=0;
+    SlotArray(){data=static_cast<Slot*>(heap_caps_malloc(SlotCount*sizeof(Slot),MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT));if(data){count=SlotCount;for(size_t i=0;i<count;++i)new(data+i)Slot();}}
+    ~SlotArray(){for(size_t i=0;i<count;++i)data[i].~Slot();heap_caps_free(data);}
+    Slot *begin(){return data;}Slot *end(){return data?data+count:data;}
+  } slots_;
+#else
+  Slot slots_[SlotCount];
+#endif
+  Slot *lookup_[LookupSize]{};
+  size_t budget_=0,bytes_=0;uint64_t clock_=0,hits_=0,misses_=0,evictions_=0;
   Allocate allocate_;Free free_;
 };
 }}}

@@ -2,7 +2,7 @@
 
 示例按“要学习的功能”组织，编号表示建议学习顺序。开发板、屏幕控制器、分辨率和引脚属于硬件配置，不作为示例分类。所有草图的主文件与所在文件夹同名，可从 Arduino IDE 的 NICE_GFX 示例菜单打开。
 
-单色屏可从[反白菜单](07_UI/MonochromeMenu/README.md)开始；电子纸的初始化、局刷与非阻塞更新见[刷新诊断](09_Diagnostics/EpaperRefresh/README.md)。这两种显示共用原有绘图和按键接口，具体支持范围见[单色屏与电子纸](../docs/MonochromeAndEpaper.md)。
+单色屏可从[反白菜单](07_UI/MonochromeMenu/README.md)开始；电子纸的初始化、局刷与非阻塞更新见[刷新诊断](09_Diagnostics/EpaperRefresh/README.md)。这两种显示共用绘图和按键接口，具体支持范围见[单色屏与电子纸](../docs/MonochromeAndEpaper.md)。
 
 | 目录 | 内容 | 建议从这里开始 |
 | --- | --- | --- |
@@ -40,7 +40,7 @@ Hello_Display、Basic_Shapes 和 Display_Color_Bars 的 `ExampleDrawing.h` 将�
 
 每个通用草图自带可编辑的 `Hardware.h`。硬件预设的类型名可以包含控制器、接口与尺寸，例如 `ILI9341_240x320_SPI`；它们描述设备能力。新增示例应放入对应功能目录，硬件差异在草图配置中处理。
 
-模板提供以下**示例接线**，须按实际硬件修改：
+各草图的 `Hardware.h` 提供以下**示例接线**，须按实际硬件修改：
 
 | 目标 | 显示器 | 示例连接 |
 | --- | --- | --- |
@@ -54,13 +54,13 @@ Hello_Display、Basic_Shapes 和 Display_Color_Bars 的 `ExampleDrawing.h` 将�
 
 通用入口的旋转由 `exampleRotation()` 设置，背光引脚由 `exampleBacklightPin()` 设置，均在本地 Hardware.h 内。其他已有示例可能在 setup 中自行设置旋转，修改时以该草图为准。
 
-触摸示例的 `exampleAttachTouch(gfx)` 构造独立的 XPT2046 控制器。ESP32-S3 示例连接为 clock 10、MOSI 11、MISO 12、CS 13，表示外接 XPT2046；CH13613 模块不因此具备触摸。Wio Terminal 没有板载触摸，模板返回 Unsupported。其他触摸芯片参见 [电容触摸示例](06_Touch/Vendor_Capacitive_Touch/Vendor_Capacitive_Touch.ino) 和 [设备支持说明](../docs/DeviceSupport.md)。
+触摸示例的 `exampleAttachTouch(gfx)` 构造独立的 XPT2046 控制器。ESP32-S3 示例连接为 clock 10、MOSI 11、MISO 12、CS 13，表示外接 XPT2046；CH13613 模块不因此具备触摸。Wio Terminal 没有板载触摸，函数返回 Unsupported。其他触摸芯片参见 [电容触摸示例](06_Touch/Vendor_Capacitive_Touch/Vendor_Capacitive_Touch.ino) 和 [设备支持说明](../docs/DeviceSupport.md)。
 
-## 既有示例与依赖
+## 示例布局与依赖
 
-已保留原有草图及其图片、字体资源和辅助源码。重复功能的历史布局使用 `Compact`、`Wide` 等后缀区分，并与同功能示例放在一起。这些旧草图仍可能使用固定坐标，迁移目录不代表已改成自适应布局；运行前检查草图注释、旋转、坐标范围和缓冲内存。图库中的复杂眼睛动画也有专用接线。
+同一功能的不同布局使用 `Compact`、`Wide` 等后缀区分，并与同功能示例放在一起。部分草图使用固定坐标；运行前检查草图注释、旋转、坐标范围和缓冲内存。图库中的复杂眼睛动画也有专用接线。
 
-字体通过 `gfx.setFont(nice_gfx::fonts::Fixed6x13)` 显式选择，Sprite 也须单独设置字体。声明已由 `NICE_GFX.h` 提供；未引用字模在链接时移除。字体示例中的 FLASH_Array、LittleFS、SPIFFS 是历史变体名称，现在均使用 Flash 中的 MonoFont；SD_Card 示例只从卡中读取文本。详见 [字体示例说明](03_Text/README.md) 与 [字体指南](../src/Fonts/README.md)。
+字体通过 `gfx.setFont(nice_gfx::fonts::Fixed6x13)` 显式选择，Sprite 也须单独设置字体。声明由 `NICE_GFX.h` 提供；未引用字模在链接时移除。FLASH_Array、LittleFS、SPIFFS 目录中的字体示例均使用 Flash 中的 MonoFont；SD_Card 示例只从卡中读取文本。详见 [字体示例说明](03_Text/README.md) 与 [字体指南](../src/Fonts/README.md)。
 
 JPEG/PNG 解码、SD/文件系统、Wi-Fi 和传感器等依赖按各草图安装。面板或外设专用示例保留明确名称与硬件要求，例如 [CH13613 QSPI](02_Graphics/CH13613_QSPI_Demo/CH13613_QSPI_Demo.ino)、[Waveshare4B](07_UI/Waveshare4B/README.md)、[MosaicoCameraDemo](08_Applications/MosaicoCameraDemo/README.md)；功能分类不会消除其硬件依赖。
 
@@ -68,7 +68,7 @@ JPEG/PNG 解码、SD/文件系统、Wi-Fi 和传感器等依赖按各草图安�
 
 ## 维护
 
-`_shared` 只保存维护模板；可运行的草图均自带所需头文件，复制单个草图文件夹即可保留配置。修改模板后运行 `npm run examples:sync`。新增或迁移草图后运行 `node tools/check-examples.mjs --write` 更新索引，再运行 `npm run check`，验证功能分类、主文件同名、本地包含、模板和文档链接。
+每个示例独立维护自己的 `Hardware.h`、绘图辅助头文件和资源；复制单个草图文件夹即可保留配置。修改接线或辅助函数时，直接编辑该草图内的文件。新增或迁移草图时，同步更新 [示例索引](CATALOG.md)，确认主文件与文件夹同名、本地包含完整、文档链接有效。
 
 ## ChipIntelli CI130X
 

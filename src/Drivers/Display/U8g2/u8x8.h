@@ -59,8 +59,6 @@
   to communicate with the display hardware.
   This layer only deals with data, commands and arguments. D/C line is unknown.
     NGFX_U8X8_MSG_CAD_INIT
-    NGFX_U8X8_MSG_CAD_SET_I2C_ADR	(obsolete)
-    NGFX_U8X8_MSG_CAD_SET_DEVICE (obsolete)
     NGFX_U8X8_MSG_CAD_START_TRANSFER
     NGFX_U8X8_MSG_CAD_SEND_CMD
     NGFX_U8X8_MSG_CAD_SEND_ARG
@@ -77,8 +75,6 @@
     NGFX_U8X8_MSG_BYTE_SET_DC 31
     NGFX_U8X8_MSG_BYTE_START_TRANSFER
     NGFX_U8X8_MSG_BYTE_END_TRANSFER
-    NGFX_U8X8_MSG_BYTE_SET_I2C_ADR (obsolete)
-    NGFX_U8X8_MSG_BYTE_SET_DEVICE (obsolete)
 
   GPIO and Delay
     NGFX_U8X8_MSG_GPIO_INIT
@@ -100,17 +96,17 @@
 #endif
 
 /* Define this for an additional user pointer inside the u8x8 data struct */
-//#define NGFX_U8X8_WITH_USER_PTR
 
 
-/* Undefine this to remove ngfx_u8x8_SetFlipMode function */
-/* 26 May 2016: Obsolete */
-//#define NGFX_U8X8_WITH_SET_FLIP_MODE
 
-/* Select 0 or 1 for the default flip mode. This is not affected by NGFX_U8X8_WITH_FLIP_MODE */
-/* Note: Not all display types support a mirror function for the frame buffer */
-/* 26 May 2016: Obsolete */
-//#define NGFX_U8X8_DEFAULT_FLIP_MODE 0
+
+
+
+
+
+
+
+
 
 /*==========================================*/
 /* Includes */
@@ -136,16 +132,10 @@ extern "C" {
 /*==========================================*/
 /* U8G2 internal defines */
 
-/* the following macro returns the first value for the normal mode */
-/* or the second argument for the flip mode */
 
-/* 26 May 2016: Obsolete
-#if NGFX_U8X8_DEFAULT_FLIP_MODE == 0
-#define NGFX_U8X8_IF_DEFAULT_NORMAL_OR_FLIP(normal, flipmode) (normal)
-#else
-#define NGFX_U8X8_IF_DEFAULT_NORMAL_OR_FLIP(normal, flipmode) (flipmode)
-#endif
-*/
+
+
+
 
 #ifdef __GNUC__
 #  define NGFX_U8X8_NOINLINE __attribute__((noinline))
@@ -263,11 +253,11 @@ struct ngfx_u8x8_display_info_struct
   /* AVR: below 70: DIV2, 8 MHz, >= 70 --> 4MHz clock (DIV4) */
   uint8_t sck_pulse_width_ns;		/* UC1701: 50ns */
   
-  /* until here we have 8 bytes (uint8_t). Newly introduced for SPI.beginTransaction */
+  /* SPI clock speed for SPI.beginTransaction. */
   uint32_t sck_clock_hz;
   
-  /* previous name "sck_takeover_edge" renamed to "spi_mode" */
-  /* bit 0 of spi_mode is equal to the value of the previous variable sck_takeover_edge, 20 Aug 16: This is wrong the bit is actually inverted */ 
+
+  /* spi_mode bit 0 selects the clock edge. */
   /* SPI has four clock modes: */
   /*   0: clock active high, data out on falling edge, clock default value is zero, takover on rising edge */
   /*   1: clock active high, data out on rising edge, clock default value is zero, takover on falling edge */
@@ -362,7 +352,7 @@ struct ngfx_u8x8_struct
 					/* i2c_address is the address for writing data to the display */
 					/* usually, the lowest bit must be zero for a valid address */
   uint8_t i2c_started;	/* for i2c interface */
-  //uint8_t device_address;	/* OBSOLETE???? - this is the device address, replacement for NGFX_U8X8_MSG_CAD_SET_DEVICE */
+
   uint8_t utf8_state;		/* number of chars which are still to scan */
   uint8_t gpio_result;	/* return value from the gpio call (only for MENU keys at the moment) */ 
   uint8_t debounce_default_pin_state;
@@ -427,7 +417,7 @@ struct ngfx_u8log_struct
   int8_t line_height_offset;		/* extra offset for the line height (u8g2 only) */
   
   /* internal data */
-  //uint8_t last_x, last_y;	/* position of the last printed char */
+
   uint8_t cursor_x, cursor_y;  /* position of the cursor, might be off screen */
   uint8_t redraw_line;	/* redraw specific line if is_redraw_line is not 0 */
   uint8_t is_redraw_line;
@@ -529,7 +519,7 @@ void ngfx_u8x8_d_helper_display_init(ngfx_u8x8_t *u8g2);
     arg_int: -
     arg_ptr: -
   
-  This was introduced for the SSD1606 eInk display.
+  The SSD1606 eInk display uses this refresh message.
   The problem is, that all RAM access will not appear on the screen
   unless a special command is executed. With this message, this command
   sequence is executed.
@@ -615,8 +605,8 @@ void ngfx_u8x8_ClearLine(ngfx_u8x8_t *u8x8, uint8_t line);
 /* arg_int: expected cs level after processing this msg */
 #define NGFX_U8X8_MSG_CAD_END_TRANSFER 25
 /* arg_int = 0: disable chip, arg_int = 1: enable chip */
-//#define NGFX_U8X8_MSG_CAD_SET_I2C_ADR 26
-//#define NGFX_U8X8_MSG_CAD_SET_DEVICE 27
+
+
 
 
 
@@ -689,8 +679,8 @@ uint8_t ngfx_u8x8_cad_uc1638_i2c(ngfx_u8x8_t *u8x8, uint8_t msg, uint8_t arg_int
 #define NGFX_U8X8_MSG_BYTE_START_TRANSFER NGFX_U8X8_MSG_CAD_START_TRANSFER
 #define NGFX_U8X8_MSG_BYTE_END_TRANSFER NGFX_U8X8_MSG_CAD_END_TRANSFER
 
-//#define NGFX_U8X8_MSG_BYTE_SET_I2C_ADR NGFX_U8X8_MSG_CAD_SET_I2C_ADR
-//#define NGFX_U8X8_MSG_BYTE_SET_DEVICE NGFX_U8X8_MSG_CAD_SET_DEVICE
+
+
 
 
 uint8_t ngfx_u8x8_byte_SetDC(ngfx_u8x8_t *u8x8, uint8_t dc) NGFX_U8X8_NOINLINE;
@@ -704,10 +694,10 @@ uint8_t ngfx_u8x8_byte_4wire_sw_spi(ngfx_u8x8_t *u8x8, uint8_t msg, uint8_t arg_
 uint8_t ngfx_u8x8_byte_8bit_6800mode(ngfx_u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *arg_ptr);
 uint8_t ngfx_u8x8_byte_8bit_8080mode(ngfx_u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *arg_ptr);
 uint8_t ngfx_u8x8_byte_3wire_sw_spi(ngfx_u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *arg_ptr);
-/* uint8_t ngfx_u8x8_byte_st7920_sw_spi(ngfx_u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *arg_ptr); */
+
 void ngfx_u8x8_byte_set_ks0108_cs(ngfx_u8x8_t *u8x8, uint8_t arg) NGFX_U8X8_NOINLINE;
 uint8_t ngfx_u8x8_byte_ks0108(ngfx_u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *arg_ptr);
-uint8_t ngfx_u8x8_byte_ssd13xx_sw_i2c(ngfx_u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *arg_ptr);  /* OBSOLETE! */
+uint8_t ngfx_u8x8_byte_ssd13xx_sw_i2c(ngfx_u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *arg_ptr);
 uint8_t ngfx_u8x8_byte_sw_i2c(ngfx_u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *arg_ptr);
 uint8_t ngfx_u8x8_byte_sed1520(ngfx_u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *arg_ptr);
 
@@ -792,7 +782,7 @@ uint8_t ngfx_u8x8_byte_sed1520(ngfx_u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, 
 void ngfx_u8x8_gpio_call(ngfx_u8x8_t *u8x8, uint8_t msg, uint8_t arg) NGFX_U8X8_NOINLINE;
 
 #define ngfx_u8x8_gpio_Delay(u8x8, msg, dly) ngfx_u8x8_gpio_call((u8x8), (msg), (dly))
-//void ngfx_u8x8_gpio_Delay(ngfx_u8x8_t *u8x8, uint8_t msg, uint8_t dly) NGFX_U8X8_NOINLINE;
+
 
 
 /*==========================================*/
@@ -845,7 +835,7 @@ uint8_t ngfx_u8x8_d_uc1701_ea_dogs102(ngfx_u8x8_t *u8x8, uint8_t msg, uint8_t ar
 uint8_t ngfx_u8x8_d_uc1701_mini12864(ngfx_u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *arg_ptr);
 uint8_t ngfx_u8x8_d_ssd1305_128x32_noname(ngfx_u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *arg_ptr);
 uint8_t ngfx_u8x8_d_ssd1305_128x32_adafruit(ngfx_u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *arg_ptr);
-/*uint8_t ngfx_u8x8_d_ssd1305_128x32_waveshare(ngfx_u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *arg_ptr);*/
+
 uint8_t ngfx_u8x8_d_ssd1305_128x64_adafruit(ngfx_u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *arg_ptr);
 uint8_t ngfx_u8x8_d_ssd1305_128x64_raystar(ngfx_u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *arg_ptr);
 uint8_t ngfx_u8x8_d_ssd1306_128x64_noname(ngfx_u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *arg_ptr);
@@ -1095,9 +1085,9 @@ void ngfx_u8x8_get_glyph_data(ngfx_u8x8_t *u8x8, uint8_t encoding, uint8_t *buf,
 void ngfx_u8x8_utf8_init(ngfx_u8x8_t *u8x8);
 uint16_t ngfx_u8x8_ascii_next(ngfx_u8x8_t *u8x8, uint8_t b);
 uint16_t ngfx_u8x8_utf8_next(ngfx_u8x8_t *u8x8, uint8_t b);
-// the following two functions are replaced by the init/next functions 
-//uint16_t ngfx_u8x8_get_encoding_from_utf8_string(const char **str);
-//uint16_t ngfx_u8x8_get_char_from_string(const char **str);
+// Use the init/next functions for string iteration.
+
+
 
 void ngfx_u8x8_SetFont(ngfx_u8x8_t *u8x8, const uint8_t *font_8x8);
 void ngfx_u8x8_DrawGlyph(ngfx_u8x8_t *u8x8, uint8_t x, uint8_t y, uint8_t encoding);

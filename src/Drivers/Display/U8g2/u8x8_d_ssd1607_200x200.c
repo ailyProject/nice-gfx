@@ -74,7 +74,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_ssd1607_200x200_display_info =
   /* post_reset_wait_ms = */ 100, 
   /* sda_setup_time_ns = */ 50,		/* SSD1606: */
   /* sck_pulse_width_ns = */ 100,	/* SSD1606: 100ns */
-  /* sck_clock_hz = */ 4000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
+  /* sck_clock_hz = */ 4000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,
   /* data_setup_time_ns = */ 40,
@@ -215,7 +215,7 @@ static void ngfx_u8x8_d_ssd1607_draw_tile(ngfx_u8x8_t *u8x8, uint8_t arg_int, vo
 static const uint8_t ngfx_u8x8_d_ssd1607_200x200_init_seq[] = {    
   NGFX_U8X8_START_TRANSFER(),             	/* enable chip, delay is part of the transfer start */
 
-  //NGFX_U8X8_CA(0x10, 0x00),	/* Deep Sleep mode Control: Disable */
+
   NGFX_U8X8_C(0x01),
   NGFX_U8X8_A(199),NGFX_U8X8_A(0),NGFX_U8X8_A(0),
   
@@ -258,31 +258,10 @@ static const uint8_t ngfx_u8x8_d_ssd1607_to_display_seq[] = {
   /* 	10 – VSL */
   /* 	11 – NA */
   
-  /* original values */
-  /*
-  NGFX_U8X8_A(0x02),
-  NGFX_U8X8_A(0x02),
-  NGFX_U8X8_A(0x01),
-  NGFX_U8X8_A(0x11),
-  NGFX_U8X8_A(0x12),
-  NGFX_U8X8_A(0x12),
-  NGFX_U8X8_A(0x22),
-  NGFX_U8X8_A(0x22),
-  NGFX_U8X8_A(0x66),
-  NGFX_U8X8_A(0x69),
-  NGFX_U8X8_A(0x69),
-  NGFX_U8X8_A(0x59),
-  NGFX_U8X8_A(0x58),
-  NGFX_U8X8_A(0x99),
-  NGFX_U8X8_A(0x99),
-  NGFX_U8X8_A(0x88),
-  NGFX_U8X8_A(0x00),
-  NGFX_U8X8_A(0x00),
-  NGFX_U8X8_A(0x00),
-  NGFX_U8X8_A(0x00),
-  */
   
-  /* original values, L-macro */
+
+
+  /* Waveform values using the L macro. */
   NGFX_U8X8_A(L(0,0,0,2)), // 0x02
   NGFX_U8X8_A(L(0,0,0,2)), // 0x02
   NGFX_U8X8_A(L(0,0,0,1)), // 0x01
@@ -305,31 +284,10 @@ static const uint8_t ngfx_u8x8_d_ssd1607_to_display_seq[] = {
   NGFX_U8X8_A(L(0,0,0,0)), // 0x00
 
 
-  /* orginal values without 0-0 and 1-1 transition */
-  /*
-  NGFX_U8X8_A(L(3,0,0,3)), // 0x02
-  NGFX_U8X8_A(L(3,0,0,3)), // 0x02
-  NGFX_U8X8_A(L(3,0,0,3)), // 0x01
-  NGFX_U8X8_A(L(3,1,0,3)), // 0x11
-  NGFX_U8X8_A(L(3,1,0,3)), // 0x12
-  NGFX_U8X8_A(L(3,1,0,3)), // 0x12
-  NGFX_U8X8_A(L(3,2,0,3)), // 0x22
-  NGFX_U8X8_A(L(3,2,0,3)), // 0x22
-  NGFX_U8X8_A(L(3,2,1,3)), // 0x66
-  NGFX_U8X8_A(L(3,2,2,3)), // 0x69
-  NGFX_U8X8_A(L(3,2,2,3)), // 0x69
-  NGFX_U8X8_A(L(3,1,2,3)), // 0x59
-  NGFX_U8X8_A(L(3,1,2,3)), // 0x58
-  NGFX_U8X8_A(L(3,1,2,3)), // 0x99
-  NGFX_U8X8_A(L(3,1,2,3)), // 0x99
-  NGFX_U8X8_A(L(3,0,2,3)), // 0x88
-  NGFX_U8X8_A(L(3,0,0,3)), // 0x00
-  NGFX_U8X8_A(L(3,0,0,3)), // 0x00
-  NGFX_U8X8_A(L(3,0,0,3)), // 0x00
-  NGFX_U8X8_A(L(3,0,0,3)), // 0x00
-  */
   
-  
+
+
+
   /* Timing part of the LUT, 20 Phases with 4 bit each: 10 bytes */
   NGFX_U8X8_A(0xF8),
   NGFX_U8X8_A(0xB4),
@@ -393,32 +351,13 @@ uint8_t ngfx_u8x8_d_ssd1607_200x200(ngfx_u8x8_t *u8x8, uint8_t msg, uint8_t arg_
 
 
 /*=================================================*/
-/* there is no improvement possible... so i consider the v2 version as obsolete */
+
 
 
 static const uint8_t ngfx_u8x8_d_ssd1607_v2_to_display_seq[] = {
   NGFX_U8X8_START_TRANSFER(),             	/* enable chip, delay is part of the transfer start */
 
-  /*
-0xaa, 0x09, 0x09, 0x19, 0x19, 
-0x11, 0x11, 0x11, 0x11, 0x00, 
-0x00, 0x00, 0x00, 0x00, 0x00, 
-0x00, 0x00, 0x00, 0x00, 0x00, 
 
-0x75, 0x77, 0x77, 0x77, 0x07, 
-0x00, 0x00, 0x00, 0x00, 0x00
-measured 1240 ms with IL3830 196x128
-  
-  
-0x02, 0x02, 0x01, 0x11, 0x12, 
-0x12, 0x12, 0x22, 0x22, 0x66, 
-0x69, 0x59, 0x58, 0x99, 0x99, 
-0x88, 0x00, 0x00, 0x00, 0x00, 
-
-0xf8, 0xb4, 0x13, 0x51, 0x35, 
-0x51, 0x51, 0xe9, 0x04, 0x00
-  
-*/
 
   NGFX_U8X8_C(0x32),	/* write LUT register*/
 
@@ -517,38 +456,11 @@ uint8_t ngfx_u8x8_d_ssd1607_v2_200x200(ngfx_u8x8_t *u8x8, uint8_t msg, uint8_t a
 static const uint8_t ngfx_u8x8_d_ssd1607_gd_to_display_seq[] = {
   NGFX_U8X8_START_TRANSFER(),             	/* enable chip, delay is part of the transfer start */
 
-  /*
-0xaa, 0x09, 0x09, 0x19, 0x19, 
-0x11, 0x11, 0x11, 0x11, 0x00, 
-0x00, 0x00, 0x00, 0x00, 0x00, 
-0x00, 0x00, 0x00, 0x00, 0x00, 
 
-0x75, 0x77, 0x77, 0x77, 0x07, 
-0x00, 0x00, 0x00, 0x00, 0x00
-measured 1240 ms with IL3830 196x128
-  
-  
-0x02, 0x02, 0x01, 0x11, 0x12, 
-0x12, 0x12, 0x22, 0x22, 0x66, 
-0x69, 0x59, 0x58, 0x99, 0x99, 
-0x88, 0x00, 0x00, 0x00, 0x00, 
-
-0xf8, 0xb4, 0x13, 0x51, 0x35, 
-0x51, 0x51, 0xe9, 0x04, 0x00
-  
-*/
 
   NGFX_U8X8_C(0x32),	/* write LUT register*/
 
-/*
-  NGFX_U8X8_A(0x50), NGFX_U8X8_A(0xAA), NGFX_U8X8_A(0x55), NGFX_U8X8_A(0xAA), NGFX_U8X8_A(0x11), 
-  NGFX_U8X8_A(0x00), NGFX_U8X8_A(0x00), NGFX_U8X8_A(0x00), NGFX_U8X8_A(0x00), NGFX_U8X8_A(0x00), 
-  NGFX_U8X8_A(0x00), NGFX_U8X8_A(0x00), NGFX_U8X8_A(0x00), NGFX_U8X8_A(0x00), NGFX_U8X8_A(0x00), 
-  NGFX_U8X8_A(0x00), NGFX_U8X8_A(0x00), NGFX_U8X8_A(0x00), NGFX_U8X8_A(0x00), NGFX_U8X8_A(0x00), 
-  
-  NGFX_U8X8_A(0xFF), NGFX_U8X8_A(0xFF), NGFX_U8X8_A(0x1F), NGFX_U8X8_A(0x00), NGFX_U8X8_A(0x00), 
-  NGFX_U8X8_A(0x00), NGFX_U8X8_A(0x00), NGFX_U8X8_A(0x00), NGFX_U8X8_A(0x00), NGFX_U8X8_A(0x00), 
-*/
+
   NGFX_U8X8_A(0x10), NGFX_U8X8_A(0x18), NGFX_U8X8_A(0x18), NGFX_U8X8_A(0x08), NGFX_U8X8_A(0x18),   // numbers based on Waveshare demo code
   NGFX_U8X8_A(0x18), NGFX_U8X8_A(0x08), NGFX_U8X8_A(0x00), NGFX_U8X8_A(0x00), NGFX_U8X8_A(0x00), 
   NGFX_U8X8_A(0x00), NGFX_U8X8_A(0x00), NGFX_U8X8_A(0x00), NGFX_U8X8_A(0x00), NGFX_U8X8_A(0x00), 
@@ -563,12 +475,12 @@ measured 1240 ms with IL3830 196x128
   NGFX_U8X8_DLY(250),	/* delay for 1500ms. The current sequence takes 1300ms */
   NGFX_U8X8_DLY(250),
   NGFX_U8X8_DLY(250),
-//  NGFX_U8X8_DLY(250),
-  
-//  NGFX_U8X8_DLY(250),
-//  NGFX_U8X8_DLY(250),
-  
-  
+
+
+
+
+
+
   NGFX_U8X8_END_TRANSFER(),             	/* disable chip */
   NGFX_U8X8_END()             			/* end of sequence */
 };
@@ -646,10 +558,10 @@ static const uint8_t ngfx_u8x8_d_ssd1607_ws_to_refresh_seq[] = {
   NGFX_U8X8_CA(0x22, 0x04),	/* display update seq. option: clk -> CP -> LUT -> initial display -> pattern display */
   NGFX_U8X8_C(0x20),	/* execute sequence */
   
-//  NGFX_U8X8_DLY(250),
-//  NGFX_U8X8_DLY(250),
-  
-  
+
+
+
+
   NGFX_U8X8_END_TRANSFER(),             	/* disable chip */
   NGFX_U8X8_END()             			/* end of sequence */
 };

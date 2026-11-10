@@ -47,7 +47,7 @@ static const uint8_t ngfx_u8x8_d_ld7032_60x32_init_seq_old[] = {
     
   NGFX_U8X8_START_TRANSFER(),             	/* enable chip, delay is part of the transfer start */
 
-  //NGFX_U8X8_CA(0x002, 0x001),		/* Dot Matrix Display ON */
+
   NGFX_U8X8_CA(0x014, 0x000),		/* Stand-by OFF */
   NGFX_U8X8_CA(0x01a, 0x004),		/* Dot Matrix Frame Rate,  special value for this OLED from manual*/
   NGFX_U8X8_CA(0x01d, 0x000),		/* Graphics Memory Writing Direction: reset default (right down, horizontal) */
@@ -62,9 +62,9 @@ static const uint8_t ngfx_u8x8_d_ld7032_60x32_init_seq_old[] = {
   NGFX_U8X8_CA(0x048, 0x003),		/* Row overlap timing: Pre-Charge + Peak Delay + Peak boot Timing */
   NGFX_U8X8_CA(0x03f, 0x011),		/* VCC_R_SEL: ??? */
   NGFX_U8X8_CA(0x03d, 0x000),		/* VSS selection: 2.8V */
-  //NGFX_U8X8_CA(0x002, 0x001),		/* Dot Matrix Display ON */
-  
-    
+
+
+
   NGFX_U8X8_END_TRANSFER(),             	/* disable chip */
   NGFX_U8X8_END()             			/* end of sequence */
 };
@@ -90,7 +90,7 @@ static const uint8_t ngfx_u8x8_d_ld7032_60x32_init_seq[] = {
   NGFX_U8X8_CA(0x39, 0x00),        		/* Display Start Address Y */
   NGFX_U8X8_CA(0x10, 0x00),		  		/* Peak Pulse Width Set: 0 SCLK */
   NGFX_U8X8_CA(0x16, 0x00),		  		/* Peak Pulse Delay Set: 0 SCLK */
-  NGFX_U8X8_CA(0x12, 0x40),		  		/* 0x32, 0x50 or 0x40 Dot Matrix Current Level Set: 0x050 * 1 uA = 80 uA */
+  NGFX_U8X8_CA(0x12, 0x40),
   NGFX_U8X8_CA(0x18, 0x03),		  		/* Pre-Charge Pulse Width: 3 SCLK */
   NGFX_U8X8_CA(0x44, 0x02),		  		/* Pre-Charge Mode: Every Time */
   NGFX_U8X8_CA(0x48, 0x03),		  		/* Row overlap timing: Pre-Charge + Peak Delay + Peak boot Timing */
@@ -127,7 +127,7 @@ static const uint8_t ngfx_u8x8_d_ld7032_60x32_flip0_seq[] = {
 
 static const uint8_t ngfx_u8x8_d_ld7032_60x32_flip1_seq[] = {
   NGFX_U8X8_START_TRANSFER(),             	/* enable chip, delay is part of the transfer start */
-  //NGFX_U8X8_CA(0x009, 0x002),		/* Display Direction:  reset default (x,y: min --> max) */  
+
   NGFX_U8X8_END_TRANSFER(),             	/* disable chip */
   NGFX_U8X8_END()             			/* end of sequence */
 };
@@ -219,7 +219,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_ld7032_60x32_display_info =
   /* post_reset_wait_ms = */ 100, 
   /* sda_setup_time_ns = */ 30,		/* 20ns, but cycle time is 60ns, so use 60/2 */
   /* sck_pulse_width_ns = */ 30,	/* 20ns, but cycle time is 60ns, so use 60/2  */
-  /* sck_clock_hz = */ 4000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
+  /* sck_clock_hz = */ 4000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,
   /* data_setup_time_ns = */ 20,
@@ -392,7 +392,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_ld7032_128x36_display_info =
   /* post_reset_wait_ms = */ 100, 
   /* sda_setup_time_ns = */ 30,		/* 20ns, but cycle time is 60ns, so use 60/2 */
   /* sck_pulse_width_ns = */ 30,	/* 20ns, but cycle time is 60ns, so use 60/2  */
-  /* sck_clock_hz = */ 4000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
+  /* sck_clock_hz = */ 4000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,
   /* data_setup_time_ns = */ 20,
@@ -427,10 +427,10 @@ static const uint8_t ngfx_u8x8_d_ld7032_128x36_init_seq[] = {
   NGFX_U8X8_CA(0x18, 0x1f),		  		// pre charge width
   NGFX_U8X8_CA(0x12, 0x3F),		  	        // contrast control
   NGFX_U8X8_CA(0x44, 0x02),		  		// PreC select, default: 2
-  //NGFX_U8X8_CA(0x48, 0x00),		  	        // row overlap, default: 0 (was 3)
+
   NGFX_U8X8_CA(0x17, 0x00),                          // row scan, default: 0
   NGFX_U8X8_CA(0x13, 0x01),                          // scan mode sequence
-  //NGFX_U8X8_CA(0x3F, 0x11),                         // VCC R Selection, default: 0 (int. reg. disabled, vcc_c*0.8)
+
   NGFX_U8X8_CA(0x3D, 0x01),                          // vdd selection 0: 2.8V-3.5, 1: 1.8V (1.65-2.5V)
 
   NGFX_U8X8_END_TRANSFER(),             	/* disable chip */

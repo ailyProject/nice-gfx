@@ -13,7 +13,7 @@ struct MenuDynamics { float frequencyHz=0, dampingRatio=0.75f; };
 struct MenuMarqueeConfig { bool enabled=false;uint16_t dwellMs=700,speed=24,pauseMs=500; };
 // Explicit opt-in for immediate monochrome displays. Logical focus changes
 // immediately; only its indicator and focus-driven scroll offsets follow.
-// With no explicit configuration the legacy indicator and scrolling remain.
+// With no explicit configuration the indicator and scrolling move immediately.
 // Explicit Instant applies the chosen indicator/scroll policy without tweening.
 struct MenuMotionConfig {
   MenuMotionMode mode = MenuMotionMode::Instant;

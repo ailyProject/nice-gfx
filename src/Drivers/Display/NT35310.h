@@ -1,7 +1,7 @@
 #pragma once
 #include "../../Display/ControllerProfile.h"
 
-// NT35310 initialization ported from Arduino_GFX (BSD-licensed).
+// Register and timing reference: NT35310 datasheet.
 
 namespace nice_gfx { namespace controllers {
 inline void init_NT35310(PanelSequence &s) {

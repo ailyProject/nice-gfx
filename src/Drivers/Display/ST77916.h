@@ -1,7 +1,7 @@
 #pragma once
 #include "../../Display/ControllerProfile.h"
 
-// ST77916 initialization ported from Arduino_GFX (BSD-licensed).
+// Register and timing reference: ST77916 datasheet.
 
 namespace nice_gfx { namespace controllers {
 inline void init_ST77916(PanelSequence &s) {

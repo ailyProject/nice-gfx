@@ -1,5 +1,5 @@
 #pragma once
-// Generated from examples/_shared/ExampleDrawing.h. Edit this sketch-local copy.
+// Drawing helpers for this sketch. Edit this file as needed.
 #include "Hardware.h"
 #include <Graphics/Sprite.h>
 

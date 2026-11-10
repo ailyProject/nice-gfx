@@ -19,6 +19,7 @@ using ST7262_RGB = RgbDisplay<VideoController::ST7262,1,1>;
 #endif
 #if SOC_MIPI_DSI_SUPPORTED
 using ST7701_480x360_MIPI = MipiDisplay<VideoController::ST7701,480,360>;
+using ST7701_480x800_MIPI = MipiDisplay<VideoController::ST7701,480,800>;
 using ILI9881C_800x1280_MIPI = MipiDisplay<VideoController::ILI9881C,800,1280>;
 using EK79007_1024x600_MIPI = MipiDisplay<VideoController::EK79007,1024,600>;
 using ST77922_480x480_MIPI = MipiDisplay<VideoController::ST77922,480,480>;

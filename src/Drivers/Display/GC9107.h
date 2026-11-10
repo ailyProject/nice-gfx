@@ -1,10 +1,8 @@
 #pragma once
 #include "../../Display/ControllerProfile.h"
 
-// The common 128 x 128 sequence is based on:
-// https://github.com/moononournation/Arduino_GFX/tree/master/src/display
-// The 128 x 160 sequence is based on displaylib_16bit_PICO, where it is used
-// https://github.com/gavinlyonsrepo/displaylib_16bit_PICO
+// Register and timing reference: GC9107 datasheet.
+// Panel profiles: 128 x 128 and 128 x 160.
 
 namespace nice_gfx { namespace controllers {
 inline void init_GC9107(PanelSequence &s) {

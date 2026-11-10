@@ -14,12 +14,12 @@ struct MonoFont {
   uint16_t count;
   uint8_t width, height, baseline;
   // Optional one-level fallback. Missing glyphs retain the primary line height
-  // and use a square advance; existing six-field descriptors remain valid.
+  // and use a square advance.
   const MonoFont *fallback;
-  // Zero (including omitted fields) and 1 retain the original 1bpp rows.
+  // Zero (including omitted fields) and 1 use 1bpp rows.
   // 4 stores row-aligned coverage, 0..15, with the left pixel in the high nibble.
   uint8_t bitsPerPixel;
-  uint8_t compactPunctuation = 0; // MonoAdvanceFlags; field layout and legacy 0/1 values are unchanged
+  uint8_t compactPunctuation = 0; // MonoAdvanceFlags; zero uses fixed advance.
 };
 namespace detail {
 const uint8_t *monoGlyph(const MonoFont &font, uint16_t codepoint);

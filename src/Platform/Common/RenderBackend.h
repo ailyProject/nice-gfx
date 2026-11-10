@@ -9,11 +9,21 @@
 #include "../ESP32/Rgb565PpaBlend.h"
 namespace nice_gfx { namespace platform { namespace render_backend {
 using Stats = rgb565_ppa::Stats;
+#if NICE_GFX_UI_RETAINED_CHART_CPU_CONTEXT
+using DeviceContext = rgb565_ppa::Context;
+#else
 using Context = rgb565_ppa::Context;
+#endif
 } } }
 #else
 namespace nice_gfx { namespace platform { namespace render_backend {
+struct WireCopyStats {
+  uint64_t attempts=0,completed=0,rejected=0,errors=0,driverCalls=0,driverMicros=0,pixels=0;
+  uint64_t rejectedFootprint=0,rejectedContext=0,rejectedSourceCache=0;
+  uint64_t rejectedMemory=0,rejectedDmaAlignment=0,rejectedPlatform=0;
+};
 struct Stats {
+  WireCopyStats wireCopy;
   uint64_t completed=0,driverMicros=0,conversionMicros=0;
   uint64_t copyCompleted=0,copyDriverMicros=0;
   uint64_t overlayPreflightMicros=0,overlayDriverMicros=0,overlaySyncMicros=0;
@@ -26,13 +36,15 @@ struct Stats {
 // No accelerator on this target. Keep the same rejection and borrowing contract
 // as a disabled hardware backend: no allocations, no destination writes and no
 // borrowed output. The UI therefore takes its unchanged software fallback.
-class Context {
+#if NICE_GFX_UI_RETAINED_CHART_CPU_CONTEXT
+class DeviceContext {
  public:
-  Context()=default;
-  Context(const Context&)=delete;
-  Context&operator=(const Context&)=delete;
+  DeviceContext()=default;
+  DeviceContext(const DeviceContext&)=delete;
+  DeviceContext&operator=(const DeviceContext&)=delete;
   static constexpr bool available(){return false;}
   const Stats &stats()const{return stats_;}
+  void resetWireCopyStats(){stats_.wireCopy=WireCopyStats{};}
   void resetOverlayStats(){
     stats_.overlayPreflightMicros=stats_.overlayDriverMicros=stats_.overlaySyncMicros=0;
     stats_.overlayPreflightCalls=stats_.overlaySyncCalls=stats_.overlaySyncedBytes=0;
@@ -45,7 +57,54 @@ class Context {
   bool blendSolidIntoNative(uint16_t *,size_t,size_t,const uint16_t *,size_t,size_t,size_t,uint16_t,uint8_t){return reject();}
   Status blendSolidNativeIntoNative(uint16_t *,size_t,size_t,const uint16_t *,size_t,size_t,size_t,uint16_t,uint8_t){reject();return Status::Unsupported;}
   bool canCopyIntoNative(const NativeFramebuffer &,int32_t,int32_t,PixelView,size_t,size_t,size_t,size_t,size_t)const{return false;}
+  bool canBeginCopyIntoNative(const NativeFramebuffer &,int32_t,int32_t,PixelView,size_t,size_t,size_t,size_t,size_t)const{return false;}
+  Status beginCopyIntoNative(const NativeFramebuffer &,int32_t,int32_t,PixelView,size_t,size_t,size_t,size_t,size_t){return Status::Unsupported;}
+  Status finishCopyIntoNative(){return Status::Ok;}
   Status copyIntoNative(const NativeFramebuffer &,int32_t,int32_t,PixelView,size_t,size_t,size_t,size_t,size_t){return Status::Unsupported;}
+  Status copyIntoWire(const NativeFramebuffer &,int32_t,int32_t,PixelView,size_t,size_t,size_t,size_t,size_t){
+    ++stats_.wireCopy.attempts;++stats_.wireCopy.rejected;++stats_.wireCopy.rejectedPlatform;
+    return Status::Unsupported;
+  }
+  bool canBlendOverlayIntoNative(const NativeFramebuffer &,int32_t,int32_t,const OverlayView &,size_t,size_t,size_t,size_t)const{return false;}
+  Status blendOverlayIntoNative(const NativeFramebuffer &,int32_t,int32_t,const OverlayView &,size_t,size_t,size_t,size_t){return Status::Unsupported;}
+  Status fillIntoNative(const NativeFramebuffer &,const DirtyRect &,uint16_t){return Status::Unsupported;}
+  Status blendColorIntoNative(const NativeFramebuffer &,const DirtyRect &,uint16_t,uint8_t){return Status::Unsupported;}
+  bool close(){return true;}
+ private:
+  bool reject(){++stats_.rejected;return false;}
+  Stats stats_;
+};
+
+#else
+class Context {
+ public:
+  Context()=default;
+  Context(const Context&)=delete;
+  Context&operator=(const Context&)=delete;
+  static constexpr bool available(){return false;}
+  const Stats &stats()const{return stats_;}
+  void resetWireCopyStats(){stats_.wireCopy=WireCopyStats{};}
+  void resetOverlayStats(){
+    stats_.overlayPreflightMicros=stats_.overlayDriverMicros=stats_.overlaySyncMicros=0;
+    stats_.overlayPreflightCalls=stats_.overlaySyncCalls=stats_.overlaySyncedBytes=0;
+  }
+  bool blend(uint16_t *,size_t,const uint16_t *,size_t,size_t,size_t,uint8_t){return reject();}
+  const uint16_t *blendSourcesToWire(const uint16_t *,size_t,const uint16_t *,size_t,size_t,size_t,uint8_t){reject();return nullptr;}
+  const uint16_t *blendSourcesToNative(const uint16_t *,size_t,const uint16_t *,size_t,size_t,size_t,uint8_t){reject();return nullptr;}
+  const uint16_t *blendSourceRegionsToNative(const uint16_t *,size_t,const uint16_t *,size_t,size_t,size_t,size_t,size_t,size_t,uint8_t){reject();return nullptr;}
+  bool blendSourcesIntoNative(uint16_t *,size_t,size_t,const uint16_t *,size_t,const uint16_t *,size_t,size_t,size_t,uint8_t){return reject();}
+  bool blendSolidIntoNative(uint16_t *,size_t,size_t,const uint16_t *,size_t,size_t,size_t,uint16_t,uint8_t){return reject();}
+  Status blendSolidNativeIntoNative(uint16_t *,size_t,size_t,const uint16_t *,size_t,size_t,size_t,uint16_t,uint8_t){reject();return Status::Unsupported;}
+  Status fillIntoNative(const NativeFramebuffer &,const DirtyRect &,uint16_t){return Status::Unsupported;}
+  bool canCopyIntoNative(const NativeFramebuffer &,int32_t,int32_t,PixelView,size_t,size_t,size_t,size_t,size_t)const{return false;}
+  bool canBeginCopyIntoNative(const NativeFramebuffer &,int32_t,int32_t,PixelView,size_t,size_t,size_t,size_t,size_t)const{return false;}
+  Status beginCopyIntoNative(const NativeFramebuffer &,int32_t,int32_t,PixelView,size_t,size_t,size_t,size_t,size_t){return Status::Unsupported;}
+  Status finishCopyIntoNative(){return Status::Ok;}
+  Status copyIntoNative(const NativeFramebuffer &,int32_t,int32_t,PixelView,size_t,size_t,size_t,size_t,size_t){return Status::Unsupported;}
+  Status copyIntoWire(const NativeFramebuffer &,int32_t,int32_t,PixelView,size_t,size_t,size_t,size_t,size_t){
+    ++stats_.wireCopy.attempts;++stats_.wireCopy.rejected;++stats_.wireCopy.rejectedPlatform;
+    return Status::Unsupported;
+  }
   bool canBlendOverlayIntoNative(const NativeFramebuffer &,int32_t,int32_t,const OverlayView &,size_t,size_t,size_t,size_t)const{return false;}
   Status blendOverlayIntoNative(const NativeFramebuffer &,int32_t,int32_t,const OverlayView &,size_t,size_t,size_t,size_t){return Status::Unsupported;}
   bool close(){return true;}
@@ -53,5 +112,11 @@ class Context {
   bool reject(){++stats_.rejected;return false;}
   Stats stats_;
 };
+
+#endif
 } } }
+#endif
+
+#if NICE_GFX_UI_RETAINED_CHART_CPU_CONTEXT
+#include "NativePaintPolicy.h"
 #endif

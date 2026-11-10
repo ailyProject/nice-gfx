@@ -1,7 +1,7 @@
 #pragma once
 #include "../../Display/ControllerProfile.h"
 
-// SSD1283A 16-bit register initialization ported from Arduino_GFX (BSD-licensed).
+// Register and timing reference: SSD1283A datasheet.
 
 namespace nice_gfx { namespace controllers {
 inline void init_SSD1283A(PanelSequence &s) {

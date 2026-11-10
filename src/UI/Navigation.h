@@ -13,8 +13,8 @@ struct NavigationGroupDesc {
   uint16_t trackColor, fillColor, background;
   uint16_t indicatorInset;
   bool backgroundTransparent; // Omitted trailing field retains the opaque footer.
-  // Shared navigation stays outside the moving content. Omitted insets keep
-  // legacy full-screen transitions. These fields require navigation version 4.
+  // Shared navigation stays outside the moving content. Zero insets use
+  // full-screen transitions.
   uint16_t insetLeft, insetTop, insetRight, insetBottom;
 };
 struct GestureBindingDesc {

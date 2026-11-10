@@ -138,7 +138,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_ssd1309_128x64_noname2_display_i
   /* post_reset_wait_ms = */ 100, /* far east OLEDs need much longer setup time */
   /* sda_setup_time_ns = */ 50,		/* SSD1306: 15ns, but cycle time is 100ns, so use 100/2 */
   /* sck_pulse_width_ns = */ 50,	/* SSD1306: 20ns, but cycle time is 100ns, so use 100/2, AVR: below 70: 8 MHz, >= 70 --> 4MHz clock */
-  /* sck_clock_hz = */ 4000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
+  /* sck_clock_hz = */ 4000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,
   /* data_setup_time_ns = */ 40,
@@ -158,16 +158,16 @@ static const uint8_t ngfx_u8x8_d_ssd1309_128x64_noname_init_seq[] = {
   
   NGFX_U8X8_C(0x0ae),		                /* display off */
   NGFX_U8X8_CA(0x0d5, 0x0a0),		/* clock divide ratio (0x00=1) and oscillator frequency (0x8) */
-  //NGFX_U8X8_CA(0x0a8, 0x03f),		/* multiplex ratio */
+
   NGFX_U8X8_C(0x040),		        	/* set display start line to 0 */
   NGFX_U8X8_CA(0x020, 0x002),		/* horizontal addressing mode */
   
   NGFX_U8X8_C(0x0a1),				/* segment remap a0/a1*/
   NGFX_U8X8_C(0x0c8),				/* c0: scan dir normal, c8: reverse */
   // Flipmode
-  // NGFX_U8X8_C(0x0a0),				/* segment remap a0/a1*/
-  // NGFX_U8X8_C(0x0c0),				/* c0: scan dir normal, c8: reverse */
-  
+
+
+
   NGFX_U8X8_CA(0x0da, 0x012),		/* com pin HW config, sequential com pin config (bit 4), disable left/right remap (bit 5) */
 
   NGFX_U8X8_CA(0x081, 0x06f), 		/* [2] set contrast control */
@@ -180,8 +180,8 @@ static const uint8_t ngfx_u8x8_d_ssd1309_128x64_noname_init_seq[] = {
   NGFX_U8X8_C(0x0a4),				/* output ram to display */
   NGFX_U8X8_C(0x0a6),				/* none inverted normal display mode */
   
-  //NGFX_U8X8_C(0x0af),		                /* display on */
-    
+
+
   NGFX_U8X8_END_TRANSFER(),             	/* disable chip */
   NGFX_U8X8_END()             			/* end of sequence */
 };
@@ -200,8 +200,8 @@ static const uint8_t ngfx_u8x8_d_ssd1309_128x128_noname_init_seq[] = {
   NGFX_U8X8_C(0x0a1),				              /* segment remap a0/a1*/
   NGFX_U8X8_C(0x0c8),				              /* c0: scan dir normal, c8: reverse */
   // Flipmode
-  // NGFX_U8X8_C(0x0a0),				            /* segment remap a0/a1*/
-  // NGFX_U8X8_C(0x0c0),				            /* c0: scan dir normal, c8: reverse */
+
+
 
   NGFX_U8X8_CA(0x0da, 0x012),		          /* com pin HW config, sequential com pin config (bit 4), disable left/right remap (bit 5) */
 
@@ -215,7 +215,7 @@ static const uint8_t ngfx_u8x8_d_ssd1309_128x128_noname_init_seq[] = {
   NGFX_U8X8_C(0x0a4),				              /* output ram to display */
   NGFX_U8X8_C(0x0a6),				              /* none inverted normal display mode */
 
-  //NGFX_U8X8_C(0x0af),		                /* display on */
+
 
   NGFX_U8X8_END_TRANSFER(),             	  /* disable chip */
   NGFX_U8X8_END()             			        /* end of sequence */
@@ -271,7 +271,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_ssd1309_128x64_noname0_display_i
   /* post_reset_wait_ms = */ 100, /* far east OLEDs need much longer setup time */
   /* sda_setup_time_ns = */ 50,		/* SSD1306: 15ns, but cycle time is 100ns, so use 100/2 */
   /* sck_pulse_width_ns = */ 50,	/* SSD1306: 20ns, but cycle time is 100ns, so use 100/2, AVR: below 70: 8 MHz, >= 70 --> 4MHz clock */
-  /* sck_clock_hz = */ 4000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
+  /* sck_clock_hz = */ 4000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,
   /* data_setup_time_ns = */ 40,
@@ -296,7 +296,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_ssd1309_128x128_noname0_display_
   /* post_reset_wait_ms = */ 100, /* far east OLEDs need much longer setup time */
   /* sda_setup_time_ns = */ 50,		/* SSD1306: 15ns, but cycle time is 100ns, so use 100/2 */
   /* sck_pulse_width_ns = */ 50,	/* SSD1306: 20ns, but cycle time is 100ns, so use 100/2, AVR: below 70: 8 MHz, >= 70 --> 4MHz clock */
-  /* sck_clock_hz = */ 4000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
+  /* sck_clock_hz = */ 4000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,
   /* data_setup_time_ns = */ 40,
@@ -419,7 +419,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_ssd1309_102x64_ea_oleds102_displ
   /* post_reset_wait_ms = */ 100, /* far east OLEDs need much longer setup time */
   /* sda_setup_time_ns = */ 50,		/* SSD1306: 15ns, but cycle time is 100ns, so use 100/2 */
   /* sck_pulse_width_ns = */ 50,	/* SSD1306: 20ns, but cycle time is 100ns, so use 100/2, AVR: below 70: 8 MHz, >= 70 --> 4MHz clock */
-  /* sck_clock_hz = */ 4000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
+  /* sck_clock_hz = */ 4000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,
   /* data_setup_time_ns = */ 40,

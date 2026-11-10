@@ -1,7 +1,7 @@
 #pragma once
 #include "../../Display/ControllerProfile.h"
 
-// R61529 initialization ported from Arduino_GFX (BSD-licensed).
+// Register and timing reference: R61529 datasheet.
 
 namespace nice_gfx { namespace controllers {
 inline void init_R61529(PanelSequence &s) {

@@ -2,30 +2,34 @@
   <img src="logo.png" alt="NICE_GFX logo" width="480">
 </p>
 
-NICE_GFX is an Arduino / ESP-IDF graphics library for color displays, monochrome displays, and e-paper. It also supports all public physical-display configurations from a pinned version of u8g2. Display objects receive pins and configuration through their constructors and provide drawing primitives, UTF-8 text, off-screen Sprites, touch input, and partial updates. Selected platforms use DMA or PIO to accelerate transfers. Native ESP-IDF integration uses IDF drivers, GPIO, timing, and memory interfaces directly, without an Arduino component.
+[English](README.md) | [简体中文](README_ZH.md)
 
-The companion designer compiles application interfaces into native C++ resources in `ui.h`. The runtime handles component state, input, animation, routing, and tiled rendering; application code manages business data, event callbacks, and hardware operations.
+# NICE_GFX
+
+NICE_GFX is an Arduino / ESP-IDF graphics library for color displays, monochrome displays, and e-paper. Display objects receive pins and configuration through their constructors and provide drawing primitives, UTF-8 text, off-screen Sprites, touch input, and partial updates. Selected platforms accelerate transfers with DMA or PIO.
+
+The companion NICE GFX Studio compiles HTML/CSS interfaces into native C++ resources in `ui.h`. The runtime handles components, input, animation, routing, and tiled rendering; application code manages data, callbacks, and hardware operations.
 
 - [Quick start](#quick-start)
-- [Display and touch device support](docs/DeviceSupport.md)
-- [Monochrome displays, e-paper, and menu updates](docs/MonochromeAndEpaper.md)
-- [Full u8g2 catalog compatibility, wiring, and performance](docs/U8g2Compatibility.md)
-- [E-paper controllers, library comparisons, and multicolor panels](docs/EpaperCompatibility.md)
-- [Waveshare ESP32-S3-Touch-LCD-4B: ST7701, GT911, and TCA9554 board configuration](examples/07_UI/Waveshare4B/README.md)
-- [Platform support](#platform-support)
+- [Displays and platforms](#displays-and-platforms)
 - [Fonts and Sprites](#fonts-and-sprites)
-- [Designer UIs and device interaction](#designer-uis-and-device-interaction)
-- [Features and resource limits](#features-and-resource-limits)
+- [Designer UIs](#designer-uis)
+- [Resource requirements](#resource-requirements)
 - [Documentation and examples](#documentation-and-examples)
 - [Source layout and checks](#source-layout-and-checks)
+- [License and attribution](#license-and-attribution)
 
 ## Quick start
 
-Examples are organized by feature and learning order; see the [example catalog](examples/README.md) for the full list. Start with [Hello_Display](examples/01_Basics/Hello_Display/Hello_Display.ino), then try [Basic_Shapes](examples/02_Graphics/Basic_Shapes/Basic_Shapes.ino), [Sprite_Basics](examples/05_Sprites/Sprite_Basics/Sprite_Basics.ino), and [Display_Color_Bars](examples/09_Diagnostics/Display_Color_Bars/Display_Color_Bars.ino). These examples calculate their layouts from the display's current width and height. Configure wiring, rotation, and backlight in the sketch's `Hardware.h`. Wio Terminal uses the same entry points, with its template selecting onboard SPI3, rotation 3, and `LCD_BACKLIGHT`. The complete [Wio Field Lab](examples/08_Applications/WioFieldLab/README.md) includes sensor, SD, infrared, and asynchronous Wi-Fi applications, plus a project you can import into the editor.
+### Arduino
 
-Place the `NICE_GFX` folder in the `libraries/` folder of your Arduino sketchbook, install the Arduino core for your board, and open a library example from the IDE's Examples menu. See [examples/README.md](examples/README.md) for wiring and additional dependencies.
+1. Place the `NICE_GFX` folder in your Arduino sketchbook's `libraries/` directory and install the Arduino core for your board.
+2. Open [Hello_Display](examples/01_Basics/Hello_Display/Hello_Display.ino) from the IDE's Examples menu.
+3. Edit the sketch's `Hardware.h` to match your display, pins, rotation, and backlight, then compile and upload.
 
-The following example uses a classic ESP32 and an ILI9341 connected over SPI. The pins must match your wiring. See [device support](docs/DeviceSupport.md) for other displays and touch controllers.
+Next, try [Basic_Shapes](examples/02_Graphics/Basic_Shapes/Basic_Shapes.ino), [Display_Color_Bars](examples/09_Diagnostics/Display_Color_Bars/Display_Color_Bars.ino), and [Sprite_Basics](examples/05_Sprites/Sprite_Basics/Sprite_Basics.ino). The [example guide](examples/README.md) covers wiring and additional dependencies; the [catalog](examples/CATALOG.md) lists the available sketches.
+
+This minimal sketch uses a classic ESP32 and an SPI ILI9341. Adjust the pins for your wiring:
 
 ```cpp
 #include <NICE_GFX.h>
@@ -40,48 +44,52 @@ void setup() {
   gfx.setTextColor(GFX_WHITE, GFX_BLACK);
   gfx.drawString("Hello NICE_GFX", 8, 8);
 }
+
 void loop() {}
 ```
 
-Use `gfx.displayInfo()` to query the controller, dimensions, pins, and bus; `gfx.lastError()` to inspect initialization or transfer errors; and `gfx.asynchronous()` to query the current display object's asynchronous transfer capabilities.
+Use `gfx.displayInfo()` to query the controller, dimensions, pins, and bus, and `gfx.lastError()` to inspect initialization or transfer errors. `gfx.asynchronous()` reports the current object's asynchronous transfer capability. On supported backends, `initDMA()` enables asynchronous image submission, `wait()` waits for accepted transfers, and `deInitDMA()` drains and disables that mode.
 
-Initialize displays with `begin()` or `beginChecked()`. Use `pushBlock(color, pixelCount)` for a repeated color, `pushPixels(data, pixelCount)` for pixel arrays, and `startWrite()/endWrite()` to group writes. The length passed to `pushPixels` is always a pixel count. Use `setSwapBytes(true)` for host RGB565 arrays and `setSwapBytes(false)` for MSB-first byte arrays. The display object's forwarding entry points `init()`, two-argument `pushColor()`, `pushColors()`, and two-argument `writeColor()` have been removed. Sprite's `pushColor(color, pixelCount)` is a separate canvas implementation and remains available.
+### ESP-IDF
 
-`initDMA()` takes no chip-select argument; chip select and transfer settings are selected through the constructor. `asynchronous()` queries capabilities, `initDMA()` enables supported asynchronous image submission, `deInitDMA()` drains pending transfers and disables that mode, and `wait()` waits for accepted transfers to complete.
+Add this library under your project's `components/nice_gfx/` directory, or point `EXTRA_COMPONENT_DIRS` at the library directory. Use a C++ source file with an `extern "C" void app_main()` entry point. The [component CMake file](CMakeLists.txt) selects the native ESP32 backend and C++17, using IDF drivers, GPIO, timing, and memory interfaces directly.
 
-ESP-IDF projects integrate the library as a native component and use a C++ `app_main()`. The separate sibling [nice_gfx_idf_examples 1.0.0 example package](../nice_gfx_idf_examples/README.md) provides 34 projects covering drawing, fonts, Sprite/DMA, UI, and IDF tasks, timers, GPIO, NVS, and event loops.
+The default `full` build profile includes graphics, bundled fonts, and UI. `NICE_GFX_BUILD_PROFILE` also accepts `graphics` and `minimal`; font and UI source selection is configured in the same CMake file.
 
-## Display controllers and instantiation
+## Displays and platforms
 
-[Display and touch device support](docs/DeviceSupport.md) is the central reference for display controllers, interfaces, default resolutions, and instantiation methods. It covers SPI, software SPI, 8/16-bit parallel buses, standard QSPI, RGB, MIPI, and ST77903 continuous-scan QSPI.
+Choose a preset that matches the controller, resolution, interface, and module wiring:
 
-Touch implementations include XPT2046, I²C controllers such as CST816 / FT6x36 / GT911 / GT1151, and four-wire resistive panels. See [touch integration](docs/DeviceSupport.md#触摸芯片与使用入口) for driver entry points, board combinations, and calibration, and [Vendor_Capacitive_Touch](examples/06_Touch/Vendor_Capacitive_Touch/Vendor_Capacitive_Touch.ino) for a wiring example. Display resolution, interface, power, and timing must match the actual module.
+| Display family | Configuration reference |
+| --- | --- |
+| Color SPI, software SPI, QSPI, and parallel displays | [Display aliases](src/Display/Presets/DisplayAliases.h) and [controller drivers](src/Drivers/Display) |
+| RGB, MIPI, and continuous-scan QSPI displays | [Video aliases](src/Display/Presets/VideoAliases.h) |
+| Monochrome displays and u8g2 configurations | [u8g2 presets](src/Display/Presets/U8g2.h) and [display catalog](src/Display/Presets/u8g2-displays.json) |
+| Native e-paper | [E-paper presets](src/Display/Presets/NativeEpaper.h) and [Seeed product status](src/Display/Presets/seeed-epaper-displays.json) |
+| Integrated boards | [Board presets](src/Display/Presets/BoardPresets.h) |
 
-## Platform support
+Touch drivers include XPT2046, CST816, FT6x36, GT911, GT1151, and four-wire resistive input. See the [touch drivers](src/Drivers/Touch), [capacitive touch example](examples/06_Touch/Vendor_Capacitive_Touch/Vendor_Capacitive_Touch.ino), and [XPT2046 calibration example](examples/06_Touch/Touch_calibrate/Touch_calibrate.ino).
 
-The table below describes the backends provided by the current source. Available display interfaces also depend on the target chip's peripherals, Arduino core, available pins, and memory. Compile your own project for the chosen target and validate it on the actual display.
+| Platform | Available backends |
+| --- | --- |
+| ESP32 family | SPI / QSPI, software SPI, GPIO parallel, and DMA where supported; RGB, MIPI, and scanout depend on the target's peripherals |
+| ESP8266 | Core SPI, software SPI, and GPIO parallel with synchronous transfers |
+| STM32 | Core SPI, software SPI, GPIO parallel, and DMA on selected families and SPI instances |
+| RP2040 / RP2350 with Arduino-Pico | PIO SPI, native SPI DMA, PIO/GPIO parallel, and software SPI |
+| RP2040 with Arduino mbed | Core SPI, software SPI, and GPIO parallel with synchronous transfers |
+| AVR, SAMD, and Renesas | Arduino SPI / GPIO paths, subject to the core, available pins, and memory |
+| CI13XX / CI130X | I2C, core software SPI, and GPIO parallel; see the [platform notes](src/Platform/CI13XX/README.md) |
+| Other Arduino cores | Generic SPI / GPIO paths; compile and validate for the chosen core |
 
-| Platform | Display buses and acceleration | Main constraints |
-| --- | --- | --- |
-| ESP32 family | SPI / QSPI, software SPI, GPIO 8/16-bit parallel; DMA where supported by the backend | RGB requires an LCD RGB peripheral; MIPI uses ESP32-P4; ST77903 scanning requires an SPI SCT peripheral |
-| ESP8266 | Core SPI, software SPI, GPIO parallel | Synchronous transfers; hardware SPI pins are constrained by the core |
-| STM32 | Core SPI, software SPI, GPIO parallel; DMA on selected families and SPI instances | Current DMA mappings cover F0/F1/F2/F3/F4/F7/G0/G4/L0/L1/L4; H7/U5 use the synchronous path |
-| RP2040 / RP2350, Arduino-Pico core | PIO SPI, native SPI DMA, PIO/GPIO parallel, software SPI | PIO and DMA resources are limited; parallel transfers fall back to GPIO when data-pin continuity or GPIO window requirements are not met |
-| RP2040, Arduino mbed core | Core SPI, software SPI, GPIO parallel | Uses mbed SPI mappings and the synchronous path |
-| AVR ATmega328P / ATmega2560 | Core SPI, software SPI, GPIO parallel, optimized direct PORT writes | Limited RAM, Flash, and pin count; use basic drawing, short text, and small Sprites within available capacity |
-| SAMD / Renesas | Core SPI, software SPI, GPIO parallel | Generic synchronous path; confirm capabilities for the specific core and board |
-| [CI13XX / CI130X](docs/CI130X.md) | I2C, core software SPI, GPIO parallel | All supported arduino-ci130x profiles use software SPI up to 4 MHz, without DMA; I2C uses the variant's fixed pins and supports up to 400 kHz |
-| Other Arduino cores | Generic Arduino SPI / GPIO path | Requires compatible GPIO, SPI, Print, and timing interfaces, plus separate compilation validation |
-
-DMA capabilities and resource allocation depend on the actual object; query them with `gfx.asynchronous()`. See [Stm32Spi.h](src/Platform/STM32/Stm32Spi.h) for STM32 mappings and fallback logic, and [Rp2040Spi.h](src/Platform/RP2040/Rp2040Spi.h) and [Rp2040Pio.h](src/Platform/RP2040/Rp2040Pio.h) for the RP2040/RP2350 backends.
+Display power, timing, color order, and pins must match the actual module. For e-paper, check protocol implementation and hardware validation status in the product catalog. The [refresh example](examples/09_Diagnostics/EpaperRefresh/README.md) shows how to advance refreshes with `pollDisplay()`; transfer completion through `wait()` does not imply that the panel's optical refresh has finished.
 
 ## Fonts and Sprites
 
-The library includes 22 monospaced bitmap fonts: 13 English and 9 Chinese. Select fonts independently for the display and each Sprite with `setFont()`. `setTextSize(1..7)` scales pixels by an integer factor. No font is selected by default; unreferenced font data can be removed by the linker.
+Built-in fonts include bitmap, grayscale, Chinese, Latin, and specialized numeric faces. Fonts exposed by the main header are listed in the [font declarations](src/Fonts/Builtin.h); see the [font guide](src/Fonts/README.md) and [text examples](examples/03_Text/README.md) for usage.
 
-`drawString()`, `drawNumber()`, `drawFloat()`, and `print()/println()` use the current font, with strings encoded as UTF-8. Full Chinese fonts require substantial Flash. On AVR, use subsets for short text and check the PROGMEM address range. See the [font guide](docs/font.md) and [font maintenance notes](src/Fonts/README.md) for glyph previews, character coverage, fallback fonts, and subset generation.
+Select fonts independently for the display and each Sprite with `setFont()`. Text uses UTF-8, and `setTextSize(1..7)` applies integer scaling. No font is selected by default. Unreferenced font data can be removed by the linker; Chinese subsets help reduce Flash usage.
 
-`GFX_Sprite` provides 1/4/8/16-bit off-screen canvases. The following snippet assumes that the display object `gfx` has already been initialized:
+`GFX_Sprite` provides 1/4/8/16-bit off-screen canvases. With `gfx` already initialized:
 
 ```cpp
 GFX_Sprite sprite(&gfx);
@@ -96,105 +104,80 @@ if (sprite.createSprite(120, 48)) {
 }
 ```
 
-Check the return value when creating a canvas. Buffer usage grows with dimensions and color depth. See [Graphics/Sprite.h](src/Graphics/Sprite.h) for the interface.
+Check allocation results and budget memory for the canvas dimensions and color depth. See [Graphics/Sprite.h](src/Graphics/Sprite.h) for the interface.
 
-## Designer UIs and device interaction
+## Designer UIs
 
-The companion [NICE GFX Studio](../nice_gfx_editor/README.md) provides pages, components, themes, routing, and hardware configuration. HTML/CSS is compiled into `ui.h` at export time, and the device runs a native `nice_gfx::htmlui::View`.
+NICE GFX Studio exports pages, components, themes, routing, and hardware configuration. The generated `ui.h` runs in a native `nice_gfx::htmlui::View`.
 
-1. Select the display, resolution, rotation, touch input or physical buttons in the designer, and verify the actual pins.
-2. Create pages and components, assign stable IDs to elements accessed by application code, and declare event actions.
-3. Export a complete Arduino project initially, then add application state and callbacks to the main program.
-4. Call the generated `pollUi()` continuously and update the current page through interfaces such as `setText/setValue/setImage`.
+1. Configure the display, resolution, rotation, and touch or physical buttons in the designer.
+2. Create pages and components, give application-accessed elements stable IDs, and declare event actions.
+3. Export a complete project and add application state and callbacks.
+4. Call the generated `pollUi()` continuously and update the active page with methods such as `setText()`, `setValue()`, and `setImage()`.
 
-```cpp
-#include "Hardware.h"
-#include "ui.h"
-#include "TouchAdapter.h"
+The runtime supports buttons, sliders, input fields, an automatic keyboard, gauges, charts, images, scrolling, focus, navigation, and animations. Touch and physical keys use the same event system. Application code retains business data across page changes.
 
-nice_gfx::htmlui::View ui(displayInstance(), kTilePixels);
-bool uiReady = false;
+Keep generated resources, adapters, and the runtime compatible. The resource version is defined by `ResourceVersion` in [UI/Compiled.h](src/UI/Compiled.h) and checked by generated headers. See [GfxTouchDemo](examples/07_UI/GfxTouchDemo/README.md) for a complete integration and the [UI runtime guide](src/UI/README.md) for rendering, input, ownership, and motion APIs.
 
-void setup() {
-  if (!beginDisplayHardware()) return;
-  uiReady = ui_config::load(ui) == nice_gfx::Status::Ok;
-  // Bind application callbacks using the bind_* interfaces generated in ui.h.
-}
-void loop() {
-  if (uiReady) pollUi(ui, millis());
-}
-```
+## Resource requirements
 
-The runtime provides buttons, switches, sliders, input fields, gauges, charts, images, scrolling, pagination, focus, and routing. Touch and physical buttons feed into the same event system. Application code retains the data and updates the UI by page and changed item. See the [dynamic image guide](docs/DynamicImages.md) for image copying, ownership transfer, and switching to preset resources.
-
-Input fields and numeric steppers share an automatic keyboard. It is full-screen by default, supports a configurable height and light/dark themes, and allows cursor movement by tapping or swiping left/right across the content, plus backspace deletion. The designer stores the field's theme through `data-keyboard-theme="light|dark"`. In firmware, use `ui.setKeyboardTheme(nice_gfx::htmlui::KeyboardTheme::Dark)` for dark mode or pass `KeyboardTheme::Light` for light mode. `ui.resetKeyboardTheme()` restores the field configuration, and `ui.keyboardTheme()` queries the effective theme. The keyboard's top bar contains only collapse and password visibility controls. See the [compiler documentation](../nice_gfx_editor/packages/html-ui/README.md#原生输入-api) for input and submission APIs.
-
-The current resource ABI is 17. Compatibility is determined by [UI/Compiled.h](src/UI/Compiled.h) and the assertions in generated `ui.h`. When upgrading, re-export the complete project and synchronize the runtime and generated adapters while retaining your existing application main program. Motion supports a limited set of multi-property keyframes, staggering, alternating playback, visibility and completion events, local scaling/rotation of images and icons, and subtree reveals. See the [native motion API](src/UI/README.md#compiled-keyframes-and-local-transforms-abi-17-motion-api-1). For component APIs, callback semantics, and navigation rules, see [Arduino component interaction](docs/ArduinoComponentInteraction.md); for HTML/CSS syntax, see [compiler support](../nice_gfx_editor/packages/html-ui/HTML_CSS_SUPPORT.md).
-
-## Features and resource limits
-
-| Feature | Requirements |
+| Resource | Usage guidance |
 | --- | --- |
-| Native designer UI | Requires a complete C++ standard library and sufficient dynamic memory; AVR currently uses only the basic display drawing interfaces |
-| RGB565 framebuffer | Pixel memory is width × height × 2 bytes, doubled for double buffering; configure within the internal RAM / PSRAM budget |
-| Sprites, images, and caches | Check allocation results; old images being replaced and in-flight frames may briefly occupy memory at the same time |
-| Asynchronous transfers | Retain input buffers as required by the interface and wait for `wait()` to complete before reusing them; copy completion does not imply physical VSYNC |
-| Multitasking access | The application must serialize access to the same display object and View; `startWrite()/endWrite()` group drawing operations |
-| UI scheduling | Keep processing input and calling `tick()/pollUi()`; event callbacks should record work requests, with time-consuming operations handled by state machines or background tasks |
-| Images and external resources | PNG/JPEG decoding, storage, networking, and sensors are handled by the application or corresponding dependencies |
-| Modules and SDKs | Configure power, GPIO, video timing, color order, and readback wiring for the actual hardware; rebuild and validate after SDK upgrades |
+| Native designer UI | Requires a complete C++ standard library and enough dynamic memory; use basic drawing interfaces on AVR |
+| RGB565 framebuffer | Pixel storage is width × height × 2 bytes; double buffering doubles this storage |
+| Sprites, images, and caches | Check allocations and allow for old images and in-flight frames to coexist during updates |
+| Asynchronous transfers | Retain buffers for the lifetime required by the interface and wait before reusing them |
+| Multitasking | Serialize access to a shared display object and View; `startWrite()/endWrite()` group drawing operations |
+| UI scheduling | Keep processing input and `tick()/pollUi()`; move lengthy work to a state machine or background task |
+| External resources | Install the decoding, storage, network, and sensor dependencies used by the chosen example |
 
-The native UI uses tiled rendering and configurable caches. Refresh throughput depends on region size, bus, memory, and page complexity. Evaluate resource budgets using `runtimeStats()`, `memoryStats()`, and measurements of actual display transfers.
+UI rendering uses tiles and configurable caches. Use `runtimeStats()`, `memoryStats()`, and actual transfer measurements to assess a page's memory and refresh budget.
 
 ## Documentation and examples
 
-| Document or example | Contents |
+| Reference | Contents |
 | --- | --- |
-| [Device support](docs/DeviceSupport.md) | Display and touch controllers, interfaces, resolutions, instantiation, and initialization constraints |
-| [Font guide](docs/font.md) | Previews of all fonts, coverage, usage, and Chinese subsets |
-| [Arduino component interaction](docs/ArduinoComponentInteraction.md) | Stable IDs, events, values and input, navigation, application integration, and scheduling |
-| [Dynamic images](docs/DynamicImages.md) | Runtime pixel updates, ownership, preset resources, and memory contracts |
-| [UI runtime](src/UI/README.md) | Resource lifecycles, rendering, input, routing, and animation |
-| [ESP-IDF example package](../nice_gfx_idf_examples/README.md) | 34 native IDF projects, including performance benchmarks using scenarios shared with Arduino |
-| [Example catalog](examples/README.md) | Wiring, fonts, touch, and additional dependencies |
-| [GfxTouchDemo](examples/07_UI/GfxTouchDemo/README.md) | Editable designer project, generated resources, application state, and event callbacks |
-| [DynamicImageDemo](examples/07_UI/DynamicImageDemo/README.md) | Complete Arduino example for dynamic images |
-| [MosaicoCameraDemo](examples/08_Applications/MosaicoCameraDemo/README.md) | ESP-Mosaico V1.2 live camera preview, color recognition, and detection-box overlays |
-| [Display_Info](examples/09_Diagnostics/Display_Info) | Querying the actual display object and bus capabilities |
-| [Touch_calibrate](examples/06_Touch/Touch_calibrate/Touch_calibrate.ino) | XPT2046 wiring and calibration |
+| [Example guide](examples/README.md) and [catalog](examples/CATALOG.md) | Sketch selection, wiring, and dependencies |
+| [Font guide](src/Fonts/README.md) | Font selection, coverage, and subsets |
+| [UI runtime](src/UI/README.md) | Resources, rendering, input, navigation, and animation |
+| [GfxTouchDemo](examples/07_UI/GfxTouchDemo/README.md) | Designer project, generated resources, and event callbacks |
+| [DynamicImageDemo](examples/07_UI/DynamicImageDemo/README.md) | Runtime image updates and ownership |
+| [MonochromeMenu](examples/07_UI/MonochromeMenu/README.md) | Monochrome drawing and key-driven menus |
+| [EpaperRefresh](examples/09_Diagnostics/EpaperRefresh/README.md) | E-paper initialization and refresh scheduling |
+| [Waveshare4B](examples/07_UI/Waveshare4B/README.md) | ST7701, GT911, and TCA9554 board configuration |
+| [WioFieldLab](examples/08_Applications/WioFieldLab/README.md) | Wio Terminal sensors, SD, infrared, and Wi-Fi application |
+| [MosaicoCameraDemo](examples/08_Applications/MosaicoCameraDemo/README.md) | ESP-Mosaico live camera preview and overlays |
+| [Graphics_Benchmark](examples/10_Performance/Graphics_Benchmark/README.md) | Drawing and transfer benchmarks |
 
 ## Source layout and checks
 
 | Path | Responsibility |
 | --- | --- |
-| `src/NICE_GFX.h` | Convenience entry point for drawing, Sprites, built-in fonts, and display presets |
-| `src/Core/` | Status, pixels, geometry, and shared algorithm utilities |
-| `src/Graphics/` | Drawing, text, Sprites, and TileCanvas; `Gfx.h` is the lighter entry point for drawing declarations |
-| `src/Display/` | Display objects, shared Panel, transfer abstractions, and refresh; `Presets/` stores size, interface, and module presets |
-| `src/Drivers/Display/`, `src/Drivers/Touch/` | Controller programs and concrete drivers; each display controller's initialization, rotation, and class definition are maintained in the same file |
-| `src/Platform/` | Generic Arduino buses and separate ESP32, STM32, and RP2040 platform implementations |
-| `src/Fonts/` | Font declarations, decoding, and 26 separate glyph-data compilation units |
-| `src/UI/` | Resource structures, View, components, input, navigation, and rendering support |
-| `docs/`, `examples/` | Usage documentation and Arduino examples; IDF examples are in the sibling `../nice_gfx_idf_examples/` directory |
+| `src/NICE_GFX.h` | Convenience entry point for graphics, Sprites, fonts, touch, and display presets |
+| `src/Core/`, `src/Graphics/` | Shared types, drawing, text, Sprites, and tiled canvases |
+| `src/Display/` | Display objects, panels, transfer and refresh abstractions, and presets |
+| `src/Drivers/` | Display and touch controller implementations |
+| `src/Platform/` | Arduino and target-specific bus implementations |
+| `src/Fonts/` | Font declarations, decoding, glyph data, and licenses |
+| `src/UI/` | Compiled resources, View, components, input, routing, and rendering |
+| `examples/`, `tests/` | Arduino sketches and host checks |
 
-The designer application and HTML/CSS compiler live in the separate `nice_gfx_editor/` repository. Maintenance scripts for the main library are in `tools/`, and host tests are in `tests/`. Device firmware uses the main library source and generated resources. See the [architecture guide](docs/Architecture.md) for directory responsibilities, compatibility entry points, board configuration, and build methods.
+Arduino sketches should include `<NICE_GFX.h>` before generated headers so the build tools can discover the installed library. C++ and ESP-IDF projects can include module headers such as `<Graphics/Gfx.h>`, `<Graphics/Sprite.h>`, `<Fonts/Builtin.h>`, and `<UI/View.h>` directly.
 
-To change controller programs or address-window alignment, edit the corresponding files in `src/Drivers/Display/`. To change display combinations and type aliases, edit `src/Display/`. Arduino and ESP-IDF share the graphics, font, and UI source. Native IDF selects the ESP32 platform source files and excludes the Arduino, RP2040, and STM32 platform implementations. Maintenance tools update the display catalog and capability tables.
-
-Arduino sketches should include `<NICE_GFX.h>` first so the build tools can discover the installed library. Designer resources include `<UI/View.h>` and declarations for the fonts they use. Module headers are public interfaces: `<Graphics/Gfx.h>` declares drawing objects, `<Graphics/Sprite.h>` declares Sprites, `<Fonts/Builtin.h>` declares built-in fonts, and `<Display/Presets/All.h>` provides display presets. Standard C++ and ESP-IDF projects can combine module headers as needed; graphics and UI declarations do not pull in concrete display controllers or MCU backends.
-
-Run the following commands from the library root to check release metadata, documentation links, example configuration, and module dependencies:
+Run the native e-paper host checks from the library root:
 
 ```powershell
-npm run check
-# Requires a C++17 compiler and CMake on PATH, or set CXX / CMAKE:
-npm test
-# Synchronize version numbers, resource ABI notes, and motion links, then check again:
-npm run metadata:sync
+npm run test:epaper
 ```
 
-Host regression tests use fixed resources within the library and do not depend on the designer repository. The same test entry point covers frame lifecycles, native/tiled rendering comparisons, and memory allocation failures. See [host tests](tests/README.md) for configuration.
+The [test guide](tests/epaper/README.md) describes Node.js and compiler requirements, protocol coverage, and test output. Validate colors, coordinates, input, and sustained refreshes on the actual hardware.
 
-Validate colors, coordinates, input, the first frame, and sustained operation in your actual project.
+## License and attribution
 
-For licenses and notices covering fonts, icons, and bundled code, see the [font license directory](src/Fonts/licenses), [icon license](src/Graphics/LICENSE-Font-Awesome.txt), [graphics license](src/Graphics/LICENSE-Bodmer.txt), and [other license files](LICENSES).
+Original NICE_GFX code is licensed under the [Apache License 2.0](LICENSE). It is free to use, modify and distribute in commercial and noncommercial projects, including closed-source applications, subject to that license. No library royalty or NICE GFX Studio subscription is required.
+
+When redistributing covered source, firmware or derived works, provide the license, preserve applicable copyright and modification notices, and reproduce relevant [NOTICE](NOTICE) attributions as required by Apache-2.0 section 4. They can be supplied in an accompanying NOTICE file, source/documentation, or an appropriate legal-notices display as the license permits. We appreciate a public acknowledgment such as **“This product uses the nice gfx graphics library”** with a [project link](https://github.com/ailyProject/nice-gfx); website promotion, chip-vendor first recommendation and separate commercial approval are not license conditions.
+
+NICE GFX Studio and its AI design services are separately licensed commercial products. Paying for the designer is not a condition of using this runtime. Exported applications can continue to run and be commercially distributed after a designer subscription ends; any copied runtime, fonts, icons and other third-party materials retain their respective licenses.
+
+Bundled third-party code and assets are not relicensed by the top-level Apache grant. See [third-party notices](THIRD_PARTY_NOTICES.md), the [license index](LICENSES/README.md), [font licenses](src/Fonts/licenses), [icon license](src/Graphics/LICENSE-Font-Awesome.txt), and [graphics license](src/Graphics/LICENSE-Bodmer.txt). Some legacy examples and images have separate or unconfirmed permissions, as identified in the third-party notices; the Apache grant does not resolve those rights.

@@ -188,7 +188,7 @@ uint8_t ngfx_u8x8_d_ssd1363_common(ngfx_u8x8_t *u8x8, uint8_t msg, uint8_t arg_i
 	  c--;
 	} while( c > 0 );
 	
-	//x += 2;
+
 	arg_int--;
       } while( arg_int > 0 );
       
@@ -237,7 +237,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_ssd1363_256x128_display_info =
   /* post_reset_wait_ms = */ 100, /* far east OLEDs need much longer setup time */
   /* sda_setup_time_ns = */ 50,		/* 15ns, but cycle time is 100ns, so use 100/2 */
   /* sck_pulse_width_ns = */ 50,	/* 20ns, but cycle time is 100ns, so use 100/2, AVR: below 70: 8 MHz, >= 70 --> 4MHz clock */
-  /* sck_clock_hz = */ 4000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns, increased to 8MHz (issue 215), 10 MHz (issue 301) */
+  /* sck_clock_hz = */ 4000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns, increased to 8MHz (issue 215), 10 MHz (issue 301) */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,
   /* data_setup_time_ns = */ 10,
@@ -265,7 +265,7 @@ static const uint8_t ngfx_u8x8_d_ssd1363_256x128_init_seq[] = {
 
   NGFX_U8X8_CA(0xa1, 0x00),			/* display start line */  
   
-  //NGFX_U8X8_CA(0xab, 0x01),			/* Enable Internal VDD Regulator */  
+
 /*
 	A[0]=0b, Horizontal address increment [reset]    ***
 	A[0]=1b, Vertical address increment
@@ -288,7 +288,7 @@ static const uint8_t ngfx_u8x8_d_ssd1363_256x128_init_seq[] = {
 */
   NGFX_U8X8_CAA(0xa0, 0x32, 0x000),	/* Set Re-Map / Dual COM Line Mode (midas datasheet) */  
   NGFX_U8X8_CAA(0xb4, 0x32, 0x00c),	/* Display Enhancement A (midas datasheet) NOT DOCUMENTED */  
-  //NGFX_U8X8_CA(0xc7, 0x0f),			/* Set Scale Factor of Segment Output Current Control */  
+
   NGFX_U8X8_CA(0xc1, 0xff),			/* contrast */  
   NGFX_U8X8_CA(0xba, 0x03),			/* voltage config: Vp pin is connected to cap */    
   NGFX_U8X8_C(0xb9),		                /* linear grayscale */

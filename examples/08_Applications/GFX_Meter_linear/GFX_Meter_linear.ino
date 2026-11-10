@@ -10,7 +10,7 @@
  ###### DON'T FORGET TO UPDATE THE Hardware.h FILE IN THIS SKETCH ######
  #########################################################################
  
-Updated by Bodmer for variable meter size
+Variable-size meter example by Bodmer
  */
 
 // Define meter size as 1 for gfx.rotation(0) or 1.3333 for gfx.rotation(1)

@@ -3,7 +3,7 @@ ESP-Mosaico DVP 帧采集稳定性可选适配包
 状态
 适用于 ESP32-S31、Arduino SDK 的 ESP-IDF v6.1-803-g94639ab7251、
 qio_opi 配置与官方 RISC-V GCC 15.2.0。仅修改 libesp_driver_cam.a。
-当前准备和验证记录见 VALIDATION.txt。是否已解决具体硬件问题，以实机日志为准。
+适配效果以目标硬件的实机日志为准。
 
 用途与来源
 公开的 ESP-Mosaico BSP 自动应用同一套 DVP 修复：
@@ -25,7 +25,7 @@ DVP 修复内容
 文件
 patched/components/esp_driver_cam/ ：修改后的两个 C 源、两个私有头与共享控制头。
 original/components/esp_driver_cam/ ：精确 IDF 原始源，便于对比与重新应用补丁。
-bsp/ ：两个原始 BSP 补丁、BSP 当时的 CMakeLists.txt、README.md 和 LICENSE。
+bsp/ ：两个原始 BSP 补丁、对应的 CMakeLists.txt、README.md 和 LICENSE。
 esp-idf-94639ab-dvp-stability.patch ：适配到精确 IDF 的补丁。
 PROVENANCE.json ：官方仓库、固定提交、Git blob SHA 与 URL。
 SOURCE-MANIFEST.json ：全部源文件 SHA256 与受支持原始 archive SHA256。

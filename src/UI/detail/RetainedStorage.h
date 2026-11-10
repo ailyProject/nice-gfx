@@ -6,7 +6,7 @@
 #include <type_traits>
 #include "../../Platform/Common/UiMemory.h"
 namespace nice_gfx { namespace htmlui {
-// Large retained state/geometry belongs beside the page cache in S3 PSRAM.
+// Large retained state/geometry belongs beside the page cache in S3/S31 PSRAM.
 // Keep tiles, input and small control allocations in internal RAM. This does
 // not change the application's global malloc policy or other target backends.
 // The standard allocator contract requires failure to throw (or terminate in

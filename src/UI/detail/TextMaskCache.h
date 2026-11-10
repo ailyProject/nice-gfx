@@ -7,11 +7,14 @@
 #include <cstring>
 #include <limits.h>
 #include <new>
-#if defined(CONFIG_IDF_TARGET_ESP32S31) && (defined(ESP32)||defined(ARDUINO_ARCH_ESP32)||defined(ESP_PLATFORM))
+#if (defined(CONFIG_IDF_TARGET_ESP32S31)||defined(CONFIG_IDF_TARGET_ESP32P4)) && (defined(ESP32)||defined(ARDUINO_ARCH_ESP32)||defined(ESP_PLATFORM))
 #include <esp_heap_caps.h>
 #endif
 
 namespace nice_gfx { namespace htmlui { namespace detail {
+#ifndef NICE_GFX_UI_TEXT_MASK_CHEAP_KEYS
+#define NICE_GFX_UI_TEXT_MASK_CHEAP_KEYS 1
+#endif
 
 // A position-independent text layout. Color, translation and inherited opacity
 // belong to the eventual compositor, not to these immutable coverage pixels.
@@ -92,9 +95,13 @@ class TextMaskCanvas final : public NICE_GFX {
 // owns each mask, its UTF-8 key and its line descriptors. A View owns the cache;
 // replacing/mounting that View destroys every allocation. Returned pixels are
 // borrowed only until the next resolve/clear call, for a blocking PPA transfer.
+#ifndef NICE_GFX_UI_TEXT_MASK_MAX_ENTRIES
+#define NICE_GFX_UI_TEXT_MASK_MAX_ENTRIES 128
+#endif
 class TextMaskCache {
  public:
-  static constexpr size_t DefaultBudget=1024*1024,MaxEntries=64;
+  static constexpr size_t DefaultBudget=1024*1024,MaxEntries=NICE_GFX_UI_TEXT_MASK_MAX_ENTRIES;
+  static_assert(MaxEntries>=1&&MaxEntries<=512,"Text-mask metadata capacity must be1..512");
   explicit TextMaskCache(size_t budget=DefaultBudget):budget_(budget) {}
   ~TextMaskCache(){clear();}
   TextMaskCache(const TextMaskCache &)=delete;
@@ -173,6 +180,16 @@ class TextMaskCache {
     uint64_t used=0;uint8_t fontSize=0,textAlign=0;
     bool hasFallback=false,antialias=true,unsupported=false,empty=true;
     bool matches(const TextMaskLayout &value,size_t textLength) const {
+#if NICE_GFX_UI_TEXT_MASK_CHEAP_KEYS
+      // Most retained masks differ in their small layout key. Reject those
+      // before reading both complete font descriptions on every LRU probe.
+      // Mutable primary/fallback fonts are still validated before any hit.
+      if(font!=value.font||width!=value.width||height!=value.height||textY!=value.textY||fontSize!=value.fontSize||
+         textAlign!=value.textAlign||antialias!=value.antialias||lineCount!=value.lineCount||length!=textLength||
+         hasFallback!=(value.font->fallback!=nullptr)||std::memcmp(text,value.text,length)!=0)return false;
+      for(size_t i=0;i<lineCount;++i)if(lines[i].begin!=value.lines[i].begin||lines[i].end!=value.lines[i].end||lines[i].width!=value.lines[i].width)return false;
+      return sameFont(primary,*value.font)&&(!hasFallback||sameFont(fallback,*value.font->fallback));
+#else
       if(font!=value.font||!sameFont(primary,*value.font)||
          hasFallback!=(value.font->fallback!=nullptr)||(hasFallback&&!sameFont(fallback,*value.font->fallback))||
          width!=value.width||height!=value.height||textY!=value.textY||fontSize!=value.fontSize||
@@ -180,6 +197,7 @@ class TextMaskCache {
          std::memcmp(text,value.text,length)!=0)return false;
       for(size_t i=0;i<lineCount;++i)if(lines[i].begin!=value.lines[i].begin||lines[i].end!=value.lines[i].end||lines[i].width!=value.lines[i].width)return false;
       return true;
+#endif
     }
     TextMaskView view() const {return{pixels,size_t(width),size_t(height),stride,maskBytes,empty};}
   };
@@ -194,14 +212,17 @@ class TextMaskCache {
     return true;
   }
   static void *allocate(size_t bytes){
-#if defined(CONFIG_IDF_TARGET_ESP32S31) && (defined(ESP32)||defined(ARDUINO_ARCH_ESP32)||defined(ESP_PLATFORM))
+#if (defined(CONFIG_IDF_TARGET_ESP32S31)||defined(CONFIG_IDF_TARGET_ESP32P4)) && (defined(ESP32)||defined(ARDUINO_ARCH_ESP32)||defined(ESP_PLATFORM))
+#if defined(CONFIG_IDF_TARGET_ESP32P4)
+    if(heap_caps_get_free_size(MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT)<bytes+2u*1024u*1024u)return nullptr;
+#endif
     return heap_caps_malloc(bytes,MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT);
 #else
     return std::malloc(bytes);
 #endif
   }
   static void release(void *memory){
-#if defined(CONFIG_IDF_TARGET_ESP32S31) && (defined(ESP32)||defined(ARDUINO_ARCH_ESP32)||defined(ESP_PLATFORM))
+#if (defined(CONFIG_IDF_TARGET_ESP32S31)||defined(CONFIG_IDF_TARGET_ESP32P4)) && (defined(ESP32)||defined(ARDUINO_ARCH_ESP32)||defined(ESP_PLATFORM))
     heap_caps_free(memory);
 #else
     std::free(memory);

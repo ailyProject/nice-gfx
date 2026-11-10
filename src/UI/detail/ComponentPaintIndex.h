@@ -49,6 +49,17 @@ class ComponentPaintIndex {
     result.selected=!found->list&&found->option>=0&&found->value>=0&&values[size_t(found->value)].value==found->option;
     return result;
   }
+  // The caller has matched this index to the same page/component descriptors.
+  // Only these immutable bindings can supply selected/expanded paint state.
+  template<class Values> bool samePaintDependencies(const Values &before,const Values &after) const {
+    for(const auto &binding:bindings_) {
+      if(binding.select&&binding.panel>=0&&
+         ((before[size_t(binding.panel)].flags^after[size_t(binding.panel)].flags)&Hidden))return false;
+      if(!binding.list&&binding.option>=0&&binding.value>=0&&
+         before[size_t(binding.value)].value!=after[size_t(binding.value)].value)return false;
+    }
+    return true;
+  }
   size_t storageBytes() const {return bindings_.capacity()*sizeof(Binding)+nodes_.capacity()*sizeof(Node);}
  private:
   struct Node {Id id;uint16_t index;};

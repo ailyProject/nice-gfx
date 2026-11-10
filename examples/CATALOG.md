@@ -2,7 +2,7 @@
 
 按学习主题查找示例。接线、依赖和布局限制见 [使用说明](README.md)。
 
-此文件由 `node tools/check-examples.mjs --write` 生成。
+新增、重命名或迁移示例时，请同步更新此索引中的链接。
 
 ## 01_Basics
 

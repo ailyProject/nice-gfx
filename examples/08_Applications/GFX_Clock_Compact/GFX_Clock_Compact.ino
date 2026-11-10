@@ -7,8 +7,7 @@
 
  Uses compile time to set the time so a reset will start with the compile time again
  
- Gilchrist 6/2/2014 1.0
- Updated by Bodmer
+ Authors: Gilchrist, Bodmer
  */
 
 #include <NICE_GFX.h>

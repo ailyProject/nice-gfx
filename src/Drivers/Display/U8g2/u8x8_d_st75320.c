@@ -59,16 +59,16 @@ static const uint8_t ngfx_u8x8_d_st75320_jlx320240_flip0_seq[] = {
   NGFX_U8X8_START_TRANSFER(),             	/* enable chip, delay is part of the transfer start */
   NGFX_U8X8_CA(0xC4, 0x02), 			/* COM Output Status, Bits 0 & 1 */
   NGFX_U8X8_C(0xA1), 				/* Column Address Direction: Bit 0 */
-  //NGFX_U8X8_C(0x0a1),				/* segment remap a0/a1*/
-  //NGFX_U8X8_C(0x0c8),				/* c0: scan dir normal, c8: reverse */
+
+
   NGFX_U8X8_END_TRANSFER(),             	/* disable chip */
   NGFX_U8X8_END()             			/* end of sequence */
 };
 
 static const uint8_t ngfx_u8x8_d_st75320_jlx320240_flip1_seq[] = {
   NGFX_U8X8_START_TRANSFER(),             	/* enable chip, delay is part of the transfer start */
-  //NGFX_U8X8_C(0x0a0),				/* segment remap a0/a1*/
-  //NGFX_U8X8_C(0x0c0),				/* c0: scan dir normal, c8: reverse */
+
+
   NGFX_U8X8_CA(0xC4, 0x03), 			/* COM Output Status, Bits 0 & 1 */
   NGFX_U8X8_C(0xA0), 				/* Column Address Direction: Bit 0 */
   NGFX_U8X8_END_TRANSFER(),             	/* disable chip */
@@ -216,8 +216,8 @@ static const uint8_t ngfx_u8x8_d_st75320_jlx320240_init_seq[] = {
   NGFX_U8X8_DLY(10),
   NGFX_U8X8_CA(0x25, 0x7f), 			// Power Control/VOUT, AVDD, MV3, NAVDD, V3, VPF & VNF ON
   NGFX_U8X8_DLY(10),
-  //NGFX_U8X8_C(0xaf); //Display ON  
-    
+
+
   NGFX_U8X8_END_TRANSFER(),             	/* disable chip */
   NGFX_U8X8_END()           			/* end of sequence */
 };
@@ -236,7 +236,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_st75320_jlx320240_display_info =
   /* post_reset_wait_ms = */ 5, 		/**/
   /* sda_setup_time_ns = */ 20,		/* */
   /* sck_pulse_width_ns = */ 40,	/*  */
-  /* sck_clock_hz = */ 4000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
+  /* sck_clock_hz = */ 4000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,	/* 400KHz */
   /* data_setup_time_ns = */ 15,

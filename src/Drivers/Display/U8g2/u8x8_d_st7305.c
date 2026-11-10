@@ -67,14 +67,14 @@ static const uint8_t ngfx_u8x8_d_st7305_122x250_powersave1_seq[] = {
 
 static const uint8_t ngfx_u8x8_d_st7305_122x250_flip0_seq[] = {
   NGFX_U8X8_START_TRANSFER(),             	/* enable chip, delay is part of the transfer start */
-  //NGFX_U8X8_CA(0x36, 0x60), 			// Memory Control 
+
   NGFX_U8X8_END_TRANSFER(),             	/* disable chip */
   NGFX_U8X8_END()             			/* end of sequence */
 };
 
 static const uint8_t ngfx_u8x8_d_st7305_122x250_flip1_seq[] = {
   NGFX_U8X8_START_TRANSFER(),             	/* enable chip, delay is part of the transfer start */
-  //NGFX_U8X8_CA(0x36, 0xa0), 			// Memory Control 
+
   NGFX_U8X8_END_TRANSFER(),             	/* disable chip */
   NGFX_U8X8_END()             			/* end of sequence */
 };
@@ -198,11 +198,11 @@ static const uint8_t ngfx_u8x8_d_st7305_122x250_init_seq[] = {
   NGFX_U8X8_DLY(20),
   NGFX_U8X8_C(0x01),                                 // software reset
   NGFX_U8X8_DLY(20),                                 // wait
-  //NGFX_U8X8_C(0x38), 				// High Power Mode
-  //NGFX_U8X8_CA(0xEB, 0x02), 			// Disable NVM Load
-  //NGFX_U8X8_CA(0xD7, 0x68), 			// NVM Load Control: Enable ID1 ID2 ID3 Load
-  //NGFX_U8X8_CA(0xD1, 0x01), 			// Booster Enable
-  //NGFX_U8X8_CA(0xC0, 0x80), 			// Gate Voltage Setting VGH=12V (upper 4 bit, 8V-15V); VGL=-5V (lower 4 bit, -5V .. -10V)
+
+
+
+
+
   NGFX_U8X8_CAA(0xD6, 0x17, 0x02),
   NGFX_U8X8_CA(0xD1, 0x01), 
   NGFX_U8X8_CAA(0xC0, 0x12, 0x0a),//chen.x
@@ -216,7 +216,7 @@ static const uint8_t ngfx_u8x8_d_st7305_122x250_init_seq[] = {
   NGFX_U8X8_A4(50,0x35,0x37,0x37),
   NGFX_U8X8_CAA(0xD8, 0x80, 0xE9),
   
-  //NGFX_U8X8_CA(0xCB, 0x14), 			// VCOMH: 0x14 = 4V (0x28 = 5V)
+
   NGFX_U8X8_CA(0xB2, 0x12),
   NGFX_U8X8_CAA(0xB3, 0xE5, 0xF6), 			// Update Period Gate EQ Control, why 0x77??? it should be 0x66 according to the datasheet
   NGFX_U8X8_A8(0x17, 0x77, 0x77, 0x77, 0x77, 0x77, 0x77, 0x71),
@@ -238,8 +238,8 @@ static const uint8_t ngfx_u8x8_d_st7305_122x250_init_seq[] = {
   NGFX_U8X8_CAA(0x2B, 0x00, 0x63), 			// row addr
   NGFX_U8X8_CA(0x35, 0x00),
   NGFX_U8X8_CA(0xD0, 0xFF), 			// Not in datasheet
-  //NGFX_U8X8_CA(0x72, 0x00), 			// Not in datasheet
-  //NGFX_U8X8_CAA(0xB2,1, 5),                  // Frame Rate for High and Low Power Mode (hier: 32Hz and 8Hz) 
+
+
   NGFX_U8X8_C(0x38), 				// enable Low Power Mode...: 8Hz, see above
   NGFX_U8X8_C(0x29), 				// display on
   NGFX_U8X8_C(0x20),
@@ -262,7 +262,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_st7305_122x250_display_info =
   /* post_reset_wait_ms = */ 3, 		/**/
   /* sda_setup_time_ns = */ 10,		/* */
   /* sck_pulse_width_ns = */ 30,	/*  */
-  /* sck_clock_hz = */ 2000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
+  /* sck_clock_hz = */ 2000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,	/* 400KHz */
   /* data_setup_time_ns = */ 15,
@@ -277,7 +277,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_st7305_122x250_display_info =
 
 uint8_t ngfx_u8x8_d_st7305_122x250(ngfx_u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *arg_ptr)
 {
-  // uint16_t x;
+
   uint8_t c, i, y;
   uint8_t *ptr;
   switch(msg)
@@ -318,9 +318,9 @@ uint8_t ngfx_u8x8_d_st7305_122x250(ngfx_u8x8_t *u8x8, uint8_t msg, uint8_t arg_i
 #endif
     case NGFX_U8X8_MSG_DISPLAY_DRAW_TILE:
       // x offset is ignored 
-      //x = ((ngfx_u8x8_tile_t *)arg_ptr)->x_pos;    
+
       //x *= 8;
-      //x += u8x8->x_offset;
+
       y= (((ngfx_u8x8_tile_t *)arg_ptr)->y_pos);
       y*=4;
     
@@ -379,7 +379,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_st7305_200x200_display_info =
   /* post_reset_wait_ms = */ 3, 		/**/
   /* sda_setup_time_ns = */ 10,		/* */
   /* sck_pulse_width_ns = */ 30,	/*  */
-  /* sck_clock_hz = */ 2000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
+  /* sck_clock_hz = */ 2000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,	/* 400KHz */
   /* data_setup_time_ns = */ 15,
@@ -394,7 +394,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_st7305_200x200_display_info =
 
 uint8_t ngfx_u8x8_d_st7305_200x200(ngfx_u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *arg_ptr)
 {
-  //uint16_t x;
+
   uint8_t c, i, y;
   uint8_t *ptr;
   switch(msg)
@@ -434,9 +434,9 @@ uint8_t ngfx_u8x8_d_st7305_200x200(ngfx_u8x8_t *u8x8, uint8_t msg, uint8_t arg_i
       break;
 #endif
     case NGFX_U8X8_MSG_DISPLAY_DRAW_TILE:
-      //x = ((ngfx_u8x8_tile_t *)arg_ptr)->x_pos;    
+
       //x *= 8;
-      //x += u8x8->x_offset;
+
       y= (((ngfx_u8x8_tile_t *)arg_ptr)->y_pos);
       y*=4;
     
@@ -503,7 +503,7 @@ static const uint8_t ngfx_u8x8_d_st7305_168x384_powersave1_seq[] = {
 
 static const uint8_t ngfx_u8x8_d_st7305_168x384_flip0_seq[] = {
     NGFX_U8X8_START_TRANSFER(), /* enable chip, delay is part of the transfer start */
-    // NGFX_U8X8_CA(0x36, 0x60), 			// Memory Control
+
     NGFX_U8X8_END_TRANSFER(), /* disable chip */
     NGFX_U8X8_END()           /* end of sequence */
 };
@@ -565,7 +565,7 @@ static const uint8_t ngfx_u8x8_d_st7305_168x384_init_seq[] = {
     NGFX_U8X8_CA(0x35, 0x00),        // TE Setting
     NGFX_U8X8_CA(0xD0, 0xFF),        // Enable Auto Power down
     NGFX_U8X8_C(0x38),               // High Power Mode ON
-    // NGFX_U8X8_C(0x39),               // Low Power Mode ON
+
 
 
     /* Display ON */
@@ -593,7 +593,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_st7305_168x384_display_info =
         /* post_reset_wait_ms = */ 3,   /**/
         /* sda_setup_time_ns = */ 10,   /* */
         /* sck_pulse_width_ns = */ 30,  /*  */
-        /* sck_clock_hz = */ 2000000UL, /* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
+        /* sck_clock_hz = */ 2000000UL, /* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
         /* spi_mode = */ 0,             /* active high, rising edge */
         /* i2c_bus_clock_100kHz = */ 4, /* 400KHz */
         /* data_setup_time_ns = */ 15,
@@ -608,7 +608,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_st7305_168x384_display_info =
 
 uint8_t ngfx_u8x8_d_st7305_168x384(ngfx_u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *arg_ptr)
 {
-  //uint16_t x;
+
   uint8_t c, i, y;
   uint8_t *ptr;
   switch(msg)
@@ -648,9 +648,9 @@ uint8_t ngfx_u8x8_d_st7305_168x384(ngfx_u8x8_t *u8x8, uint8_t msg, uint8_t arg_i
       break;
 #endif
     case NGFX_U8X8_MSG_DISPLAY_DRAW_TILE:
-      // x = ((ngfx_u8x8_tile_t *)arg_ptr)->x_pos;    
+
       // x *= 8;
-      // x += u8x8->x_offset;
+
       y= (((ngfx_u8x8_tile_t *)arg_ptr)->y_pos);
       y*=4;
     
@@ -719,7 +719,7 @@ static const uint8_t ngfx_u8x8_d_st7305_168x384_powersave1_seq[] = {
 
 static const uint8_t ngfx_u8x8_d_st7305_168x384_flip0_seq[] = {
     NGFX_U8X8_START_TRANSFER(), /* enable chip, delay is part of the transfer start */
-    // NGFX_U8X8_CA(0x36, 0x60), 			// Memory Control
+
     NGFX_U8X8_END_TRANSFER(), /* disable chip */
     NGFX_U8X8_END()           /* end of sequence */
 };
@@ -740,7 +740,7 @@ static const uint8_t ngfx_u8x8_d_st7305_300x400_init_seq[] = {
     NGFX_U8X8_CAA(0xD6, 0x13, 0x02), // NVM Load Control
     NGFX_U8X8_CA(0xD1, 0x01),        // Booster Enable
     NGFX_U8X8_CAA(0xC0, 0x12, 0x0A), // Gate Voltage Setting: VGH=15V, VGL=-10V
-    //NGFX_U8X8_CAA(0xC0, 0x11, 0x04), // Gate Voltage Setting: VGH=15V, VGL=-10V
+
 
 
     NGFX_U8X8_CAAAA(0xC1, 0x3C, 0x3E, 0x3C, 0x3C), // VSHP Setting: VSHP1~4 = 4.8V
@@ -756,9 +756,9 @@ static const uint8_t ngfx_u8x8_d_st7305_300x400_init_seq[] = {
     NGFX_U8X8_CAAAA(0xB3, 0xE5, 0xF6, 0x17, 0x77), // Update Period Gate EQ Control in HPM
     NGFX_U8X8_A6(0x77, 0x77, 0x77, 0x77, 0x77, 0x71),
 
-    //NGFX_U8X8_CAAAA(0xB3, 0xE5, 0xF6, 0x05, 0x46), // 300x400, however this has lower contrast
-    //NGFX_U8X8_A6(0x77, 0x77, 0x77, 0x77, 0x76, 0x45),
-  
+
+
+
 
 
     NGFX_U8X8_CAA(0xB4, 0x05, 0x46), // Update Period Gate EQ Control in LPM
@@ -782,12 +782,12 @@ static const uint8_t ngfx_u8x8_d_st7305_300x400_init_seq[] = {
 
 
     // 0x2A and 0x2B are not required here, will be done below
-    //NGFX_U8X8_CAA(0x2A, 0x00, 0x24), // Column Address Setting: 0X24-0X16=14, 14*12=168
-    //NGFX_U8X8_CAA(0x2B, 0x00, 0xc1), // Row Address Setting: 192*2=384
+
+
     NGFX_U8X8_CA(0x35, 0x00),        // TE Setting
     NGFX_U8X8_CA(0xD0, 0xFF),        // Enable Auto Power down
     NGFX_U8X8_C(0x38),               // High Power Mode ON
-    // NGFX_U8X8_C(0x39),               // Low Power Mode ON
+
 
 
     /* Display ON */
@@ -815,7 +815,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_st7305_300x400_display_info =
         /* post_reset_wait_ms = */ 3,   /**/
         /* sda_setup_time_ns = */ 10,   /* */
         /* sck_pulse_width_ns = */ 30,  /*  */
-        /* sck_clock_hz = */ 2000000UL, /* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
+        /* sck_clock_hz = */ 2000000UL, /* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
         /* spi_mode = */ 0,             /* active high, rising edge */
         /* i2c_bus_clock_100kHz = */ 4, /* 400KHz */
         /* data_setup_time_ns = */ 15,
@@ -830,7 +830,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_st7305_300x400_display_info =
 
 uint8_t ngfx_u8x8_d_st7305_300x400(ngfx_u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *arg_ptr)
 {
-  //uint16_t x;
+
   uint8_t y;       
   uint8_t c, i;
   uint8_t *ptr;
@@ -871,9 +871,9 @@ uint8_t ngfx_u8x8_d_st7305_300x400(ngfx_u8x8_t *u8x8, uint8_t msg, uint8_t arg_i
       break;
 #endif
     case NGFX_U8X8_MSG_DISPLAY_DRAW_TILE:
-      // x = ((ngfx_u8x8_tile_t *)arg_ptr)->x_pos;    
+
       // x *= 8;
-      // x += u8x8->x_offset;
+
       y= (((ngfx_u8x8_tile_t *)arg_ptr)->y_pos);
       y*=4;
     

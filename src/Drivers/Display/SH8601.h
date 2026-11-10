@@ -1,7 +1,7 @@
 #pragma once
 #include "../../Display/ControllerProfile.h"
 
-// SH8601 initialization ported from Arduino_GFX (BSD-licensed).
+// Register and timing reference: SH8601 datasheet.
 
 namespace nice_gfx { namespace controllers {
 inline void init_SH8601(PanelSequence &s) {

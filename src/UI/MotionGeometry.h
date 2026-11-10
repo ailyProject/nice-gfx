@@ -2,6 +2,10 @@
 #include "Compiled.h"
 #include <stdint.h>
 
+#ifndef NICE_GFX_UI_EXACT_FAST_MOTION_BOUNDS
+#define NICE_GFX_UI_EXACT_FAST_MOTION_BOUNDS 1
+#endif
+
 namespace nice_gfx { namespace htmlui { namespace motion_geometry {
 // One flash table, quarter-wave symmetry. Trigonometry is never evaluated on
 // the device; the inner raster loop uses additions of inverse Q16 coefficients.
@@ -30,6 +34,33 @@ inline Rect bounds(Rect box,uint16_t scale,int16_t rotation,int16_t pivotX=50,in
   // Bound the actual quantized inverse, not an independently rounded forward
   // matrix. Q14 table rounding otherwise loses edge pixels on large boxes.
   const int32_t s=sine(rotation)*4096/scale,c=sine(rotation+90)*4096/scale;
+#if NICE_GFX_UI_EXACT_FAST_MOTION_BOUNDS
+  // A conservative ordinary-display domain keeps every intermediate exact and
+  // bounded. Other pivots/scales/coordinates retain the original algorithm.
+  if(pivotX==50&&pivotY==50&&scale>=128&&scale<=4096&&
+     box.x>=-32768&&box.x<=32767&&box.y>=-32768&&box.y<=32767&&
+     box.width<=4096&&box.height<=4096){
+    const uint32_t a=uint32_t(c<0?-c:c),b=uint32_t(s<0?-s:s);
+    uint32_t right,bottom;
+    if(!b||!a){
+      // Cancel the common nonzero inverse coefficient before division. At the
+      // admitted limits each rounded numerator is < 2,416,967,680 (<2^32).
+      const uint32_t coefficient=a?a:b,denominator=coefficient*2;
+      const uint32_t x=a?uint32_t(box.width)*(coefficient+65536u):uint32_t(box.width)*coefficient+uint32_t(box.height)*65536u;
+      const uint32_t y=a?uint32_t(box.height)*(coefficient+65536u):uint32_t(box.height)*coefficient+uint32_t(box.width)*65536u;
+      right=(x+denominator-1)/denominator;bottom=(y+denominator-1)/denominator;
+    }else{
+      const uint64_t denominator=(uint64_t(a)*a+uint64_t(b)*b)*2;
+      const uint64_t x=uint64_t(box.width)*(denominator/2)+(uint64_t(a)*box.width+uint64_t(b)*box.height)*65536;
+      const uint64_t y=uint64_t(box.height)*(denominator/2)+(uint64_t(b)*box.width+uint64_t(a)*box.height)*65536;
+      right=uint32_t((x+denominator-1)/denominator);bottom=uint32_t((y+denominator-1)/denominator);
+    }
+    // floor(width - q) == width - ceil(q): the two rational bounds sum
+    // exactly to width (height respectively), including odd pixel extents.
+    const int32_t left=box.width-int32_t(right),top=box.height-int32_t(bottom);
+    return {box.x+left,box.y+top,int32_t(right)-left,int32_t(bottom)-top};
+  }
+#endif
   const int64_t denominator=int64_t(c)*c+int64_t(s)*s;
   if(pivotX!=50||pivotY!=50) {
     int64_t px,py;pivot100(box,pivotX,pivotY,pixelCenters,px,py);

@@ -1,7 +1,7 @@
 #pragma once
 #include "../../Display/ControllerProfile.h"
 
-// SSD1357 initialization based on Arduino_GFX and the WiseChip reference table.
+// Register and timing reference: SSD1357 datasheet.
 
 namespace nice_gfx { namespace controllers {
 inline void init_SSD1357(PanelSequence &s) {

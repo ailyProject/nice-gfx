@@ -5,7 +5,7 @@
 // EE04 + 7.5-inch UC8179. Select the exact panel revision you wired.
 constexpr auto board=nice_gfx::SeeedEpaperBoard::EE04;
 nice_gfx::SeeedEpaperBoardIo boardIo(board);
-nice_gfx::GxEpd2Config config(){auto c=nice_gfx::seeedEpaperConfig(board);c.io=&boardIo;return c;}
+nice_gfx::NativeEpaperConfig config(){auto c=nice_gfx::seeedEpaperConfig(board);c.io=&boardIo;return c;}
 NGFX_SEEED_750_BW screen(config());
 void setup(){
   if(!screen.begin())return;
@@ -15,4 +15,8 @@ void setup(){
   screen.setTextColor(GFX_BLACK,GFX_WHITE);screen.drawString("Seeed ePaper",20,20);
   screen.endWrite();
 }
-void loop(){screen.pollDisplay(millis());}
+void loop(){
+  const auto status=screen.pollDisplay(millis());
+  // Handle bus/BUSY failures in the application; keep input processing alive.
+  (void)status;
+}

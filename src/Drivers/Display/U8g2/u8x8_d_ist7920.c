@@ -104,11 +104,11 @@ static const uint8_t ngfx_u8x8_d_ist7920_128x128_init_seq[] = {
   
   
   NGFX_U8X8_CA(0x090, 128),			/* Set Duty */
-  //NGFX_U8X8_CAA(0x0b2, 0x011, 0x00),	/* Set Frame Control */  
+
 
   NGFX_U8X8_CA(0x030, 16),			/* Set Bias 0: 1/8, 8: 1/9, 16: 1/10, 24: 1/11, 48: 1/12 ... */  
   NGFX_U8X8_CA(0x031, 0x03f),		/* Set voltage generate clock(31H/11H) */  
-  //NGFX_U8X8_CA(0x032, 0x015),		/* Temperature compensation */  
+
   NGFX_U8X8_CA(0x033, 0x020),		/* Power Control */
   NGFX_U8X8_DLY(100),
   NGFX_U8X8_CA(0x033, 0x02c),		/* Power Control */

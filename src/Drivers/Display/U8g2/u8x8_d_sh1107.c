@@ -119,7 +119,7 @@ static uint8_t ngfx_u8x8_d_sh1107_HJR_OEL1M0201_generic(ngfx_u8x8_t *u8x8, uint8
       x *= 8;
       x += u8x8->x_offset;
 
-      //ngfx_u8x8_cad_SendCmd(u8x8, 0x040 ); /* set line offset to 0 */
+
 
       // set column address
       ngfx_u8x8_cad_SendCmd(u8x8, 0x010 | (x >> 4));
@@ -201,7 +201,7 @@ static uint8_t ngfx_u8x8_d_sh1107_generic(ngfx_u8x8_t *u8x8, uint8_t msg, uint8_
       x *= 8;
       x += u8x8->x_offset;
 
-      //ngfx_u8x8_cad_SendCmd(u8x8, 0x040 ); /* set line offset to 0 */
+
 
       // set column address
       ngfx_u8x8_cad_SendCmd(u8x8, 0x010 | (x >> 4));
@@ -247,8 +247,8 @@ static const uint8_t ngfx_u8x8_d_sh1107_64x128_noname_init_seq[] = {
   NGFX_U8X8_CA(0x081, 0x02f), 		/* [2] set contrast control */
   NGFX_U8X8_C(0x020),		                /* addressing mode */
 
-  // NGFX_U8X8_C(0x0a1),				/* segment remap a0/a1*/
-  // NGFX_U8X8_C(0x0c8),				/* c0: scan dir normal, c8: reverse */
+
+
   // Flipmode
   NGFX_U8X8_C(0x0a0),				/* segment remap a0/a1*/
   NGFX_U8X8_C(0x0c0),				/* c0: scan dir normal, c8: reverse */
@@ -279,7 +279,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_sh1107_64x128_noname_display_inf
   /* post_reset_wait_ms = */ 100, /* far east OLEDs need much longer setup time */
   /* sda_setup_time_ns = */ 50,		/* sh1107: 15ns, but cycle time is 100ns, so use 100/2 */
   /* sck_pulse_width_ns = */ 50,	/* sh1107: 20ns, but cycle time is 100ns, so use 100/2, AVR: below 70: 8 MHz, >= 70 --> 4MHz clock */
-  /* sck_clock_hz = */ 8000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
+  /* sck_clock_hz = */ 8000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,
   /* data_setup_time_ns = */ 40,
@@ -324,18 +324,18 @@ static const uint8_t ngfx_u8x8_d_sh1107_seeed_96x96_init_seq[] = {
   NGFX_U8X8_C(0x0ae),		                /* display off */
   NGFX_U8X8_CA(0x0d5, 0x050),		/* clock divide ratio (0x00=1) and oscillator frequency (0x5) */
   NGFX_U8X8_C(0x020),		                /* use page addressing mode */
-  //NGFX_U8X8_CA(0x0a8, 0x03f),		/* multiplex ratio */
+
   NGFX_U8X8_CA(0x0d3, 0x000),		/* display offset */
   NGFX_U8X8_CA(0x0dc, 0x000),		/* start line */
-  //NGFX_U8X8_CA(0x020, 0x000),		/* horizontal addressing mode */
-  
+
+
   NGFX_U8X8_C(0x0a1),				/* segment remap a0/a1*/
   NGFX_U8X8_C(0x0c8),				/* c0: scan dir normal, c8: reverse */
   // Flipmode
-  // NGFX_U8X8_C(0x0a0),				/* segment remap a0/a1*/
-  // NGFX_U8X8_C(0x0c0),				/* c0: scan dir normal, c8: reverse */
-  
-  //NGFX_U8X8_CA(0x0da, 0x012),		/* com pin HW config, sequential com pin config (bit 4), disable left/right remap (bit 5) */
+
+
+
+
 
   NGFX_U8X8_CA(0x081, 0x080), 		/* [2] set contrast control */
   NGFX_U8X8_CA(0x0ad, 0x080), 		/* */  
@@ -344,7 +344,7 @@ static const uint8_t ngfx_u8x8_d_sh1107_seeed_96x96_init_seq[] = {
   // if vcomh is 0, then this will give the biggest range for contrast control issue #98
   // restored the old values for the noname constructor, because vcomh=0 will not work for all OLEDs, #116
   
-  //NGFX_U8X8_C(0x02e),				/* Deactivate scroll */ 
+
   NGFX_U8X8_C(0x0a4),				/* output ram to display */
   NGFX_U8X8_C(0x0a6),				/* none inverted normal display mode */
     
@@ -363,7 +363,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_sh1107_seeed_96x96_display_info 
   /* post_reset_wait_ms = */ 100, /* far east OLEDs need much longer setup time */
   /* sda_setup_time_ns = */ 100,		/* cycle time is 100ns, so use 100/2 */
   /* sck_pulse_width_ns = */ 100,	/* cycle time is 100ns, so use 100/2, AVR: below 70: 8 MHz, >= 70 --> 4MHz clock */
-  /* sck_clock_hz = */ 4000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
+  /* sck_clock_hz = */ 4000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,
   /* data_setup_time_ns = */ 40,
@@ -465,12 +465,7 @@ uint8_t ngfx_u8x8_d_sh1107_hjr_oel1m0201_96x96(ngfx_u8x8_t *u8x8, uint8_t msg, u
 /*==================================================*/
 /* 128x128 OLED: this display has a very strange x offset */
 
-/* 
-6 Feb 2025: 
-There is an issue 
-https://github.com/olikraus/u8g2/issues/2581#issuecomment-2628394758 
-Looks like there are displays where the x offset must be 0
-*/
+/* Some 128x128 modules require a zero x offset; see issue 2581. */
 
 
 /* sequence taken over from 64x128 sequence, because it seems to work mostly */
@@ -484,15 +479,15 @@ static const uint8_t ngfx_u8x8_d_sh1107_128x128_init_seq[] = {
   NGFX_U8X8_CA(0x081, 0x02f), 		/* [2] set contrast control */
   NGFX_U8X8_C(0x020),		                /* use page addressing mode */
 
-  // NGFX_U8X8_C(0x0a1),				/* segment remap a0/a1*/
-  // NGFX_U8X8_C(0x0c8),				/* c0: scan dir normal, c8: reverse */
+
+
   // Flipmode
   NGFX_U8X8_C(0x0a0),				/* segment remap a0/a1*/
   NGFX_U8X8_C(0x0c0),				/* c0: scan dir normal, c8: reverse */
   
   NGFX_U8X8_CA(0x0a8, 0x7f),		/* 0x03f multiplex ratio */
-  //NGFX_U8X8_CA(0x0d3, 0x060),		/* display offset (removed, not in datasheet ) */
-  NGFX_U8X8_CA(0x0d5, 0x050),		/* clock divide ratio (0x00=1) and oscillator frequency (0x8), changed to 0x051, issue 501 */
+
+  NGFX_U8X8_CA(0x0d5, 0x050),		/* clock divide ratio (0x00=1) and oscillator frequency (0x8) */
   NGFX_U8X8_CA(0x0d9, 0x022), 		/* [2] pre-charge period 0x022/f1*/
   NGFX_U8X8_CA(0x0db, 0x035), 		/* vcomh deselect level */  
   
@@ -517,7 +512,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_sh1107_128x128_display_info =
   /* post_reset_wait_ms = */ 100, /* far east OLEDs need much longer setup time */
   /* sda_setup_time_ns = */ 100,		/* cycle time is 100ns, so use 100/2 */
   /* sck_pulse_width_ns = */ 100,	/* cycle time is 100ns, so use 100/2, AVR: below 70: 8 MHz, >= 70 --> 4MHz clock */
-  /* sck_clock_hz = */ 4000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
+  /* sck_clock_hz = */ 4000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,
   /* data_setup_time_ns = */ 40,
@@ -568,7 +563,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_sh1107_128x80_display_info =
   /* post_reset_wait_ms = */ 100, /* far east OLEDs need much longer setup time */
   /* sda_setup_time_ns = */ 100,		/* cycle time is 100ns, so use 100/2 */
   /* sck_pulse_width_ns = */ 100,	/* cycle time is 100ns, so use 100/2, AVR: below 70: 8 MHz, >= 70 --> 4MHz clock */
-  /* sck_clock_hz = */ 4000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
+  /* sck_clock_hz = */ 4000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,
   /* data_setup_time_ns = */ 40,
@@ -616,7 +611,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_sh1107_pimoroni_128x128_display_
   /* post_reset_wait_ms = */ 100, /* far east OLEDs need much longer setup time */
   /* sda_setup_time_ns = */ 100,		/* cycle time is 100ns, so use 100/2 */
   /* sck_pulse_width_ns = */ 100,	/* cycle time is 100ns, so use 100/2, AVR: below 70: 8 MHz, >= 70 --> 4MHz clock */
-  /* sck_clock_hz = */ 4000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
+  /* sck_clock_hz = */ 4000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,
   /* data_setup_time_ns = */ 40,
@@ -670,7 +665,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_seeed_128x128_display_info =
   /* post_reset_wait_ms = */ 100, /* far east OLEDs need much longer setup time */
   /* sda_setup_time_ns = */ 100,		/* cycle time is 100ns, so use 100/2 */
   /* sck_pulse_width_ns = */ 100,	/* cycle time is 100ns, so use 100/2, AVR: below 70: 8 MHz, >= 70 --> 4MHz clock */
-  /* sck_clock_hz = */ 4000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
+  /* sck_clock_hz = */ 4000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 2,		// 400kHz does not work, but 200kHz seems to be ok
   /* data_setup_time_ns = */ 40,
@@ -735,8 +730,8 @@ static const uint8_t ngfx_u8x8_d_sh1107_80x128_init_seq[] = {
  
 
 
-  //NGFX_U8X8_CA(0x0dc, 0x000),		/* start line */
- // NGFX_U8X8_CA(0x081, 0x02f), 		/* [2] set contrast control */
+
+
 
 
   NGFX_U8X8_END_TRANSFER(),             	/* disable chip */
@@ -791,7 +786,7 @@ static uint8_t ngfx_u8x8_d_sh1107_TK078F288_generic(ngfx_u8x8_t *u8x8, uint8_t m
       x *= 8;
       x += u8x8->x_offset;
 
-      //ngfx_u8x8_cad_SendCmd(u8x8, 0x040 ); /* set line offset to 0 */
+
 
       // set column address
       ngfx_u8x8_cad_SendCmd(u8x8, 0x010 | (x >> 4));
@@ -834,7 +829,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_TK078F288_80x128_display_info =
   /* post_reset_wait_ms = */ 100, /* far east OLEDs need much longer setup time */
   /* sda_setup_time_ns = */ 100,		/* cycle time is 100ns, so use 100/2 */
   /* sck_pulse_width_ns = */ 100,	/* cycle time is 100ns, so use 100/2, AVR: below 70: 8 MHz, >= 70 --> 4MHz clock */
-  /* sck_clock_hz = */ 4000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
+  /* sck_clock_hz = */ 4000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 2,		// 400kHz does not work, but 200kHz seems to be ok
   /* data_setup_time_ns = */ 40,

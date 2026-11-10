@@ -44,7 +44,7 @@ inline Status writePlane(Transport &bus,uint8_t ram,const uint8_t *pixels,size_t
   if(n==stride)return bus.command(ram,source,n*r.height);
   s=bus.command(ram,nullptr,0);
   // Gather several narrow rows into one bounded span. A one-byte-wide 200-row
-  // field now costs one data transaction instead of 200 transactions.
+  // field uses one data transaction.
   uint8_t staging[256];const size_t rowsPerChunk=sizeof(staging)/n;
   for(unsigned y=0;y<r.height&&s==Status::Ok;){const size_t rows=r.height-y<rowsPerChunk?r.height-y:rowsPerChunk;
     for(size_t i=0;i<rows;++i)memcpy(staging+i*n,source+size_t(y+i)*stride,n);

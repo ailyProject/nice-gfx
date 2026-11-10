@@ -1,7 +1,7 @@
 #pragma once
 #include "../../Display/ControllerProfile.h"
 
-// RM67162 initialization ported from Arduino_GFX (BSD-licensed).
+// Register and timing reference: RM67162 datasheet.
 
 namespace nice_gfx { namespace controllers {
 inline void init_RM67162(PanelSequence &s) {

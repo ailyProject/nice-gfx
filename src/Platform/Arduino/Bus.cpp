@@ -91,7 +91,8 @@ static bool samePin(int first,int second) {
 }
 static bool spiPinsValid(const SpiConfig &c,bool hardware=false) {
   const int pins[] = {c.pins.clock,c.pins.mosi,c.pins.cs,c.pins.dc,c.pins.miso,c.writeStrobePin};
-  if (!c.frequency || !c.readFrequency || c.mode > 3 || c.pins.clock < 0 || c.pins.mosi < 0 || c.pins.dc < 0)
+  if (!c.frequency || !c.readFrequency || c.mode > 3 || c.pins.clock < 0 || c.pins.mosi < 0 ||
+      (c.pins.dc < 0 && !c.byteOnly))
     return false;
   if (c.writeStrobePin >= 0 && !c.paddedCommands) return false;
   for (unsigned i=0; i<6; ++i) {

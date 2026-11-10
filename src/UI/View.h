@@ -1,10 +1,14 @@
 #pragma once
 #include "../Graphics/Gfx.h"
+#include "../Graphics/ChartBackdropGrid.h"
+#include "detail/IncrementalFrameGeometry.h"
+#include "detail/AxisMediaPpa.h"
 #include "Compiled.h"
 #include "Keys.h"
 #include "MenuMotion.h"
 #include "MonochromeEffects.h"
 #include "Behaviors.h"
+#include "SystemBar.h"
 #include "Dynamic.h"
 #include "Image.h"
 #include "Components.h"
@@ -18,6 +22,11 @@
 #define NICE_GFX_UI_SHARED_MEDIA_VERSION 1
 #define NICE_GFX_UI_INTERACTION_VERSION 1
 #define NICE_GFX_UI_STATS_VERSION 5
+#define NICE_GFX_UI_FRAME_GEOMETRY_IN_PLACE_STATS_VERSION 1
+#ifndef NICE_GFX_UI_FRAME_GEOMETRY_IN_PLACE
+#define NICE_GFX_UI_FRAME_GEOMETRY_IN_PLACE 0
+#endif
+#define NICE_GFX_UI_OUTLINED_MASK_STATS_VERSION 1
 #define NICE_GFX_UI_RESOURCE_CACHE_VERSION 1
 #define NICE_GFX_UI_RENDER_CACHE_VERSION 3
 #define NICE_GFX_UI_CIRCULAR_CLIP_VERSION 1
@@ -27,6 +36,7 @@
 #define NICE_GFX_UI_SHAPES_VERSION 1
 #define NICE_GFX_UI_TEXT_INPUT_VERSION 1
 #define NICE_GFX_UI_DYNAMIC_IMAGE_VERSION 1
+#define NICE_GFX_UI_PAGE_IMAGE_CLEAR_VERSION 1
 #define NICE_GFX_UI_COMPONENTS_VERSION 2
 #define NICE_GFX_UI_SCROLL_READING_VERSION 1
 #define NICE_GFX_UI_COMPACT_PAGER_VERSION 1
@@ -36,6 +46,7 @@
 #define NICE_GFX_UI_MONO_THEME_VERSION 1
 #define NICE_GFX_UI_DISSOLVE_VERSION 1
 #define NICE_GFX_UI_FOCUSABLE_VERSION 1
+#define NICE_GFX_UI_SYSTEM_CHROME_VERSION 1
 
 namespace nice_gfx { namespace htmlui {
 
@@ -64,7 +75,140 @@ struct Event {
 using EventHandler = void (*)(void *context, Event &event);
 using RouteGuard = bool (*)(void *context, const char *from, const char *to, RouteAction action);
 
+// Last rejected atlas candidate only; no text contents or resource pointers.
+// region: 0=host, 1=registered bar subtree, 2=registered panel subtree.
+// reason: 1=unsupported pose/state, 2=non-translation state, 3=geometry,
+// 4=protected viewport, 5=background proof, 6=terminal-pose repair guard.
+// diffMask bits: text=1, value/switch=2, flags=4, scroll=8, XY=16,
+// opacity=32, motion revision=64, dynamic style=128, media=256,
+// instrument samples=512, kind/parent/style index=1024.
+struct AnimationAtlasRejectInfo {
+  uint32_t sequence=0,diffMask=0;
+  Id id=0;
+  uint16_t page=NoParent,node=NoParent,sourceSlot=NoParent,kind=0;
+  uint8_t region=0,sourceHidden=0,liveHidden=0,reason=0,animationEffect=0,hasMotion=0;
+  int32_t sourceX=0,sourceY=0,liveX=0,liveY=0,sourceValue=0,liveValue=0;
+  uint32_t sourceTextRevision=0,liveTextRevision=0,sourceMotionRevision=0,liveMotionRevision=0;
+  uint16_t sourceFlags=0,liveFlags=0;
+  uint8_t sourceOpacity=0,liveOpacity=0;
+};
+#define NICE_GFX_UI_CHART_COLUMN_STATS_VERSION 1
+#define NICE_GFX_UI_AXIS_MEDIA_CACHE_STATS_VERSION 1
+#define NICE_GFX_UI_AXIS_MEDIA_RUNS_STATS_VERSION 1
+#define NICE_GFX_UI_AXIS_MEDIA_FULL_FOOTPRINT_STATS_VERSION 1
+#define NICE_GFX_UI_CHART_PHASE_STATS_VERSION 1
+#define NICE_GFX_UI_CHART_NODE_PROFILE_STATS_VERSION 1
+#ifndef NICE_GFX_UI_CHART_NODE_PROFILE
+#define NICE_GFX_UI_CHART_NODE_PROFILE 0
+#endif
+#define NICE_GFX_UI_OUTLINED_GEOMETRY_CACHE_STATS_VERSION 2
+#define NICE_GFX_UI_CHART_GRID_BATCH_STATS_VERSION 1
+#define NICE_GFX_UI_EARLY_GEOMETRY_STATS_VERSION 1
+#define NICE_GFX_UI_KEYED_PIE_STATS_VERSION 1
+#define NICE_GFX_UI_BACKGROUND_COVER_STATS_VERSION 1
+#define NICE_GFX_UI_NODE_KIND_PROFILE_STATS_VERSION 1
+#ifndef NICE_GFX_UI_THIN_BACKGROUND_COVER
+#define NICE_GFX_UI_THIN_BACKGROUND_COVER NICE_GFX_P4_PERFORMANCE_PROFILE
+#endif
+#ifndef NICE_GFX_UI_BACKGROUND_COVER_PROFILE
+#define NICE_GFX_UI_BACKGROUND_COVER_PROFILE 0
+#endif
+#ifndef NICE_GFX_UI_NODE_KIND_PROFILE
+#define NICE_GFX_UI_NODE_KIND_PROFILE 0
+#endif
+#define NICE_GFX_UI_SHAPE_PATH_PROFILE_STATS_VERSION 1
+#ifndef NICE_GFX_UI_SHAPE_PATH_PROFILE
+#define NICE_GFX_UI_SHAPE_PATH_PROFILE 0
+#endif
+enum class ShapePaintPath : uint8_t { Unclassified, NativeSpanOpaque, NativeSpanAlpha, GpuOverlay, TransformedDirectFill, NativeAlphaRow, OutlinedMask, PlainRenderShape, GenericTransformedRows, WireSpanCache, Count };
+#define NICE_GFX_UI_ROI_PREFIX_STATS_VERSION 1
+#define NICE_GFX_UI_AXIS_MEDIA_PIE_STATS_VERSION 1
+#ifndef NICE_GFX_UI_AXIS_MEDIA_PIE
+#define NICE_GFX_UI_AXIS_MEDIA_PIE NICE_GFX_P4_PERFORMANCE_PROFILE
+#endif
+#define NICE_GFX_UI_ROI_DIRTY_PREFIX_STATS_VERSION 2
+#define NICE_GFX_UI_ROI_PREFIX_FRAME_MEMO_STATS_VERSION 1
+#define NICE_GFX_UI_OUTLINED_FOREGROUND_LUT_STATS_VERSION 1
+// BEGIN ROI_PREFIX_TIMING public-contract
+#ifndef NICE_GFX_UI_ROI_PREFIX_TIMING
+#define NICE_GFX_UI_ROI_PREFIX_TIMING 0
+#endif
+#define NICE_GFX_UI_ROI_PREFIX_TIMING_STATS_VERSION 1
+enum class RoiPrefixTimingPhase : uint8_t { Resolve, LegacyResolve, ContainerPlan, DirtyPlan, MediaWorld, SignatureMatch, ColdMetadata, ColdRaster, PrefixCopy, TransportCopy, PpaCopy, CanvasCopy, Count };
+// END ROI_PREFIX_TIMING public-contract
+#ifndef NICE_GFX_UI_OPAQUE_CONTAINER_BANDS
+#define NICE_GFX_UI_OPAQUE_CONTAINER_BANDS 0
+#endif
+#define NICE_GFX_UI_OPAQUE_CONTAINER_BANDS_STATS_VERSION 1
+
 struct RuntimeStats {
+  // Candidate enumeration only; no extra profiling clocks.
+  uint64_t retainedChartHits=0,retainedChartCold=0,retainedChartRejectedWriters=0;
+  uint64_t retainedChartSkippedStores=0,retainedChartRestoredStores=0,retainedChartInkStores=0;
+  uint64_t retainedCpuOnlyPaintFrames=0,retainedGpuSuppressedOperations=0;
+  uint64_t nativeStagePlans=0,nativeStageFrames=0,nativeStageStripes=0,nativeStagePixels=0,nativeStageTransfers=0,nativeStageCpuCopies=0,nativeStageErrors=0,nativeStageClockReads=0,nativeStageRenderMicros=0,nativeStageCopyMicros=0;
+  uint64_t nativeStageRejected[8]{},nativeStageCompletedCopyPixels=0,nativeStageCpuCopyPixels=0,nativeStagePlanMicros=0,nativeStageTotalMicros=0,nativeStageFrozenSnapshotAdmissions=0,nativeStageAffinePlans=0;
+#if NICE_GFX_UI_NATIVE_STAGE && NICE_GFX_UI_RETAINED_CHART_CPU_CONTEXT
+  uint64_t nativeStageValidationBytes=0,nativeStageInitializations=0;
+#endif
+  uint64_t opaqueContainerQueries=0,opaqueContainerFullNodeCount=0,opaqueContainerBandQueries=0;
+  uint64_t opaqueContainerBandCandidates=0,opaqueContainerLinearCandidates=0,opaqueContainerBandFallbacks=0;
+  uint64_t opaqueContainerMatches=0,opaqueContainerSelections=0;
+  uint64_t frameGeometryInPlaceFrames=0,frameGeometryInPlaceNodeBytes=0,frameGeometryInPlaceInvalidations=0;
+  uint64_t incrementalGeometryAttempts=0,incrementalGeometryFrames=0;
+  uint64_t incrementalGeometryNodes=0,incrementalGeometryReuses=0,incrementalGeometryFallbacks=0;
+
+  uint64_t outlinedForegroundLutDraws=0,outlinedForegroundLutBuilds=0,outlinedForegroundLutReuses=0,outlinedForegroundLutSmallBypasses=0;
+  uint64_t outlinedForegroundLutPixels=0,outlinedForegroundLutProbeWords=0,outlinedForegroundLutBuildMicros=0;
+
+  uint64_t roiMemoFrames=0,roiMemoResolveCalls=0,roiMemoContainerRequests=0,roiMemoContainerEvaluations=0;
+  uint64_t roiMemoDirtyRequests=0,roiMemoDirtyEvaluations=0,roiMemoPlanHits=0,roiMemoWorldRequests=0;
+  uint64_t roiMemoWorldBuilds=0,roiMemoWorldHits=0,roiMemoMatchEvaluations=0,roiMemoEntryValidations=0,roiMemoResets=0;
+
+  uint64_t roiDirtyPrefixPlans=0,roiDirtyPrefixColdBuilds=0,roiDirtyPrefixColdBuildMicros=0,roiDirtyPrefixColdPixels=0;
+  uint64_t roiDirtyPrefixHits=0,roiDirtyPrefixBlitPixels=0,roiDirtyPrefixInvalidations=0,roiDirtyPrefixRejects=0;
+  uint64_t roiDirtyPrefixWorldPlans=0,roiDirtyPrefixWorldColdBuilds=0,roiDirtyPrefixWorldHits=0,roiDirtyPrefixWorldBlitPixels=0;
+  int32_t roiDirtyPrefixLastX=0,roiDirtyPrefixLastY=0,roiDirtyPrefixLastWidth=0,roiDirtyPrefixLastHeight=0;
+  uint32_t roiDirtyPrefixLastDamagePixels=0,roiDirtyPrefixLastScopePixels=0,roiDirtyPrefixLastLimit=0,roiDirtyPrefixLastScopeKind=0;
+
+  uint64_t axisPieDraws=0,axisPieRuns=0,axisPieDirectBlocks=0,axisPieScratchBlocks=0,axisPieAcceptedBlocks=0,axisPieFallbackBlocks=0;
+
+  uint64_t roiPrefixPlans=0,roiPrefixColdBuilds=0,roiPrefixColdBuildMicros=0,roiPrefixColdPixels=0;
+  uint64_t roiPrefixHits=0,roiPrefixBlitPixels=0,roiPrefixInvalidations=0,roiPrefixRejects=0,roiPrefixOom=0;
+
+// Mutually exclusive final paint paths. The full node elapsed includes
+// construction/preflight/fallback work; do not add these to Shape time again.
+  uint64_t shapePathMicros[10]{},shapePathCalls[10]{};
+
+  // Paint invocations per dirty ROI, not distinct nodes. Same elapsed sample
+  // as the existing grouped timer; these fields must not be added to it again.
+  uint64_t nodeKindPaintMicros[20]{},nodeKindPaintCalls[20]{};
+  uint64_t backgroundCoverCalls=0,backgroundCoverCandidates=0,thinBackgroundCoverSkips=0;
+
+  bool uiPieEnabled=false,uiPieGateOpen=false;
+  uint64_t uiPieRows=0,uiPieEligibleBlocks=0,uiPieAcceptedBlocks=0,uiPieFallbackBlocks=0,uiPieKeyBlocks=0,uiPiePeelPixels=0,uiPiePathMicros=0;
+  uint64_t uiPiePixels=0,uiPieMaskedCycles=0;
+  uint32_t uiPieChunks=0,uiPieMaximumMaskedCycles=0,uiPieMaximumEnvelopeCycles=0;
+  uint32_t uiPieRejectedContext=0,uiPieRejectedArguments=0,uiPieRejectedUnverified=0;
+
+  uint32_t earlyGeometryFrames=0;
+
+  uint64_t chartGridBatches=0,chartGridPixels=0;
+
+  uint64_t outlinedCacheHits=0,outlinedCacheMisses=0,outlinedCacheRejected=0,outlinedCacheBoundaryRejected=0,outlinedCacheEvictions=0,outlinedCacheAllocationFailures=0;
+  uint64_t outlinedCacheFullBuildMicros=0,outlinedCacheRoiBuildMicros=0,outlinedCacheExtractMicros=0;
+  uint64_t outlinedCacheColdReuses=0,outlinedCacheSmallRoiBypasses=0;
+  uint64_t outlinedCacheFullBuildMaskBytes=0,outlinedCacheRequestedMaskBytes=0,outlinedCacheExtractedBytes=0;
+  size_t outlinedCacheBytes=0,outlinedCacheUsedBytes=0,outlinedCachePeakBytes=0,outlinedCacheEntries=0;
+
+  uint64_t chartPhaseMicros[5]{};
+
+  uint64_t axisMediaFullFootprintPaints=0,axisMediaFullFootprintFallbacks=0,axisMediaFullFootprintSubsetPixels=0;
+
+  uint64_t axisMediaRunBuilds=0,axisMediaRunBuildRejected=0,axisMediaRunPaints=0,axisMediaRunSegments=0,axisMediaRunOpaquePixels=0,axisMediaRunBlendPixels=0,axisMediaRunSkippedPixels=0,axisMediaRunMetadataBytes=0;
+
+  uint64_t axisMediaCacheHits=0,axisMediaCacheMisses=0,axisMediaCacheEvictions=0,axisMediaCacheRejected=0,axisMediaCacheBytes=0;
+  uint64_t chartColumnBatches=0,chartColumnPixels=0;
   uint64_t frames=0, geometryNodes=0, textLayouts=0, candidateNodes=0, paintedNodes=0;
   uint64_t renderedTiles=0, renderedPixels=0;
   uint64_t completedFrames=0;
@@ -78,10 +222,49 @@ struct RuntimeStats {
   // conversion; hardware channel rounding can differ from CPU by one step.
   uint64_t ppaBlendCalls=0,ppaBlendPixels=0,ppaBlendMicros=0;
   uint32_t ppaBlendFailures=0;
+  uint64_t ppaFillCalls=0,ppaFillPixels=0,ppaFillMicros=0;
+  uint32_t ppaFillFailures=0;
+  uint64_t nativePrefixHits=0,nativePrefixBuilds=0,nativePrefixBuildMicros=0,nativePrefixBlitPixels=0;
+  uint64_t mediaOcclusionRequests=0,mediaOcclusionSkippedPixels=0;
   uint64_t keyedGpuBlits=0,shapeGpuBlits=0,textGpuBlits=0;
+  uint64_t rgb565NativeCopies=0;
+  uint64_t containerAlphaGpuBlits=0,containerAlphaGpuPixels=0;
+  uint64_t shapeDamageClips=0,shapeDamageSavedPixels=0;
+  uint64_t nativeAffineMediaBlits=0;
+  uint64_t axisPpaAttempts=0,axisPpaRejects=0,axisPpaBlits=0,axisPpaPixels=0,axisPpaErrors=0,axisPpaMicros=0;
+  uint64_t offscreenGdmaCopies=0,offscreenGdmaPixels=0;
   uint64_t fixedChromeBlits=0,fixedChromeNodesSkipped=0,fixedChromeCacheHits=0,fixedChromeCacheMisses=0,fixedChromeBuilds=0;
   uint64_t fixedChromeRejects=0,fixedChromeBytes=0;
   uint64_t textNativeBlits=0,shapeNativeBlits=0;
+  uint64_t buttonTextMaskBlits=0;
+  uint64_t animationAtlasStageFrames=0,animationAtlasStagePixels=0,animationAtlasStageMicros=0;
+  uint64_t animationAtlasAttempts=0,animationAtlasContextRejects=0,animationAtlasBehaviorRejects=0,animationAtlasViewportRejects=0;
+  uint64_t animationAtlasEligibleSources=0,animationAtlasSourceMisses=0,animationAtlasStateRejects=0,animationAtlasProofRejects=0,animationAtlasZeroMotion=0,animationAtlasAcceptedFrames=0;
+  AnimationAtlasRejectInfo animationAtlasLastReject;
+  uint64_t coldFadeStageRasters=0,coldFadeStageReuses=0,coldFadeStagePartialRasters=0;
+  uint64_t coldFadeStageRasterPixels=0,coldFadeStagePartialPixels=0;
+  uint64_t coldFadeButtonMaskBlits=0;
+  uint64_t nativeCaptureCalls=0,nativeCapturePixels=0,nativeCaptureMicros=0;
+  // Wire cache-writeback only, independent of native async/copy counters.
+  uint64_t copyWireAttempts=0,copyWireCompleted=0,copyWireRejected=0,copyWireErrors=0;
+  uint64_t copyWireDriverCalls=0,copyWireDriverMicros=0,copyWirePixels=0;
+  uint64_t copyWireRejectedFootprint=0,copyWireRejectedContext=0,copyWireRejectedSourceCache=0;
+  uint64_t copyWireRejectedMemory=0,copyWireRejectedDmaAlignment=0,copyWireRejectedPlatform=0;
+  uint64_t cachedViewportFadeFrames=0,cachedViewportFadePixels=0,cachedViewportFadeMicros=0;
+  // Resource-only work in the real panel-open operation; not raster time.
+  // Pixels counts attempted aligned A8 mask bytes, including row padding.
+  uint64_t systemPanelTextPrepareCalls=0,systemPanelTextPrepareMicros=0;
+  uint64_t systemPanelTextPrepareNodes=0,systemPanelTextPreparePixels=0;
+  uint64_t systemPanelTextPrepareHits=0,systemPanelTextPrepareBuilds=0;
+  uint64_t systemPanelTextPrepareRejects=0,systemPanelTextPrepareBudgetStops=0;
+  uint64_t containerAlphaInteriorBlits=0,containerAlphaInteriorPixels=0,containerAlphaInteriorMicros=0;
+  // Isolated primitive templates; optional time includes rejected attempts.
+  uint64_t containerTemplateCalls=0,containerTemplateBuilds=0,containerTemplateHits=0,containerTemplateMicros=0;
+  uint64_t systemModalBaseAcquisitions=0,systemModalBaseInvalidations=0,systemModalBaseFrames=0;
+  uint64_t systemModalBaseClosingFrames=0;
+  uint64_t systemModalBaseCopyCalls=0,systemModalBaseCopyPixels=0,systemModalBaseCopyMicros=0;
+  uint64_t systemModalBaseSkippedNodes=0,systemModalBaseWriterPinSkips=0;
+  uint32_t systemModalBaseLivePins=0,systemModalBaseFramePins=0;
   uint64_t jpegPrefetchBlits=0,jpegPrefetchHits=0,jpegPrefetchMisses=0,jpegPrefetchRequests=0;
   uint64_t jpegPrefetchDecoded=0,jpegPrefetchFailures=0,jpegPrefetchDecodeMicros=0,jpegPrefetchBytes=0;
   uint64_t jpegPrefetchCopyMicros=0;
@@ -89,6 +272,9 @@ struct RuntimeStats {
   uint64_t animationMicros=0,snapshotMicros=0,framePrepareMicros=0,refreshStepMicros=0;
   uint64_t subtreeRangeBuilds=0,subtreeRangeHits=0,subtreeRangeFallbacks=0,subtreeVisitedNodes=0,subtreeFullSkips=0;
   uint64_t textResolveMicros=0,textCompositeMicros=0,textFinishMicros=0;
+  // Only the legacy glyph loop in text(); excludes background/decorations and
+  // widgets with dedicated text renderers such as InputField and Spinbox.
+  uint64_t legacyGlyphInkMicros=0;
   uint64_t textMaskHits=0,textMaskBuilds=0,textMaskRejects=0,textMaskBytes=0;
   uint64_t textMaskRoiPixels=0,textMaskCompositePixels=0,textMaskBoundsClips=0,textMaskEmptySkips=0;
   size_t controlBytes=0;
@@ -99,21 +285,49 @@ struct RuntimeStats {
   uint64_t overlayPreflightCalls=0,overlaySyncCalls=0,overlaySyncedBytes=0;
   uint64_t shapeTextureHits=0,shapeTextureMisses=0,shapeTextureEvictions=0,shapeTextureBytes=0;
   uint64_t geometryReuses=0,textLayoutReuses=0,componentIndexBuilds=0;
+  uint64_t chartFusedBackdropCalls=0,chartFusedBackdropPixels=0,chartFusedBackdropHolePixels=0,chartFusedBackdropRows=0;
+  uint64_t chartBackdropMicros=0,chartBackdropCalls=0,chartInstrumentMicros=0,chartInstrumentCalls=0;
   uint64_t tickMicros=0,budgetDeferrals=0;
   uint32_t maxTickMicros=0;
   // Optional profiling only. Node-kind buckets are disjoint; capture/repair
   // include their geometry and painting, so these phase totals overlap.
   uint64_t geometryMicros=0,mediaPaintMicros=0,shapePaintMicros=0,textPaintMicros=0,otherPaintMicros=0;
   uint64_t captureMicros=0,repairMicros=0;
+  // Optional RLE cache profiling. Restore time includes stream validation,
+  // slot selection and decoding; successful pixels/bytes exclude rejected
+  // attempts. Encode time covers bounded idle count/encode/maintenance work.
+  uint64_t compressedEncodeMicros=0,compressedRestoreMicros=0;
+  uint64_t compressedRestoreCalls=0,compressedRestorePixels=0,compressedRestoreBytes=0;
+  // Backdrop is outside the node-kind buckets; pixels/spans count only the
+  // surviving dimmed region. The profiling clock is optional as above.
+  uint64_t behaviorBackdropMicros=0,behaviorBackdropPixels=0,behaviorBackdropSpans=0;
+  uint64_t systemModalCoveredNodes=0;
+  uint64_t systemModalClippedPixels=0,rootClearSkippedPixels=0;
+  // Optional candidate counters. Default-OFF builds leave all three at zero.
+  uint64_t outlinedMaskHits=0,outlinedMaskFallbacks=0,outlinedMaskCoveredPixels=0;
+// BEGIN ROI_PREFIX_TIMING statistics
+  // Inclusive/self times overlap the existing render/node/cold-build timers.
+  // These append-only fields stay zero unless the feature and Profile are ON.
+  uint64_t roiPrefixTimingMicros[12]{},roiPrefixTimingSelfMicros[12]{},roiPrefixTimingCalls[12]{};
+  uint64_t roiPrefixTimingAccepted=0,roiPrefixTimingRejected=0;
+  uint64_t roiPrefixTimingCopyUnsupported[3]{},roiPrefixTimingCopyErrors[3]{};
+// END ROI_PREFIX_TIMING statistics
 };
 struct RenderCacheStats {
   size_t capacityPages=0, readyPages=0;
+  // Completed body pixels can await only a small live status-bar repair.
+  // readyPages remains the exact full-page count for existing callers.
+  size_t bodyReadyPages=0, chromePendingPages=0;
   uint64_t hits=0, misses=0, warmedTiles=0;
   uint64_t repairedPages=0, repairPixels=0, lastRepairPixels=0;
   uint64_t seededPages=0, seededPixels=0;
   uint64_t mirroredFrames=0;
   uint64_t capturedPages=0;
   size_t compressedPages=0,compressedBytes=0,compressedCapacityBytes=0;
+  // Compressed records are reported separately from raw resident routes.
+  // A body-ready record may need a live status-bar repair after decoding;
+  // compressedReadyPages and renderCacheReady() require the exact full key.
+  size_t compressedReadyPages=0,compressedBodyReadyPages=0,compressedChromePendingPages=0;
   uint64_t compressedStores=0,compressedRestores=0,compressedRejected=0,compressedEvictions=0;
   // True while eligible cache work is pending. A slot deferred until visual
   // changes become quiet, or an unused capacity slot, is not warming.
@@ -125,8 +339,23 @@ struct MemoryStats {
   size_t residentPages=0, residentNodes=0, stateBytes=0, snapshotBytes=0;
   size_t geometryBytes=0, payloadBytes=0, tileBytes=0, scratchBytes=0;
   size_t cacheBytes=0;
-  size_t totalBytes() const { return stateBytes+snapshotBytes+geometryBytes+payloadBytes+tileBytes+scratchBytes+cacheBytes; }
+  size_t nativeStageBytes=0;
+  size_t retainedMaskBytes=0,retainedProtocolBytes=0; // mask is a subset of cacheBytes; protocol belongs to Backend.
+  size_t totalBytes() const { return stateBytes+snapshotBytes+geometryBytes+payloadBytes+tileBytes+scratchBytes+cacheBytes+retainedProtocolBytes+nativeStageBytes; }
 };
+
+#if NICE_GFX_UI_FRAME_GEOMETRY_EARLY_RESERVE
+struct FrameGeometryStorageSnapshot {
+  struct OwnedNodes {
+    uintptr_t address=0;
+    size_t size=0,capacity=0,activeBytes=0,allocatedBytes=0;
+    bool owned=false,spanValid=false,internal=false,external=false;
+  };
+  OwnedNodes current,preview,memo;
+  bool memoBorrowsCurrent=false;
+  bool internalAllocatorAvailable=false,earlyReserveAvailable=false;
+};
+#endif
 
 struct RenderBudget {
   // Zero preserves automatic native/PPA/full-frame paths. A positive limit
@@ -170,7 +399,7 @@ class View {
   bool on(Id id, EventType event, EventHandler handler, void *context = nullptr, bool capture = false);
   // Idempotent registration for generated declarative UI actions. on() remains additive.
   bool onOnce(Id id, EventType event, EventHandler handler, void *context = nullptr, bool capture = false);
-  // Click actions run after veto listeners in Coordinated mode; legacy stays additive.
+  // Click actions run after veto listeners in Coordinated mode; Legacy mode is additive.
   bool onDefault(Id id, EventType event, EventHandler handler, void *context = nullptr);
   bool onUi(Id id, EventType event, EventHandler handler, void *context = nullptr);
   bool onScoped(Id id, EventType event, EventHandler handler, void *context = nullptr);
@@ -193,19 +422,27 @@ class View {
   // nullptr clears it. Config and strings remain valid until replaced/cleared.
   // Coordinated interaction: local controls and scrollers precede navigation;
   // only explicit overrideControls edge bindings can preempt them. Legacy
-  // interaction retains the previous edge-first order.
+  // interaction uses edge-first order.
   bool configureNavigation(const NavigationDesc *config);
+  // Optional project chrome, painted above authored viewport popups. Arrays are
+  // copied; every root must be an ordinary container in the mounted project.
+  bool configureSystemChrome(const Id *bars, size_t barCount, const Id *panels, size_t panelCount);
+  bool configureSystemPanelLinks(const SystemPanelLink *links, size_t count);
   // Optional borrowed RGB565 page surfaces. Call after mount(); keep storage
-  // alive until cleared/replaced or destruction. nullptr,0 disables caching.
+  // alive and unmodified until a successful clear/replacement or destruction,
+  // after pending refreshes drain. It must be independent of writable display
+  // framebuffers, tile buffers and mutable asset storage. nullptr,0 disables.
   // Warming does at most one tile per idle tick and never blocks pointer input.
   // The default remains tiled rendering without full-page allocations.
   // compressedPixels optionally reserves part of this same storage as a
   // bounded RLE565 cold bank. At least two unpacked page slots must remain.
-  // The default zero preserves the existing uncompressed cache behavior.
+  // The default zero uses an uncompressed cache.
   bool configureRenderCache(uint16_t *storage, size_t pixels, size_t compressedPixels = 0);
   // Opt in to warming a route before its first visit; no navigation/events or
   // immediate raster work. One-shot requests have priority over automatic
-  // fills after the current route, and retire when exact pixels are ready.
+  // fills after the current route, and retire when body pixels are ready.
+  // Live status-bar text/progress may await a small repair at presentation;
+  // renderCacheReady/readyPages still report exact full-page readiness.
   // Completed routes remain in the bounded LRU cache; requesting one again
   // refreshes its recency. Duplicate requests succeed. All project routes may
   // be queued without increasing surface storage. Returns false before mount/
@@ -250,7 +487,7 @@ class View {
   // includes animation clocks and gestures waiting for their next frame.
   bool refreshing() const;
   // Cancel an accepted component/page departure before history commits.
-  // Restores animation poses and emits NavigationCancel once. Entry and legacy
+  // Restores animation poses and emits NavigationCancel once. Entry and
   // paired transitions have already committed and cannot be canceled here.
   // Interactive edge-back/group drags use their own settle animation and do not
   // replay authored departure/page-transition overrides on the confirmed gesture.
@@ -262,6 +499,11 @@ class View {
   // required fields may be cleared programmatically. Active drafts are retained.
   // Spinbox text is its caption; read/write the committed number with value().
   bool setText(Id id, const char *text);
+  // Explicit retained cross-page text updates, including inactive pages. Plain
+  // Text/Label/Button only; input fields retain their active-session API.
+  bool setPageText(const char *path, Id id, const char *text);
+  // Retained, silent progress update on an active or inactive page.
+  bool setPageProgress(const char *path, Id id, int32_t value);
   const char *text(Id id) const;
   // animateSwitch=false restores a Switch pose immediately; other controls
   // retain their normal value semantics. Setters remain silent.
@@ -305,6 +547,13 @@ class View {
   int32_t mediaFrame(Id id) const; // -1 for an empty/unknown/non-Media target.
   bool mediaPlaying(Id id) const;
   Status clearImage(Id id); // Blank content; preserve layout and interactions.
+  // Clear exactly this Media node to a blank override, including an authored
+  // or setMediaResource() source. An active page uses clearImage(id). A valid
+  // uninitialized hidden page returns Ok without creating page state; there is
+  // no existing override to release. Null/unknown paths or non-Media IDs fail.
+  // Accepted frames, transitions and cache keys keep their immutable leases
+  // until their normal lifecycle ends; this does not force their release.
+  Status clearImage(const char *pagePath, Id id);
   Status resetImage(Id id); // Restore the authored fallback (or empty content).
   // Clear RAM Image overrides on an inactive page without resetting its
   // controls or touching accepted raster/transition snapshots. Safe from a
@@ -357,7 +606,7 @@ class View {
   void setSwipeHomeEnabled(bool enabled);
   void configureInput(const InputConfig &config);
   // Explicit monochrome menu behavior. Configuration is copied, validated and
-  // reset by mount(); existing projects keep legacy focus/scroll behavior.
+  // reset by mount(); without configuration, focus and scroll move immediately.
   bool configureMenuMotion(const MenuMotionConfig &config);
   bool setMenuMotionPreset(MenuPreset preset);
   bool setMenuIndicator(MenuIndicator indicator);
@@ -402,7 +651,11 @@ class View {
   // history or used by a transition/snapshot cannot be released.
   bool releasePage(const char *path);
   MemoryStats memoryStats() const;
+#if NICE_GFX_UI_FRAME_GEOMETRY_EARLY_RESERVE
+  FrameGeometryStorageSnapshot frameGeometryStorage() const noexcept;
+#endif
   RuntimeStats runtimeStats() const;
+  nice_gfx::NativePresentationStats nativePresentationStats() const;
   void resetRuntimeStats();
   // Optional profiling only. The monotonic microsecond clock is borrowed;
   // nullptr disables timing, keeping the default renderer free of clock calls.

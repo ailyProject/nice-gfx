@@ -29,8 +29,8 @@ inline TransitionSample sampleTransition(const TransitionDesc &a,uint32_t elapse
   }
   return s;
 }
-// A single page over the destination background. The legacy sampler above
-// remains the paired incoming/outgoing transition used without page overrides.
+// A single page over the destination background. The sampler above handles
+// paired incoming/outgoing transitions used without page overrides.
 inline TransitionPhaseSample sampleTransitionPhase(const TransitionDesc &a,uint32_t elapsed,int32_t width,int32_t height,bool entering,bool reverse=false) {
   const TransitionSample s=sampleTransition(a,elapsed,width,height,reverse);
   return {entering?s.inX:s.outX,entering?s.inY:s.outY,

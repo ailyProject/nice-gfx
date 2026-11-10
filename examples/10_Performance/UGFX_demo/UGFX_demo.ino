@@ -300,8 +300,7 @@ int col = 0;
 
   myGLCD.fillRect(1,15,317,209,GFX_BLACK);
 
-  // This test has been modified as it takes more time to calculate the random numbers
-  // than to draw the pixels (3 seconds to produce 30,000 randoms)!
+  // Random number generation can take longer than drawing the pixels.
   for (int i=0; i<10000; i++)
   {
     myGLCD.drawPixel(2+random(316), 16+random(209),random(0xFFFF));

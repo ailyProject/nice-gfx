@@ -68,39 +68,7 @@ static const uint8_t ngfx_u8x8_d_sh1122_powersave1_seq[] = {
     Tile for SH1122 (32 Bytes)
 */
 
-/*
-static uint8_t ngfx_u8x8_sh1122_to32_dest_buf[32];
 
-static uint8_t *ngfx_u8x8_sh1122_8to32(NGFX_U8X8_UNUSED ngfx_u8x8_t *u8x8, uint8_t *ptr)
-{
-  uint8_t v;
-  uint8_t a,b;
-  uint8_t i, j;
-  uint8_t *dest;
-  
-  for( j = 0; j < 4; j++ )
-  {
-    dest = ngfx_u8x8_sh1122_to32_dest_buf;
-    dest += j;
-    a =*ptr;
-    ptr++;
-    b = *ptr;
-    ptr++;
-    for( i = 0; i < 8; i++ )
-    {
-      v = 0;
-      if ( a&1 ) v |= 0xf0;
-      if ( b&1 ) v |= 0x0f;
-      *dest = v;
-      dest+=4;
-      a >>= 1;
-      b >>= 1;
-    }
-  }
-  
-  return ngfx_u8x8_sh1122_to32_dest_buf;
-}
-*/
 
 
 static uint8_t ngfx_u8x8_write_byte_to_16gr_device(ngfx_u8x8_t *u8x8, uint8_t b)
@@ -150,7 +118,7 @@ uint8_t ngfx_u8x8_d_sh1122_common(ngfx_u8x8_t *u8x8, uint8_t msg, uint8_t arg_in
     case NGFX_U8X8_MSG_DISPLAY_DRAW_TILE:
       ngfx_u8x8_cad_StartTransfer(u8x8);
       x = ((ngfx_u8x8_tile_t *)arg_ptr)->x_pos;    
-      x *= 2;		// 4 Mar 2022: probably this needs to be 4, but this device is call with x=0 only
+      x *= 2;		// This device is called with x=0 only; the nonzero column multiplier is unverified.
       x += u8x8->x_offset;		
     
       y = (((ngfx_u8x8_tile_t *)arg_ptr)->y_pos);
@@ -216,7 +184,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_sh1122_256x64_display_info =
   /* post_reset_wait_ms = */ 20, 	/* */
   /* sda_setup_time_ns = */ 125,		/* sh1122: cycle time is 250ns, so use 250/2 */
   /* sck_pulse_width_ns = */ 125,	/* sh1122: cycle time is 250ns, so use 250/2 */
-  /* sck_clock_hz = */ 40000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns  */
+  /* sck_clock_hz = */ 40000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns  */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,
   /* data_setup_time_ns = */ 10,

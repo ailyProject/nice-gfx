@@ -79,7 +79,7 @@ namespace nice_gfx { struct TextGlyph; struct TextRasterClip; namespace detail {
 #define GFX_WHITE       0xFFFF      /* 255, 255, 255 */
 #define GFX_ORANGE      0xFDA0      /* 255, 180,   0 */
 #define GFX_GREENYELLOW 0xB7E0      /* 180, 255,   0 */
-#define GFX_PINK        0xFE19      /* 255, 192, 203 */ //Lighter pink, was 0xFC9F
+#define GFX_PINK        0xFE19      /* 255, 192, 203 */ // Lighter pink
 #define GFX_BROWN       0x9A60      /* 150,  75,   0 */
 #define GFX_GOLD        0xFEA0      /* 255, 215,   0 */
 #define GFX_SILVER      0xC618      /* 192, 192, 192 */
@@ -186,6 +186,13 @@ class NICE_GFX : public nice_gfx::PrintBase { friend class GFX_Sprite; // Sprite
   bool getAntialiasing() const { return _antialiasing; }
 
   int16_t drawChar(uint16_t uniCode, int32_t x, int32_t y);
+  // Actual sink clip, including a physical tile independent of viewport changes.
+  bool getRasterClip(int32_t &left,int32_t &top,int32_t &right,int32_t &bottom)const{return textRenderClip(left,top,right,bottom);}
+
+  // Coverage glyphs share the normal clipped rasterizer and native memory fast path.
+  // The caller owns immutable glyph storage for this synchronous call.
+  void drawGlyph(const nice_gfx::TextGlyph &glyph,int32_t x,int32_t y,uint16_t width,uint16_t height,uint16_t color){renderTextGlyph(glyph,x,y,color,0,1,false,width,height);}
+
   virtual int16_t height(void), width(void);
 
                    // Read the colour of a pixel at x,y and return value in 565 format

@@ -274,7 +274,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_st7528_160x100_display_info =
   /* post_reset_wait_ms = */ 5, 		/**/
   /* sda_setup_time_ns = */ 20,		/* st7528  */
   /* sck_pulse_width_ns = */ 25,	/* st7528 */
-  /* sck_clock_hz = */ 8000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
+  /* sck_clock_hz = */ 8000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
       /* st7528 actually allows 20MHz according to the datasheet */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,
@@ -426,7 +426,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_st7528_erc16064_display_info =
   /* post_reset_wait_ms = */ 5, 		/**/
   /* sda_setup_time_ns = */ 20,		/* st7528  */
   /* sck_pulse_width_ns = */ 25,	/* st7528 */
-  /* sck_clock_hz = */ 8000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
+  /* sck_clock_hz = */ 8000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
       /* st7528 actually allows 20MHz according to the datasheet */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,

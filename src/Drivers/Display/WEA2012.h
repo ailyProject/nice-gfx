@@ -1,7 +1,7 @@
 #pragma once
 #include "../../Display/ControllerProfile.h"
 
-// WEA2012 initialization ported from Arduino_GFX (BSD-licensed).
+// Register and timing reference: WEA2012 datasheet.
 
 namespace nice_gfx { namespace controllers {
 inline void init_WEA2012(PanelSequence &s) {

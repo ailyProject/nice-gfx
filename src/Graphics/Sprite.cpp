@@ -10,7 +10,7 @@
 // and rendered quickly onto the TFT screen. The class inherits the graphics functions
 // from the NICE_GFX class. Some functions are overridden by this class so that the
 // graphics are written to the Sprite rather than the TFT.
-// Coded by Bodmer, see license file in root folder
+// Coded by Bodmer; see LICENSE-Bodmer.txt and ../../LICENSES/TFT-eSPI-upstream-license.txt.
 ***************************************************************************************/
 #if defined(ESP32) || NICE_GFX_NATIVE_IDF
 #include <esp_heap_caps.h>
@@ -103,11 +103,6 @@ void* GFX_Sprite::createSprite(int16_t w, int16_t h, uint8_t frames)
 
   if (!_img8) return nullptr;
 
-  // ESP32 only 16bpp check
-  //if (esp_ptr_dma_capable(_img8_1)) Serial.println("DMA capable Sprite pointer _img8_1");
-  //else Serial.println("Not a DMA capable Sprite pointer _img8_1");
-  //if (esp_ptr_dma_capable(_img8_2)) Serial.println("DMA capable Sprite pointer _img8_2");
-  //else Serial.println("Not a DMA capable Sprite pointer _img8_2");
 
   if (frames > 1) {
     size_t frameBytes;
@@ -266,7 +261,6 @@ void* GFX_Sprite::frameBuffer(int8_t f)
 
   if (_bpp == 16) _img = (uint16_t*)_img8;
 
-  //if (_bpp == 8) _img8 = _img8;
 
   if (_bpp == 4) _img4 = _img8;
 

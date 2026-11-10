@@ -3,7 +3,7 @@
 ** Description:             Start SPI transaction for writes and select TFT
 ***************************************************************************************/
 inline void NICE_GFX::beginPanelWrite(void){
-  if (locked) _runtimeStatus = _panel && _panel->ready() ? nice_gfx::Status::Ok : nice_gfx::Status::NotInitialized;
+  if (locked) _runtimeStatus = _panel && _panel->ready() ? _panel->beginWrite() : nice_gfx::Status::NotInitialized;
   locked = false;
 }
 

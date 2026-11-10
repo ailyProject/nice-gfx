@@ -2,8 +2,8 @@
 #include "../../Display/Panel.h"
 
 namespace nice_gfx { namespace controllers {
-// OSPTEK AM160Q480480LK reference values, CC BY 4.0, Copyright 2026 OSPTEK.
-// https://github.com/osptek/1.6-amoled-480x480-qspi-ch13613
+// Register and timing reference: CH13613 datasheet.
+// Panel tuning: OSPTEK AM160Q480480LK specifications.
 inline PanelConfig ch13613Config() {
   static const InitCommand sequence[] = {
     {0xFE,1,0,{0x00}}, {0xF0,1,0,{0x50}}, {0xB1,2,0,{0x78,0x70}},

@@ -124,7 +124,7 @@ static uint8_t ngfx_u8x8_d_ch1120_generic(ngfx_u8x8_t *u8x8, uint8_t msg, uint8_
       x *= 8;
       x += u8x8->x_offset;
 
-      //ngfx_u8x8_cad_SendCmd(u8x8, 0x040 ); /* set line offset to 0 */
+
 
       // set column address
       ngfx_u8x8_cad_SendCmd(u8x8, 0x010 | (x >> 4));
@@ -190,7 +190,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_ch1120_160x160_noname_display_in
   /* post_reset_wait_ms = */ 100, /* sometimes OLEDs need much longer setup time */
   /* sda_setup_time_ns = */ 100,		/* ch1120: 100ns */
   /* sck_pulse_width_ns = */ 100,	/* ch1120: 100ns */
-  /* sck_clock_hz = */ 4000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
+  /* sck_clock_hz = */ 4000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,
   /* data_setup_time_ns = */ 40,
@@ -234,8 +234,8 @@ static const uint8_t ngfx_u8x8_d_ch1120_128x160_noname_init_seq[] = {
   NGFX_U8X8_START_TRANSFER(),             	/* enable chip, delay is part of the transfer start */
     
   NGFX_U8X8_C(0x0ae),		                /* display off */
-  //NGFX_U8X8_CAA(0x21, 0x00, 0x1f),           /* Set Column Start/End Address of Display RAM, mono mode */
-  //NGFX_U8X8_CAA(0x22, 0x00, 0x4f),           /* Set Row Start/End Address of Display RAM, mono mode */
+
+
   NGFX_U8X8_CA(0x0a2, 0x000),		/* display start */
   NGFX_U8X8_CA(0x081, 0x08f), 		/* set contrast control */
   NGFX_U8X8_CA(0x0ac, 0x001),		/* mono mode, or 0x003???*/
@@ -274,7 +274,7 @@ static const ngfx_u8x8_display_info_t ngfx_u8x8_ch1120_128x160_noname_display_in
   /* post_reset_wait_ms = */ 100, /* sometimes OLEDs need much longer setup time */
   /* sda_setup_time_ns = */ 100,		/* ch1120: 100ns */
   /* sck_pulse_width_ns = */ 100,	/* ch1120: 100ns */
-  /* sck_clock_hz = */ 4000000UL,	/* since Arduino 1.6.0, the SPI bus speed in Hz. Should be  1000000000/sck_pulse_width_ns */
+  /* sck_clock_hz = */ 4000000UL,	/* SPI bus speed in Hz: 1000000000/sck_pulse_width_ns */
   /* spi_mode = */ 0,		/* active high, rising edge */
   /* i2c_bus_clock_100kHz = */ 4,
   /* data_setup_time_ns = */ 40,

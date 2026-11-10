@@ -10,7 +10,7 @@
 #include <freertos/task.h>
 #include <sys/types.h>
 
-// IDF 6's libc exposes a legacy `quad` macro. Read and remove it before the
+// IDF 6's libc exposes a `quad` macro. Read and remove it before the
 // public config declaration so later system includes cannot rename its field.
 #ifdef quad
 #undef quad
