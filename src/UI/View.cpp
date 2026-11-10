@@ -437,7 +437,7 @@ struct View::Impl {
 
     int overlay=-1;uint16_t depth=0;
 
-    for(Id id:viewportOverlayIds){const int i=find(id);if(i<0||!visible(page(),state(),i,true))continue;const uint16_t level=viewportOverlayDepth(page(),state(),i);if(level>depth||(level==depth&&i>overlay)){overlay=i;depth=level;}}
+    for(Id id:viewportOverlayIds){const int i=find(id);if(i<0||!visible(page(),state(),i,true))continue;const uint16_t level=paintOverlayDepth(page(),state(),i);if(level>depth||(level==depth&&i>overlay)){overlay=i;depth=level;}}
     if(overlay>=0)result=overlay;
 
     for(const auto &entry:behaviors)if(entry.open&&entry.page==history.back()&&behaviorModal(entry)){const int i=find(entry.desc.id);if(i>result&&visible(page(),state(),i,true))result=i;}
@@ -474,7 +474,8 @@ struct View::Impl {
   size_t componentCount=0;
   struct ComponentLink {const ComponentDesc *desc;int root,value,text,pager,panel,query,empty;};
   std::vector<Id> viewportOverlayIds;
-  uint16_t viewportOverlayLevels=0;
+  std::vector<Id> paintOverlayIds;
+  uint16_t paintOverlayLevels=0;
   mutable const PageDesc *componentsPage=nullptr;
   mutable std::vector<ComponentLink> componentLinks;
   mutable std::vector<int32_t> componentNodes;
@@ -1300,12 +1301,17 @@ struct View::Impl {
     return componentCount&&!viewportOverlayIds.empty()&&std::binary_search(viewportOverlayIds.begin(),viewportOverlayIds.end(),p.nodes[i].id);
   }
 
+  bool paintOverlayRoot(const PageDesc &p,int i) const {
+    return componentCount&&!paintOverlayIds.empty()&&std::binary_search(paintOverlayIds.begin(),paintOverlayIds.end(),p.nodes[i].id);
+  }
+
   int gestureParent(int i) const {return viewportOverlayRoot(page(),i)?-1:parent(i);}
 
-  uint16_t viewportOverlayDepth(const PageDesc &p,const RetainedVector<State> &values,int i) const {
-    uint16_t depth=0;if(viewportOverlayIds.empty()||!componentCount)return depth;
+  uint16_t paintOverlayDepth(const PageDesc &p,const RetainedVector<State> &values,int i) const {
+    uint16_t depth=0;if(paintOverlayIds.empty()||!componentCount)return depth;
 
-    for(int a=i;a>=0;a=values[a].parent==NoParent?-1:values[a].parent)if(viewportOverlayRoot(p,a))++depth;
+    for(int a=i;a>=0;a=values[a].parent==NoParent?-1:values[a].parent)
+      if(paintOverlayRoot(p,a))++depth;
 
     return depth;
   }
@@ -1583,8 +1589,8 @@ struct View::Impl {
   int hit(int32_t px,int32_t py) const {
     const int modal=modalRoot();
 
-    for(int level=viewportOverlayLevels;level>=0;--level)for(int i=int(page().count)-1;i>=0;--i)
-      if(viewportOverlayDepth(page(),state(),i)==level)
+    for(int level=paintOverlayLevels;level>=0;--level)for(int i=int(page().count)-1;i>=0;--i)
+      if(paintOverlayDepth(page(),state(),i)==level)
 
       if((modal<0||descendant(i,modal))&&policy(i).pointerEvents&&visible(page(),state(),i,true)&&opacity(page(),state(),i)>0&&contains(rect(i),px,py)&&contains(clip(page(),state(),i),px,py)) {
         if(rotated(page(),state(),i)){if(!rotatedClipContains(page(),state(),i,px+.5,py+.5))continue;}
@@ -2893,7 +2899,7 @@ struct View::Impl {
 #endif
         candidates&=candidates-1;const uint16_t i=uint16_t(word*32+size_t(bit));
 
-        if(viewportOverlayLevels&&viewportOverlayDepth(*rasterFrame.current.page,rasterFrame.current.values,i)<viewportOverlayDepth(*rasterFrame.current.page,rasterFrame.current.values,index))continue;
+        if(paintOverlayLevels&&paintOverlayDepth(*rasterFrame.current.page,rasterFrame.current.values,i)<paintOverlayDepth(*rasterFrame.current.page,rasterFrame.current.values,index))continue;
 
         const Geometry &g=paintCache->nodes[i];if(!g.visible||g.alpha!=255)continue;
 
@@ -4426,7 +4432,7 @@ struct View::Impl {
       if(!self.buildingSurface&&!self.surfaces.empty())++self.surfaceStats.misses;
 
       const Rect source=self.renderingViewport?v:Rect{0,0,self.rasterFrame.current.page->width,self.rasterFrame.current.page->height};
-      const int opaqueCover=self.pageRotated(*self.rasterFrame.current.page)||self.foregroundCapture||self.behaviorVisualMoving()||self.viewportOverlayLevels?-1:self.opaqueCover(area);
+      const int opaqueCover=self.pageRotated(*self.rasterFrame.current.page)||self.foregroundCapture||self.behaviorVisualMoving()||self.paintOverlayLevels?-1:self.opaqueCover(area);
       int firstPaint=self.foregroundCapture?self.foregroundPrefix+1:opaqueCover;
 
       if(opaqueCover>=0&&self.renderOrder==PixelOrder::Native)if(auto *panel=nice_gfx::detail::DisplayAccess::panel(self.display)){
@@ -4452,7 +4458,7 @@ struct View::Impl {
       const int firstBand=clamp32((area.y-self.paintOffsetY)/cache.bandHeight,0,31),lastBand=clamp32((area.y+area.height-1-self.paintOffsetY)/cache.bandHeight,0,31);
       const size_t firstCandidate=firstPaint>0?size_t(firstPaint):0;
 
-      for(unsigned overlayLevel=0;overlayLevel<=self.viewportOverlayLevels;++overlayLevel)
+      for(unsigned overlayLevel=0;overlayLevel<=self.paintOverlayLevels;++overlayLevel)
       for(size_t word=firstCandidate/32;word<cache.words;++word){uint32_t candidates=0;
       for(int band=firstBand;band<=lastBand;++band)candidates|=cache.bands[size_t(band)*cache.words+word];
       if(word==firstCandidate/32)candidates&=uint32_t(0xffffffffu)<<(firstCandidate%32);
@@ -4470,7 +4476,7 @@ struct View::Impl {
 #endif
       candidates&=candidates-1;const int i=int(word*32)+bit;++self.stats.candidateNodes;
 
-      if(self.viewportOverlayDepth(*self.rasterFrame.current.page,self.rasterFrame.current.values,i)!=overlayLevel)continue;
+      if(self.paintOverlayDepth(*self.rasterFrame.current.page,self.rasterFrame.current.values,i)!=overlayLevel)continue;
 
       const Geometry &g=cache.nodes[i];Rect clipped=self.behaviorClip(i,intersect(g.clip,g.visualRect));
 
@@ -5521,13 +5527,15 @@ bool View::onOnce(Id id,EventType type,EventHandler cb,void *context,bool captur
 bool View::configureComponents(const ComponentDesc *config,size_t count) {
   auto &s=*impl_;if(!s.project||s.processing||s.refresh->busy()||count>65535||(!config&&count))return false;
 
-  std::vector<size_t> ordered(count);std::vector<uint8_t> found(count,0);std::vector<uint16_t> nodes;std::vector<Id> overlays;
+  std::vector<size_t> ordered(count);std::vector<uint8_t> found(count,0);std::vector<uint16_t> nodes;std::vector<Id> overlays,paintOverlays;
 
   for(size_t c=0;c<count;++c){ordered[c]=c;const auto &d=config[c];
     if(!d.id||uint8_t(d.kind)>uint8_t(ComponentKind::Flow)||(d.kind!=ComponentKind::Flow&&d.optionCount>12)||(d.optionCount&&!d.options)||(d.flags&~(ComponentViewportOverlay|ComponentSearch|ComponentAutoHeight))||((d.flags&ComponentViewportOverlay)&&!d.expandedId))return false;
     if(bool(d.flags&ComponentSearch)!=bool(d.queryId)||bool(d.queryId)!=bool(d.emptyId)||((d.flags&ComponentSearch)&&d.kind!=ComponentKind::Select))return false;
     if((d.flags&ComponentAutoHeight)&&d.kind!=ComponentKind::Flow&&d.kind!=ComponentKind::Disclosure)return false;
     if(d.flags&ComponentViewportOverlay)overlays.push_back(d.expandedId);
+    // Select panels stack above content while retaining their anchor geometry.
+    if((d.flags&ComponentViewportOverlay)||d.kind==ComponentKind::Select)paintOverlays.push_back(d.expandedId);
     if((d.kind==ComponentKind::Select||d.kind==ComponentKind::Choice)&&(!d.optionCount||d.valueId))return false;
 
     const Id slots[]={d.valueId,d.textId,d.pageId,d.expandedId,d.queryId,d.emptyId};
@@ -5578,8 +5586,9 @@ bool View::configureComponents(const ComponentDesc *config,size_t count) {
   s.components=config;s.componentCount=count;s.componentsPage=nullptr;
 
   std::sort(overlays.begin(),overlays.end());overlays.erase(std::unique(overlays.begin(),overlays.end()),overlays.end());s.viewportOverlayIds.swap(overlays);
+  std::sort(paintOverlays.begin(),paintOverlays.end());paintOverlays.erase(std::unique(paintOverlays.begin(),paintOverlays.end()),paintOverlays.end());s.paintOverlayIds.swap(paintOverlays);
 
-  s.viewportOverlayLevels=0;for(uint16_t p=0;p<s.project->count;++p){const auto &page=s.project->pages[p];for(uint16_t i=0;i<page.count;++i)if(s.viewportOverlayRoot(page,i)){uint16_t depth=1;for(uint16_t a=page.nodes[i].parent;a!=NoParent;a=page.nodes[a].parent)if(s.viewportOverlayRoot(page,a))++depth;s.viewportOverlayLevels=std::max(s.viewportOverlayLevels,depth);}}
+  s.paintOverlayLevels=0;for(uint16_t p=0;p<s.project->count;++p){const auto &page=s.project->pages[p];for(uint16_t i=0;i<page.count;++i)if(s.paintOverlayRoot(page,i)){uint16_t depth=1;for(uint16_t a=page.nodes[i].parent;a!=NoParent;a=page.nodes[a].parent)if(s.paintOverlayRoot(page,a))++depth;s.paintOverlayLevels=std::max(s.paintOverlayLevels,depth);}}
   s.clearFrameGeometryMemo();for(uint16_t p=0;p<s.project->count;++p)s.clearSurfacePage(&s.project->pages[p]);s.refresh->invalidateAll();
 
   for(auto &index:s.componentPaintIndices)index=detail::ComponentPaintIndex{};
