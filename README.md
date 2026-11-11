@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="logo.png" alt="NICE_GFX logo" width="480">
+  <img src="logo.png" alt="nice gfx logo" width="480">
 </p>
 
 [English](README.md) | [简体中文](README_ZH.md)
