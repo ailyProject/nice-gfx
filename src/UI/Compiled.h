@@ -17,7 +17,7 @@ namespace nice_gfx { namespace htmlui {
 // Versioned, generated C++ resource ABI. Geometry is page-relative, in physical
 // pixels at PageDesc's target size. Parents precede children. Resource pointers
 // remain valid for the lifetime of the mounted project.
-constexpr uint32_t ResourceVersion = 22;
+constexpr uint32_t ResourceVersion = 23;
 constexpr uint16_t NoParent = 0xffff;
 
 using Id = uint32_t;
@@ -149,6 +149,7 @@ struct ChartStyleDesc {
   uint8_t lineWidth, fillMode, fillOpacity, gridX, minorGrid, pointMode, pointRadius, lineMode, barMode, barRadius, barGap;
   bool axisTicks, legend, axes;
   uint8_t referenceCount; const ChartReferenceDesc *references;
+  uint8_t barDotStep = 0;
 };
 
 struct InstrumentDesc {

@@ -81,7 +81,7 @@ inline bool validInstrument(const NodeDesc &n) {
     if(a->chartStyle){const auto &c=*a->chartStyle;
       if(c.lineWidth<1||c.lineWidth>6||c.fillMode>2||c.fillOpacity>100||c.gridX>24||c.minorGrid>5||c.pointMode>2||c.pointRadius<1||c.pointRadius>6||c.lineMode>1||c.barMode>1||c.barRadius>12||c.barGap>12||c.referenceCount>4||(c.referenceCount&&!c.references))return false;
       if(c.fillMode&&((n.flags&Transparent)||n.style.gradient))return false;
-
+      if(c.barDotStep==1||c.barDotStep>32)return false;
       for(int i=0;i<c.referenceCount;i++){const auto &ref=c.references[i];if(ref.value<n.minimum||ref.value>n.maximum||ref.dash>16||!ref.label||strlen(ref.label)>72)return false;}
     }
   } else if(a->seriesCount||a->capacity||a->labelCount)return false;
