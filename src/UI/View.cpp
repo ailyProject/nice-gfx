@@ -51,7 +51,7 @@
 #include <algorithm>
 #include <atomic>
 #include <limits.h>
-#include <string.h>
+#include <cstring>
 #include <math.h>
 #ifndef NICE_GFX_UI_FLAT_TEXT_ALPHA
 #define NICE_GFX_UI_FLAT_TEXT_ALPHA 1
@@ -358,6 +358,7 @@ uint16_t switchColor(uint16_t from,uint16_t to,uint16_t position) {
 }
 bool validFont(const MonoFont &font) {
   if(!font.bitmap||!font.count||!font.width||!font.height||font.baseline>font.height)return false;
+  if(font.compactPunctuation&MonoRankIndex)return nice_gfx::detail::validMonoRankIndex(font);
   if(!font.codepoints)return font.count>=95;
   // monoGlyph uses binary search and falls back to '?'. A malformed index must
   // not enter that fallback recursively. Validate each unique font once/mount.
@@ -841,19 +842,57 @@ struct View::Impl {
   bool snapshotInput=false;uint16_t snapshotFocusColor=0;uint8_t snapshotFocusWidth=0;
   int32_t editValue=0;
   struct SoftKey { std::string id,label,value,action;Rect rect; };
+  using SoftKeyList = std::vector<SoftKey>;
+#if NICE_GFX_ENABLE_PINYIN
+  struct PinyinKeys {
+    SoftKey items[8]{}; // Up to six candidates with a page key on either side.
+    uint8_t count=0;
+    const SoftKey &operator[](size_t index) const {return items[index];}
+  };
+#endif
   struct SoftInput {
     int node=-1, mode=0, group=-1, keyFocus=0;
     size_t cursor=0;
     bool visible=false, shift=false, reveal=false, fullscreen=false, picker=false;
     std::string draft,error,pressed;
+#if NICE_GFX_ENABLE_PINYIN
+    pinyin::Composition composition;
+    bool pinyin=false,builtPinyin=false;
+    uint8_t pinyinStep=0,pinyinInsertAt=0;
+    size_t pinyinPage=0;
+    pinyin::Match pinyinMatch{};
+    Rect pinyinRow{};
+    std::shared_ptr<PinyinKeys> pinyinKeys;
+#endif
     InputFieldDesc descriptor{};
     KeyboardTheme theme=KeyboardTheme::Light;
     Rect rect{0,0,0,0},fieldRect{0,0,0,0},labelRect{0,0,0,0};
-    std::shared_ptr<const std::vector<SoftKey>> keys;
+    std::shared_ptr<const SoftKeyList> keys;
     int builtNode=-2,builtMode=-1,builtGroup=-2,builtNext=-2;
     bool builtShift=false,builtReveal=false,builtRound=false;
     uint32_t builtEpoch=0;
+    size_t keyCount() const {
+      if(!keys)return 0;
+#if NICE_GFX_ENABLE_PINYIN
+      if(pinyinKeys)return keys->size()+pinyinKeys->count;
+#endif
+      return keys->size();
+    }
+    const SoftKey &keyAt(size_t index) const {
+#if NICE_GFX_ENABLE_PINYIN
+      if(pinyinKeys&&index>=pinyinInsertAt){
+        if(index-pinyinInsertAt<pinyinKeys->count)return (*pinyinKeys)[index-pinyinInsertAt];
+        index-=pinyinKeys->count;
+      }
+#endif
+      return (*keys)[index];
+    }
   } softInput, snapshotKeyboard;
+#if NICE_GFX_ENABLE_PINYIN
+  // Swap the small candidate list without mutating keys retained by an active
+  // raster snapshot. Once its frame releases it, the spare can be reused.
+  std::shared_ptr<PinyinKeys> pinyinSpare;
+#endif
   std::unique_ptr<SoftInput> suspendedSystemInput;
   uint16_t suspendedSystemInputPage=NoParent;
   // Small, immutable text window prepared once per frame, shared by DMA tiles.
@@ -3817,7 +3856,7 @@ struct View::Impl {
       const size_t row=nice_gfx::detail::monoStride(*font);
       if(!row||size_t(font->count)>SIZE_MAX/font->height/row)return false;
       if(aliases(font->bitmap,row*font->height*font->count)||
-         (font->codepoints&&aliases(font->codepoints,size_t(font->count)*sizeof(uint16_t))))return false;
+         (font->codepoints&&aliases(font->codepoints,nice_gfx::detail::monoIndexBytes(*font))))return false;
       font=font->fallback;
     }
     if(font)return false;
@@ -5148,6 +5187,12 @@ Status View::mount(const ProjectDesc &p) {
       const NodeDesc &n=page.nodes[i];
       if(uint8_t(n.kind)>uint8_t(Kind::InputField)||!validShape(n))return Status::InvalidArgument;
       if(n.kind==Kind::InputField||(n.kind==Kind::Spinbox&&n.inputField)){const auto *d=n.inputField;if(!d||uint8_t(d->type)>uint8_t(InputFieldType::Tel)||uint8_t(d->enterAction)>uint8_t(InputEnterAction::Search)||uint8_t(d->keyboardTheme)>uint8_t(KeyboardTheme::Dark)||d->decimals>6||d->pinLength>32||d->maxBytes>512||d->maxLength>512||(d->hasMin&&d->hasMax&&d->min>d->max)||d->min<INT32_MIN||d->min>INT32_MAX||d->max<INT32_MIN||d->max>INT32_MAX||(n.kind==Kind::Spinbox&&d->type!=InputFieldType::Number))return Status::InvalidArgument;
+#if NICE_GFX_ENABLE_PINYIN
+        constexpr uint8_t pinyinOptions=PinyinDefaultChinese|PinyinChinesePunctuation|PinyinNumericShortcuts;
+        if(d->pinyinOptions&&((d->pinyinOptions&~pinyinOptions)||!d->pinyin||d->type!=InputFieldType::Text))return Status::InvalidArgument;
+#else
+        if(d->pinyin||d->pinyinOptions)return Status::InvalidArgument;
+#endif
         const char *initial=d->value?d->value:"";if(strlen(initial)>(d->maxBytes?d->maxBytes:256))return Status::InvalidArgument;int32_t initialNumber=0;if(*s.inputValidationError(initial,*d,false,initialNumber,n.kind==Kind::Spinbox?&n:nullptr))return Status::InvalidArgument;
         if(d->keyboardFont&&std::find(validatedFonts.begin(),validatedFonts.end(),d->keyboardFont)==validatedFonts.end()){if(!validFont(*d->keyboardFont))return Status::InvalidArgument;validatedFonts.push_back(d->keyboardFont);}}
       else if(n.inputField)return Status::InvalidArgument;
@@ -5561,8 +5606,30 @@ bool View::moveInputCursor(int32_t count){return !impl_->processing&&impl_->soft
 bool View::backspaceInput(){auto &s=*impl_;if(s.processing)return false;s.processing=true;const bool result=s.softBackspace();s.endProcessing();return result;}
 bool View::deleteInput(){auto &s=*impl_;if(s.processing)return false;s.processing=true;const bool result=s.softDelete();s.endProcessing();return result;}
 bool View::clearInput(){auto &s=*impl_;if(s.processing)return false;s.processing=true;const bool result=s.softClear();s.endProcessing();return result;}
-bool View::keyboardKey(const char *key){auto &s=*impl_;if(s.processing||!key||!s.softInput.visible)return false;s.processing=true;bool result=false;
-  s.buildKeyboard(s.softInput);if(s.softInput.keys)for(const auto &item:*s.softInput.keys)if(item.id==key||s.keyboardLabelMatches(s.softInput,item,key)||item.action==key){result=s.softPress(item);break;}s.endProcessing();return result;}
+bool View::keyboardKey(const char *key){
+  auto &s=*impl_;auto &k=s.softInput;
+  if(s.processing||!key||!k.visible)return false;
+  s.processing=true;
+  if(!strcmp(key,"Escape")){const bool escaped=s.softEscape();s.endProcessing();return escaped;}
+#if NICE_GFX_ENABLE_PINYIN
+  char candidate[]="pinyin-candidate-0";
+  if(!k.composition.empty()){
+    if((k.descriptor.pinyinOptions&PinyinNumericShortcuts)&&key[0]>='1'&&key[0]<='6'&&!key[1]){
+      candidate[sizeof(candidate)-2]=char(key[0]-1);key=candidate;
+    }
+    else if(!strcmp(key,"PageUp"))key="pinyin-prev";
+    else if(!strcmp(key,"PageDown"))key="pinyin-next";
+  }
+  if(!strcmp(key,"Shift+Space"))key="pinyin-toggle";
+#endif
+  s.buildKeyboard(k);
+  bool result=false;
+  for(size_t i=0,count=k.keyCount();i<count;++i){
+    const auto &item=k.keyAt(i);
+    if(item.id==key||s.keyboardLabelMatches(k,item,key)||item.action==key){result=s.softPress(item);break;}
+  }
+  s.endProcessing();return result;
+}
 bool View::commitTextInput(bool next){auto &s=*impl_;if(s.processing)return false;s.processing=true;const bool result=s.softCommit(next);s.endProcessing();return result;}
 bool View::cancelTextInput(){auto &s=*impl_;if(s.processing)return false;s.processing=true;const bool result=s.softCancel();s.endProcessing();return result;}
 bool View::hideTextInput(){return !impl_->processing&&impl_->softHide();}
@@ -5570,7 +5637,7 @@ bool View::keyboardVisible()const{return impl_->softInput.visible;}
 Id View::inputTarget()const{return impl_->softInput.node<0?0:impl_->page().nodes[impl_->softInput.node].id;}
 const char *View::inputError()const{return impl_->softInput.error.c_str();}
 Rect View::keyboardBounds()const{return impl_->softInput.visible?impl_->softInput.rect:Rect{0,0,0,0};}
-Rect View::keyboardKeyBounds(const char *key)const{const auto &k=impl_->softInput;if(k.visible&&key&&k.keys)for(size_t i=0;i<k.keys->size();++i){const auto &item=(*k.keys)[i];if(item.id==key||impl_->keyboardLabelMatches(k,item,key))return k.picker&&i+2<k.keys->size()&&int(i)!=k.keyFocus?Rect{0,0,0,0}:item.rect;}return {0,0,0,0};}
+Rect View::keyboardKeyBounds(const char *key)const{const auto &k=impl_->softInput;if(k.visible&&key)for(size_t i=0,count=k.keyCount();i<count;++i){const auto &item=k.keyAt(i);if(item.id==key||impl_->keyboardLabelMatches(k,item,key))return k.picker&&i+2<count&&int(i)!=k.keyFocus?Rect{0,0,0,0}:item.rect;}return {0,0,0,0};}
 void View::setKeyboardTheme(KeyboardTheme theme){auto &s=*impl_;if(uint8_t(theme)>uint8_t(KeyboardTheme::Dark))return;s.keyboardThemeOverride=int(theme);if(s.softInput.theme==theme)return;s.softInput.theme=theme;if(s.softInput.visible){const Rect r=s.softInput.rect;s.refresh->invalidate(DirtyRect(r.x,r.y,r.width,r.height));}}
 void View::resetKeyboardTheme(){auto &s=*impl_;s.keyboardThemeOverride=-1;const KeyboardTheme theme=s.softInput.node<0?KeyboardTheme::Light:s.softInput.descriptor.keyboardTheme;if(s.softInput.theme==theme)return;s.softInput.theme=theme;if(s.softInput.visible){const Rect r=s.softInput.rect;s.refresh->invalidate(DirtyRect(r.x,r.y,r.width,r.height));}}
 KeyboardTheme View::keyboardTheme()const{const auto &s=*impl_;return s.keyboardThemeOverride>=0?KeyboardTheme(s.keyboardThemeOverride):s.softInput.node>=0?s.softInput.theme:KeyboardTheme::Light;}
@@ -5964,7 +6031,29 @@ MemoryStats View::memoryStats()const{const auto &s=*impl_;MemoryStats m;
   for(const auto *c:{&s.rasterFrame.current.geometry,&s.rasterFrame.preview.geometry,&s.geometryMemoCache})m.geometryBytes+=c->nodes.capacity()*sizeof(Impl::Geometry)+c->lines.capacity()*sizeof(Impl::TextLine)+c->bands.capacity()*sizeof(uint32_t);
   // Both SoftInput objects themselves are already part of sizeof(Impl).
   if(s.suspendedSystemInput)m.stateBytes+=sizeof(Impl::SoftInput);
-  for(const auto *k:{&s.softInput,&s.snapshotKeyboard,static_cast<const Impl::SoftInput*>(s.suspendedSystemInput.get())}){if(!k)continue;m.payloadBytes+=stringStorage(k->draft)+stringStorage(k->error)+stringStorage(k->pressed);if(k->keys&&std::find(seen.begin(),seen.end(),k->keys.get())==seen.end()){seen.push_back(k->keys.get());m.geometryBytes+=sizeof(std::vector<Impl::SoftKey>)+k->keys->capacity()*sizeof(Impl::SoftKey);for(const auto &key:*k->keys)m.payloadBytes+=stringStorage(key.id)+stringStorage(key.label)+stringStorage(key.value)+stringStorage(key.action);}}
+  const auto countKeyboardKeys=[&](const Impl::SoftKeyList *keys){
+    if(!keys||std::find(seen.begin(),seen.end(),keys)!=seen.end())return;
+    seen.push_back(keys);m.geometryBytes+=sizeof(Impl::SoftKeyList)+keys->capacity()*sizeof(Impl::SoftKey);
+    for(const auto &key:*keys)m.payloadBytes+=stringStorage(key.id)+stringStorage(key.label)+stringStorage(key.value)+stringStorage(key.action);
+  };
+#if NICE_GFX_ENABLE_PINYIN
+  const auto countPinyinKeys=[&](const Impl::PinyinKeys *keys){
+    if(!keys||std::find(seen.begin(),seen.end(),keys)!=seen.end())return;
+    seen.push_back(keys);m.geometryBytes+=sizeof(Impl::PinyinKeys);
+    for(const auto &key:keys->items)m.payloadBytes+=stringStorage(key.id)+stringStorage(key.label)+stringStorage(key.action);
+  };
+#endif
+  for(const auto *k:{&s.softInput,&s.snapshotKeyboard,static_cast<const Impl::SoftInput*>(s.suspendedSystemInput.get())}){
+    if(!k)continue;
+    m.payloadBytes+=stringStorage(k->draft)+stringStorage(k->error)+stringStorage(k->pressed);
+    countKeyboardKeys(k->keys.get());
+#if NICE_GFX_ENABLE_PINYIN
+    countPinyinKeys(k->pinyinKeys.get());
+#endif
+  }
+#if NICE_GFX_ENABLE_PINYIN
+  countPinyinKeys(s.pinyinSpare.get());
+#endif
   m.payloadBytes+=stringStorage(s.keyboardTextFrame.draft)+stringStorage(s.keyboardTextFrame.title);
   m.stateBytes+=s.surfaces.capacity()*sizeof(Impl::Surface)+(s.surfaceWanted.capacity()+s.surfacePrewarm.capacity())*sizeof(int);
   m.stateBytes+=s.systemModalBaseLiveKinds.capacity()+s.systemModalBaseFrameKinds.capacity();
@@ -6024,7 +6113,7 @@ bool View::stopAnimation(Id id){auto &s=*impl_;if(s.transition.active&&(s.transi
 bool View::animationRunning(Id id)const{int i=impl_->find(id);return i>=0&&impl_->state()[i].animating&&impl_->visible(impl_->page(),impl_->state(),i);}
 void View::pointerDown(int32_t x,int32_t y,uint32_t now){auto &s=*impl_;if(s.processing||(s.behaviorInputBlocked()&&!s.systemChromeCanInterruptClosing(x,y)))return;s.processing=true;const bool consumed=s.dismissInputToasts();s.endProcessing();if(consumed)return;s.setKeyInput(false);if(s.project&&s.softInput.visible&&!s.softInput.fullscreen)for(const auto &pair:s.systemChromePairs)if(pair.page==s.history.back()&&s.nodeContains(pair.bar,x,y)&&s.inInputLayer(pair.bar)){s.softHide();break;}if(s.softInput.visible){
   s.processing=true;s.releaseKeyboardPointer();s.cancel();++s.inputEpoch;if(s.buildKeyboard(s.softInput))s.invalidateKeyboardKeys();s.keyboardPointer=true;s.keyboardTrackpad=false;s.keyboardSpacePointer=false;s.keyboardPickerPointer=false;s.keyboardPickerVertical=false;s.keyboardFieldPointer=contains(s.softInput.fieldRect,x,y);s.keyboardPointerX=x;s.keyboardPointerY=y;
-  s.invalidateKeyboardKey(s.softInput.keyFocus);const int i=s.keyboardFieldPointer?-1:s.keyboardHit(s.softInput,x,y);s.keyboardPressed=i<0?"":(*s.softInput.keys)[i].id;if(i>=0){const bool choice=!s.softInput.picker||i+2<int(s.softInput.keys->size());if(choice)s.softInput.keyFocus=i;else s.invalidateKeyboardKey(i);s.keyboardPickerPointer=s.softInput.picker&&choice;s.keyboardSpacePointer=s.keyboardPressed=="space";}
+  s.invalidateKeyboardKey(s.softInput.keyFocus);const int i=s.keyboardFieldPointer?-1:s.keyboardHit(s.softInput,x,y);s.keyboardPressed=i<0?"":s.softInput.keyAt(i).id;if(i>=0){const bool choice=!s.softInput.picker||i+2<int(s.softInput.keyCount());if(choice)s.softInput.keyFocus=i;else s.invalidateKeyboardKey(i);s.keyboardPickerPointer=s.softInput.picker&&choice;s.keyboardSpacePointer=s.keyboardPressed=="space";}
   if(s.keyboardFieldPointer)s.softPlaceCursor(x);s.keyboardPointerCursor=s.softInput.cursor;s.keyboardPointerCell=s.keyboardCursorCell();s.invalidateKeyboardKey(s.softInput.keyFocus);if(s.keyboardPressed=="backspace")s.beginKeyboardBackspace(now);s.endProcessing();return;
   }s.keyboardPointer=false;s.keyboardFieldPointer=s.keyboardSpacePointer=s.keyboardTrackpad=s.keyboardPickerPointer=false;if(!s.backAnimation.active&&(!s.transition.active||s.sharedNavigationHit(x,y)>=0)&&!s.groupMotion.settling)s.pointerDown(x,y,now);}
 void View::pointerMove(int32_t x,int32_t y,uint32_t now){auto &s=*impl_;if(s.processing)return;if(s.keyboardPointer){
@@ -6036,12 +6125,12 @@ void View::pointerMove(int32_t x,int32_t y,uint32_t now){auto &s=*impl_;if(s.pro
   }
   if((s.keyboardFieldPointer||s.keyboardSpacePointer)&&!s.keyboardTrackpad&&abs(dx)>=8&&abs(dx)>=abs(dy)){s.keyboardTrackpad=true;s.keyboardPressed.clear();s.invalidateKeyboardKey(s.softInput.keyFocus);}
   if(s.keyboardTrackpad){s.softPointerCursor(dx);return;}if(s.keyboardFieldPointer)return;
-  const int i=s.keyboardHit(s.softInput,x,y);if(!s.keyboardPressed.empty()&&(i<0||(*s.softInput.keys)[i].id!=s.keyboardPressed)){s.keyboardBackspaceRepeat=false;s.invalidateKeyboardPressed();s.keyboardPressed.clear();s.keyboardSpacePointer=false;s.invalidateKeyboardKey(s.softInput.keyFocus);}return;
+  const int i=s.keyboardHit(s.softInput,x,y);if(!s.keyboardPressed.empty()&&(i<0||s.softInput.keyAt(i).id!=s.keyboardPressed)){s.keyboardBackspaceRepeat=false;s.invalidateKeyboardPressed();s.keyboardPressed.clear();s.keyboardSpacePointer=false;s.invalidateKeyboardKey(s.softInput.keyFocus);}return;
   }if(!s.backAnimation.active&&(!s.transition.active||(s.sharedComponentDeparture()&&s.down))&&!s.groupMotion.settling)s.pointerMove(x,y,now);}
 void View::pointerUp(int32_t x,int32_t y,uint32_t now){auto &s=*impl_;if(s.processing)return;if(s.keyboardPointer){
   // A final release coordinate can activate the trackpad even without moves.
   pointerMove(x,y,now);s.processing=true;s.keyboardPointer=s.keyboardBackspaceRepeat=s.keyboardBackspacePaused=false;const bool trackpad=s.keyboardTrackpad,field=s.keyboardFieldPointer;s.keyboardFieldPointer=s.keyboardSpacePointer=s.keyboardTrackpad=s.keyboardPickerPointer=false;const int i=s.softInput.visible?s.keyboardHit(s.softInput,x,y):-1;const std::string pressed=s.keyboardPressed;s.invalidateKeyboardPressed();s.keyboardPressed.clear();s.invalidateKeyboardKey(s.softInput.keyFocus);
-  if(s.softInput.visible&&!trackpad&&!field&&i>=0&&(*s.softInput.keys)[i].id==pressed&&pressed!="backspace")s.softPress((*s.softInput.keys)[i]);s.endProcessing();return;
+  if(s.softInput.visible&&!trackpad&&!field&&i>=0&&s.softInput.keyAt(i).id==pressed&&pressed!="backspace")s.softPress(s.softInput.keyAt(i));s.endProcessing();return;
   }if(!s.backAnimation.active&&(!s.transition.active||(s.sharedComponentDeparture()&&s.down))&&!s.groupMotion.settling)s.pointerUp(x,y,now);}
 void View::pointerCancel(){Impl &s=*impl_;bool nested=s.processing;s.processing=true;s.releaseKeyboardPointer();s.cancel(true);if(s.backAnimation.active){s.backAnimation.active=false;s.backOffset=0;s.backPrepared=false;s.refresh->invalidateAll();s.routeEvent(EventType::NavigationCancel,s.page().path,s.project->pages[s.history[s.history.size()-2]].path,RouteAction::Back);}if(!nested)s.endProcessing();}
 void View::stopPointerRepeat(){impl_->keyboardBackspaceRepeat=impl_->keyboardBackspacePaused=false;}

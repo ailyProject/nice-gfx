@@ -206,14 +206,14 @@ template<>struct BoardPresetTraits<BoardPresetId::LilygoTDisplayS3> {
   }
 };
 template<>struct BoardPresetTraits<BoardPresetId::Linkbit213Tricolor> {
-  static constexpr BoardSupport support=BoardSupport::Ready;
+  static constexpr BoardSupport support=BoardSupport::Unsupported;
   static const BoardPresetInfo &info() {
     static const BoardPresetInfo value={"linkbit-213-tricolor","Linkbit 2.13 英寸三色墨水屏","Linkbit213TricolorDisplay","esp32:esp32:esp32c3:CDCOnBoot=cdc","NGFX_GXEPD2_213_Z98C",
       support,false,122,250,0,4000000,
       {2,3,1,6,7,-1,-1,-1,-1,-1,0,{-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1}},
       "{\"cs\":\"2\",\"dc\":\"3\",\"reset\":\"1\",\"sck\":\"6\",\"mosi\":\"7\",\"miso\":\"-1\",\"backlight\":\"-1\",\"dataPins\":[],\"touchIrq\":\"-1\",\"touchSda\":\"-1\",\"touchScl\":\"-1\",\"touchReset\":\"-1\",\"busy\":\"0\"}",
       {"none",-1,-1,-1,-1,46},
-      ""};
+      "GDEY0213Z98 三色屏暂无 NICE_GFX 原生协议。旧版 Studio 导出使用 GxEPD2 适配器。"};
     return value;
   }
 };

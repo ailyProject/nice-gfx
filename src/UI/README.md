@@ -268,6 +268,31 @@ cell (P in letter mode), retaining the same geometry in symbol mode. Reveal
 uses the same width, with 4px gaps between controls and the draft; both controls
 remain as tall as the draft field. Grouped, numeric, circular and picker layouts
 retain their respective control profiles.
+Text fields can opt into offline Pinyin with `data-keyboard-pinyin="true"`.
+The keyboard starts in English by default. `keyboardKey("pinyin-toggle")` activates
+the same 中/英 key as touch. The keyboard displays pending Pinyin and offers
+paginated candidates. Space or the confirmation key accepts the first
+candidate on the current page. When a phrase is unavailable, selecting a
+matched prefix leaves the remaining letters pending. When there is no match,
+Space or confirmation inserts the raw spelling. Backspace edits the spelling
+first. Pending letters do not change the draft or emit input events until
+inserted. Generated firmware shares one flash dictionary and default GB2312
+font across all enabled fields.
+The descriptor's optional `pinyinOptions` flags are `PinyinDefaultChinese`,
+`PinyinChinesePunctuation`, and `PinyinNumericShortcuts`. Chinese punctuation
+maps comma, period, question mark and exclamation mark in Chinese mode. A mark
+can accept an exact pending candidate and the punctuation in one validated edit.
+`keyboardKey("PageUp")` and `keyboardKey("PageDown")` page through candidates.
+`keyboardKey("Escape")` and the hardware Back action clear pending spelling
+before hiding the keyboard. `keyboardKey("1")` through `keyboardKey("6")`
+select the corresponding candidate on the current page when numeric shortcuts
+are enabled.
+The [standalone Pinyin engine](Pinyin/README.md) supplies composition and
+lookup for both the native keyboard and the Studio WebAssembly preview.
+Set `NICE_GFX_ENABLE_PINYIN=0` in the firmware compiler flags to omit engine
+code and keyboard composition state when no field uses Pinyin. Apply the same
+flag to the library and application sources. Standalone builds default to 1
+for compatibility with generated `ui.h` files.
 `keyboardKey("done")` activates the current confirmation key; `"hide"` and
 `"backspace"` activate their current keys. Use `cancelTextInput()`, `clearInput()`,
 `deleteInput()` and `moveInputCursor()` for direct draft editing. Regenerate

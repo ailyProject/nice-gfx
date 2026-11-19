@@ -94,98 +94,100 @@ template<>class BoardDisplay<BoardPresetId::XueersiEsp32>:public detail::FixedBo
   explicit BoardDisplay(uint32_t hz=27000000,PanelOptions options=PanelOptions()):Base(settings(options),-1,configuration(hz)){}
 };
 #endif
+#if defined(CONFIG_IDF_TARGET_ESP32C3)
+template<>class BoardDisplay<BoardPresetId::Linkbit213Tricolor> {
+ public:
+  static constexpr bool available=false;
+  static const BoardPresetInfo &preset(){return BoardPresetTraits<BoardPresetId::Linkbit213Tricolor>::info();}
+  template<class Check=void>BoardDisplay(){static_assert(detail::BoardUnavailable<Check>::value,
+    "Linkbit GDEY0213Z98 requires a native tricolor protocol that this NICE_GFX version does not implement.");}
+};
+#endif
 namespace detail { template<SeeedEpaperBoard B>struct SeeedBoardIoStorage { SeeedEpaperBoardIo boardIo; SeeedBoardIoStorage():boardIo(B){} }; }
-#if defined(CONFIG_IDF_TARGET_ESP32C3)
-template<>class BoardDisplay<BoardPresetId::Linkbit213Tricolor>:public detail::FixedBoardDisplay<GxEpd2Display<gxepd2_profiles::P_213_Z98C>,BoardPresetId::Linkbit213Tricolor> {
-  using Base=detail::FixedBoardDisplay<GxEpd2Display<gxepd2_profiles::P_213_Z98C>,BoardPresetId::Linkbit213Tricolor>;
-  static GxEpd2Config configuration(GxEpd2Io*io=nullptr){GxEpd2Config c;c.io=io;c.busClockHz=4000000;c.pins.clock=6;c.pins.mosi=7;c.pins.miso=-1;c.pins.cs=2;c.pins.dc=3;c.pins.reset=1;c.pins.busy=0;c.pins.extraCs[0]=-1;c.vcomMillivolts=-1;c.resetDurationMs=2;c.pulldownReset=false;return c;}
- public:BoardDisplay():Base(configuration()){}
-};
-#endif
 #if defined(CONFIG_IDF_TARGET_ESP32S3)
-template<>class BoardDisplay<BoardPresetId::SeeedEe02Spectra133>:private detail::SeeedBoardIoStorage<SeeedEpaperBoard::EE02>,public detail::FixedBoardDisplay<GxEpd2Display<seeed_profiles::P_1330_SPECTRA6>,BoardPresetId::SeeedEe02Spectra133> {
-  using Base=detail::FixedBoardDisplay<GxEpd2Display<seeed_profiles::P_1330_SPECTRA6>,BoardPresetId::SeeedEe02Spectra133>;
+template<>class BoardDisplay<BoardPresetId::SeeedEe02Spectra133>:private detail::SeeedBoardIoStorage<SeeedEpaperBoard::EE02>,public detail::FixedBoardDisplay<NativeEpaperDisplay<seeed_profiles::P_1330_SPECTRA6>,BoardPresetId::SeeedEe02Spectra133> {
+  using Base=detail::FixedBoardDisplay<NativeEpaperDisplay<seeed_profiles::P_1330_SPECTRA6>,BoardPresetId::SeeedEe02Spectra133>;
   using Storage=detail::SeeedBoardIoStorage<SeeedEpaperBoard::EE02>;
-  static GxEpd2Config configuration(GxEpd2Io*io=nullptr){GxEpd2Config c;c.io=io;c.busClockHz=4000000;c.pins.clock=7;c.pins.mosi=9;c.pins.miso=-1;c.pins.cs=44;c.pins.dc=10;c.pins.reset=38;c.pins.busy=4;c.pins.extraCs[0]=41;c.vcomMillivolts=-1;c.resetDurationMs=10;c.pulldownReset=false;return c;}
+  static NativeEpaperConfig configuration(NativeEpaperIo*io=nullptr){NativeEpaperConfig c;c.io=io;c.busClockHz=4000000;c.pins.clock=7;c.pins.mosi=9;c.pins.miso=-1;c.pins.cs=44;c.pins.dc=10;c.pins.reset=38;c.pins.busy=4;c.pins.extraCs[0]=41;c.vcomMillivolts=-1;c.resetDurationMs=10;return c;}
  public:BoardDisplay():Storage(),Base(configuration(&this->boardIo)){}
 };
 #endif
 #if defined(CONFIG_IDF_TARGET_ESP32S3)
-template<>class BoardDisplay<BoardPresetId::SeeedEe03103>:private detail::SeeedBoardIoStorage<SeeedEpaperBoard::EE03>,public detail::FixedBoardDisplay<GxEpd2Display<seeed_profiles::P_1030_GRAY16>,BoardPresetId::SeeedEe03103> {
-  using Base=detail::FixedBoardDisplay<GxEpd2Display<seeed_profiles::P_1030_GRAY16>,BoardPresetId::SeeedEe03103>;
+template<>class BoardDisplay<BoardPresetId::SeeedEe03103>:private detail::SeeedBoardIoStorage<SeeedEpaperBoard::EE03>,public detail::FixedBoardDisplay<NativeEpaperDisplay<seeed_profiles::P_1030_GRAY16>,BoardPresetId::SeeedEe03103> {
+  using Base=detail::FixedBoardDisplay<NativeEpaperDisplay<seeed_profiles::P_1030_GRAY16>,BoardPresetId::SeeedEe03103>;
   using Storage=detail::SeeedBoardIoStorage<SeeedEpaperBoard::EE03>;
-  static GxEpd2Config configuration(GxEpd2Io*io=nullptr){GxEpd2Config c;c.io=io;c.busClockHz=4000000;c.pins.clock=7;c.pins.mosi=9;c.pins.miso=8;c.pins.cs=44;c.pins.dc=-1;c.pins.reset=38;c.pins.busy=4;c.pins.extraCs[0]=-1;c.vcomMillivolts=-1;c.resetDurationMs=10;c.pulldownReset=false;return c;}
+  static NativeEpaperConfig configuration(NativeEpaperIo*io=nullptr){NativeEpaperConfig c;c.io=io;c.busClockHz=4000000;c.pins.clock=7;c.pins.mosi=9;c.pins.miso=8;c.pins.cs=44;c.pins.dc=-1;c.pins.reset=38;c.pins.busy=4;c.pins.extraCs[0]=-1;c.vcomMillivolts=-1;c.resetDurationMs=10;return c;}
  public:BoardDisplay():Storage(),Base(configuration(&this->boardIo)){}
 };
 #endif
 #if defined(CONFIG_IDF_TARGET_ESP32S3)
-template<>class BoardDisplay<BoardPresetId::SeeedEe0475>:private detail::SeeedBoardIoStorage<SeeedEpaperBoard::EE04>,public detail::FixedBoardDisplay<GxEpd2Display<seeed_profiles::P_750_BW>,BoardPresetId::SeeedEe0475> {
-  using Base=detail::FixedBoardDisplay<GxEpd2Display<seeed_profiles::P_750_BW>,BoardPresetId::SeeedEe0475>;
+template<>class BoardDisplay<BoardPresetId::SeeedEe0475>:private detail::SeeedBoardIoStorage<SeeedEpaperBoard::EE04>,public detail::FixedBoardDisplay<NativeEpaperDisplay<seeed_profiles::P_750_BW>,BoardPresetId::SeeedEe0475> {
+  using Base=detail::FixedBoardDisplay<NativeEpaperDisplay<seeed_profiles::P_750_BW>,BoardPresetId::SeeedEe0475>;
   using Storage=detail::SeeedBoardIoStorage<SeeedEpaperBoard::EE04>;
-  static GxEpd2Config configuration(GxEpd2Io*io=nullptr){GxEpd2Config c;c.io=io;c.busClockHz=4000000;c.pins.clock=7;c.pins.mosi=9;c.pins.miso=-1;c.pins.cs=44;c.pins.dc=10;c.pins.reset=38;c.pins.busy=4;c.pins.extraCs[0]=-1;c.vcomMillivolts=-1;c.resetDurationMs=10;c.pulldownReset=false;return c;}
+  static NativeEpaperConfig configuration(NativeEpaperIo*io=nullptr){NativeEpaperConfig c;c.io=io;c.busClockHz=4000000;c.pins.clock=7;c.pins.mosi=9;c.pins.miso=-1;c.pins.cs=44;c.pins.dc=10;c.pins.reset=38;c.pins.busy=4;c.pins.extraCs[0]=-1;c.vcomMillivolts=-1;c.resetDurationMs=10;return c;}
  public:BoardDisplay():Storage(),Base(configuration(&this->boardIo)){}
 };
 #endif
 #if defined(CONFIG_IDF_TARGET_ESP32S3)
-template<>class BoardDisplay<BoardPresetId::SeeedEe0575>:private detail::SeeedBoardIoStorage<SeeedEpaperBoard::EE05>,public detail::FixedBoardDisplay<GxEpd2Display<seeed_profiles::P_750_BW>,BoardPresetId::SeeedEe0575> {
-  using Base=detail::FixedBoardDisplay<GxEpd2Display<seeed_profiles::P_750_BW>,BoardPresetId::SeeedEe0575>;
+template<>class BoardDisplay<BoardPresetId::SeeedEe0575>:private detail::SeeedBoardIoStorage<SeeedEpaperBoard::EE05>,public detail::FixedBoardDisplay<NativeEpaperDisplay<seeed_profiles::P_750_BW>,BoardPresetId::SeeedEe0575> {
+  using Base=detail::FixedBoardDisplay<NativeEpaperDisplay<seeed_profiles::P_750_BW>,BoardPresetId::SeeedEe0575>;
   using Storage=detail::SeeedBoardIoStorage<SeeedEpaperBoard::EE05>;
-  static GxEpd2Config configuration(GxEpd2Io*io=nullptr){GxEpd2Config c;c.io=io;c.busClockHz=4000000;c.pins.clock=7;c.pins.mosi=9;c.pins.miso=-1;c.pins.cs=44;c.pins.dc=10;c.pins.reset=38;c.pins.busy=4;c.pins.extraCs[0]=-1;c.vcomMillivolts=-1;c.resetDurationMs=10;c.pulldownReset=false;return c;}
+  static NativeEpaperConfig configuration(NativeEpaperIo*io=nullptr){NativeEpaperConfig c;c.io=io;c.busClockHz=4000000;c.pins.clock=7;c.pins.mosi=9;c.pins.miso=-1;c.pins.cs=44;c.pins.dc=10;c.pins.reset=38;c.pins.busy=4;c.pins.extraCs[0]=-1;c.vcomMillivolts=-1;c.resetDurationMs=10;return c;}
  public:BoardDisplay():Storage(),Base(configuration(&this->boardIo)){}
 };
 #endif
 #if defined(CONFIG_IDF_TARGET_ESP32S3)
-template<>class BoardDisplay<BoardPresetId::SeeedReterminalE1001>:private detail::SeeedBoardIoStorage<SeeedEpaperBoard::E1001>,public detail::FixedBoardDisplay<GxEpd2Display<seeed_profiles::P_RETERMINAL_E1001>,BoardPresetId::SeeedReterminalE1001> {
-  using Base=detail::FixedBoardDisplay<GxEpd2Display<seeed_profiles::P_RETERMINAL_E1001>,BoardPresetId::SeeedReterminalE1001>;
+template<>class BoardDisplay<BoardPresetId::SeeedReterminalE1001>:private detail::SeeedBoardIoStorage<SeeedEpaperBoard::E1001>,public detail::FixedBoardDisplay<NativeEpaperDisplay<seeed_profiles::P_RETERMINAL_E1001>,BoardPresetId::SeeedReterminalE1001> {
+  using Base=detail::FixedBoardDisplay<NativeEpaperDisplay<seeed_profiles::P_RETERMINAL_E1001>,BoardPresetId::SeeedReterminalE1001>;
   using Storage=detail::SeeedBoardIoStorage<SeeedEpaperBoard::E1001>;
-  static GxEpd2Config configuration(GxEpd2Io*io=nullptr){GxEpd2Config c;c.io=io;c.busClockHz=4000000;c.pins.clock=7;c.pins.mosi=9;c.pins.miso=8;c.pins.cs=10;c.pins.dc=11;c.pins.reset=12;c.pins.busy=13;c.pins.extraCs[0]=-1;c.vcomMillivolts=-1;c.resetDurationMs=10;c.pulldownReset=false;return c;}
+  static NativeEpaperConfig configuration(NativeEpaperIo*io=nullptr){NativeEpaperConfig c;c.io=io;c.busClockHz=4000000;c.pins.clock=7;c.pins.mosi=9;c.pins.miso=8;c.pins.cs=10;c.pins.dc=11;c.pins.reset=12;c.pins.busy=13;c.pins.extraCs[0]=-1;c.vcomMillivolts=-1;c.resetDurationMs=10;return c;}
  public:BoardDisplay():Storage(),Base(configuration(&this->boardIo)){}
 };
 #endif
 #if defined(CONFIG_IDF_TARGET_ESP32S3)
-template<>class BoardDisplay<BoardPresetId::SeeedReterminalE1002>:private detail::SeeedBoardIoStorage<SeeedEpaperBoard::E1002>,public detail::FixedBoardDisplay<GxEpd2Display<seeed_profiles::P_RETERMINAL_E1002>,BoardPresetId::SeeedReterminalE1002> {
-  using Base=detail::FixedBoardDisplay<GxEpd2Display<seeed_profiles::P_RETERMINAL_E1002>,BoardPresetId::SeeedReterminalE1002>;
+template<>class BoardDisplay<BoardPresetId::SeeedReterminalE1002>:private detail::SeeedBoardIoStorage<SeeedEpaperBoard::E1002>,public detail::FixedBoardDisplay<NativeEpaperDisplay<seeed_profiles::P_RETERMINAL_E1002>,BoardPresetId::SeeedReterminalE1002> {
+  using Base=detail::FixedBoardDisplay<NativeEpaperDisplay<seeed_profiles::P_RETERMINAL_E1002>,BoardPresetId::SeeedReterminalE1002>;
   using Storage=detail::SeeedBoardIoStorage<SeeedEpaperBoard::E1002>;
-  static GxEpd2Config configuration(GxEpd2Io*io=nullptr){GxEpd2Config c;c.io=io;c.busClockHz=4000000;c.pins.clock=7;c.pins.mosi=9;c.pins.miso=8;c.pins.cs=10;c.pins.dc=11;c.pins.reset=12;c.pins.busy=13;c.pins.extraCs[0]=-1;c.vcomMillivolts=-1;c.resetDurationMs=10;c.pulldownReset=false;return c;}
+  static NativeEpaperConfig configuration(NativeEpaperIo*io=nullptr){NativeEpaperConfig c;c.io=io;c.busClockHz=4000000;c.pins.clock=7;c.pins.mosi=9;c.pins.miso=8;c.pins.cs=10;c.pins.dc=11;c.pins.reset=12;c.pins.busy=13;c.pins.extraCs[0]=-1;c.vcomMillivolts=-1;c.resetDurationMs=10;return c;}
  public:BoardDisplay():Storage(),Base(configuration(&this->boardIo)){}
 };
 #endif
 #if defined(CONFIG_IDF_TARGET_ESP32S3)
-template<>class BoardDisplay<BoardPresetId::SeeedReterminalE1003>:private detail::SeeedBoardIoStorage<SeeedEpaperBoard::E1003>,public detail::FixedBoardDisplay<GxEpd2Display<seeed_profiles::P_RETERMINAL_E1003>,BoardPresetId::SeeedReterminalE1003> {
-  using Base=detail::FixedBoardDisplay<GxEpd2Display<seeed_profiles::P_RETERMINAL_E1003>,BoardPresetId::SeeedReterminalE1003>;
+template<>class BoardDisplay<BoardPresetId::SeeedReterminalE1003>:private detail::SeeedBoardIoStorage<SeeedEpaperBoard::E1003>,public detail::FixedBoardDisplay<NativeEpaperDisplay<seeed_profiles::P_RETERMINAL_E1003>,BoardPresetId::SeeedReterminalE1003> {
+  using Base=detail::FixedBoardDisplay<NativeEpaperDisplay<seeed_profiles::P_RETERMINAL_E1003>,BoardPresetId::SeeedReterminalE1003>;
   using Storage=detail::SeeedBoardIoStorage<SeeedEpaperBoard::E1003>;
-  static GxEpd2Config configuration(GxEpd2Io*io=nullptr){GxEpd2Config c;c.io=io;c.busClockHz=4000000;c.pins.clock=7;c.pins.mosi=9;c.pins.miso=8;c.pins.cs=10;c.pins.dc=-1;c.pins.reset=12;c.pins.busy=13;c.pins.extraCs[0]=-1;c.vcomMillivolts=-1;c.resetDurationMs=10;c.pulldownReset=false;return c;}
+  static NativeEpaperConfig configuration(NativeEpaperIo*io=nullptr){NativeEpaperConfig c;c.io=io;c.busClockHz=4000000;c.pins.clock=7;c.pins.mosi=9;c.pins.miso=8;c.pins.cs=10;c.pins.dc=-1;c.pins.reset=12;c.pins.busy=13;c.pins.extraCs[0]=-1;c.vcomMillivolts=-1;c.resetDurationMs=10;return c;}
  public:BoardDisplay():Storage(),Base(configuration(&this->boardIo)){}
 };
 #endif
 #if defined(CONFIG_IDF_TARGET_ESP32S3)
-template<>class BoardDisplay<BoardPresetId::SeeedReterminalE1004>:private detail::SeeedBoardIoStorage<SeeedEpaperBoard::E1004>,public detail::FixedBoardDisplay<GxEpd2Display<seeed_profiles::P_RETERMINAL_E1004>,BoardPresetId::SeeedReterminalE1004> {
-  using Base=detail::FixedBoardDisplay<GxEpd2Display<seeed_profiles::P_RETERMINAL_E1004>,BoardPresetId::SeeedReterminalE1004>;
+template<>class BoardDisplay<BoardPresetId::SeeedReterminalE1004>:private detail::SeeedBoardIoStorage<SeeedEpaperBoard::E1004>,public detail::FixedBoardDisplay<NativeEpaperDisplay<seeed_profiles::P_RETERMINAL_E1004>,BoardPresetId::SeeedReterminalE1004> {
+  using Base=detail::FixedBoardDisplay<NativeEpaperDisplay<seeed_profiles::P_RETERMINAL_E1004>,BoardPresetId::SeeedReterminalE1004>;
   using Storage=detail::SeeedBoardIoStorage<SeeedEpaperBoard::E1004>;
-  static GxEpd2Config configuration(GxEpd2Io*io=nullptr){GxEpd2Config c;c.io=io;c.busClockHz=4000000;c.pins.clock=7;c.pins.mosi=9;c.pins.miso=8;c.pins.cs=10;c.pins.dc=11;c.pins.reset=38;c.pins.busy=13;c.pins.extraCs[0]=2;c.vcomMillivolts=-1;c.resetDurationMs=10;c.pulldownReset=false;return c;}
+  static NativeEpaperConfig configuration(NativeEpaperIo*io=nullptr){NativeEpaperConfig c;c.io=io;c.busClockHz=4000000;c.pins.clock=7;c.pins.mosi=9;c.pins.miso=8;c.pins.cs=10;c.pins.dc=11;c.pins.reset=38;c.pins.busy=13;c.pins.extraCs[0]=2;c.vcomMillivolts=-1;c.resetDurationMs=10;return c;}
  public:BoardDisplay():Storage(),Base(configuration(&this->boardIo)){}
 };
 #endif
 #if defined(CONFIG_IDF_TARGET_ESP32S3)
-template<>class BoardDisplay<BoardPresetId::SeeedReterminalSticky>:private detail::SeeedBoardIoStorage<SeeedEpaperBoard::Sticky>,public detail::FixedBoardDisplay<GxEpd2Display<seeed_profiles::P_RETERMINAL_STICKY>,BoardPresetId::SeeedReterminalSticky> {
-  using Base=detail::FixedBoardDisplay<GxEpd2Display<seeed_profiles::P_RETERMINAL_STICKY>,BoardPresetId::SeeedReterminalSticky>;
+template<>class BoardDisplay<BoardPresetId::SeeedReterminalSticky>:private detail::SeeedBoardIoStorage<SeeedEpaperBoard::Sticky>,public detail::FixedBoardDisplay<NativeEpaperDisplay<seeed_profiles::P_RETERMINAL_STICKY>,BoardPresetId::SeeedReterminalSticky> {
+  using Base=detail::FixedBoardDisplay<NativeEpaperDisplay<seeed_profiles::P_RETERMINAL_STICKY>,BoardPresetId::SeeedReterminalSticky>;
   using Storage=detail::SeeedBoardIoStorage<SeeedEpaperBoard::Sticky>;
-  static GxEpd2Config configuration(GxEpd2Io*io=nullptr){GxEpd2Config c;c.io=io;c.busClockHz=4000000;c.pins.clock=13;c.pins.mosi=14;c.pins.miso=12;c.pins.cs=15;c.pins.dc=16;c.pins.reset=17;c.pins.busy=18;c.pins.extraCs[0]=-1;c.vcomMillivolts=-1;c.resetDurationMs=10;c.pulldownReset=false;return c;}
+  static NativeEpaperConfig configuration(NativeEpaperIo*io=nullptr){NativeEpaperConfig c;c.io=io;c.busClockHz=4000000;c.pins.clock=13;c.pins.mosi=14;c.pins.miso=12;c.pins.cs=15;c.pins.dc=16;c.pins.reset=17;c.pins.busy=18;c.pins.extraCs[0]=-1;c.vcomMillivolts=-1;c.resetDurationMs=10;return c;}
  public:BoardDisplay():Storage(),Base(configuration(&this->boardIo)){}
 };
 #endif
 #if defined(CONFIG_IDF_TARGET_ESP32S3)
-template<>class BoardDisplay<BoardPresetId::SeeedTrmnl75Diy>:private detail::SeeedBoardIoStorage<SeeedEpaperBoard::EE04>,public detail::FixedBoardDisplay<GxEpd2Display<seeed_profiles::P_750_BW>,BoardPresetId::SeeedTrmnl75Diy> {
-  using Base=detail::FixedBoardDisplay<GxEpd2Display<seeed_profiles::P_750_BW>,BoardPresetId::SeeedTrmnl75Diy>;
+template<>class BoardDisplay<BoardPresetId::SeeedTrmnl75Diy>:private detail::SeeedBoardIoStorage<SeeedEpaperBoard::EE04>,public detail::FixedBoardDisplay<NativeEpaperDisplay<seeed_profiles::P_750_BW>,BoardPresetId::SeeedTrmnl75Diy> {
+  using Base=detail::FixedBoardDisplay<NativeEpaperDisplay<seeed_profiles::P_750_BW>,BoardPresetId::SeeedTrmnl75Diy>;
   using Storage=detail::SeeedBoardIoStorage<SeeedEpaperBoard::EE04>;
-  static GxEpd2Config configuration(GxEpd2Io*io=nullptr){GxEpd2Config c;c.io=io;c.busClockHz=4000000;c.pins.clock=7;c.pins.mosi=9;c.pins.miso=-1;c.pins.cs=44;c.pins.dc=10;c.pins.reset=38;c.pins.busy=4;c.pins.extraCs[0]=-1;c.vcomMillivolts=-1;c.resetDurationMs=10;c.pulldownReset=false;return c;}
+  static NativeEpaperConfig configuration(NativeEpaperIo*io=nullptr){NativeEpaperConfig c;c.io=io;c.busClockHz=4000000;c.pins.clock=7;c.pins.mosi=9;c.pins.miso=-1;c.pins.cs=44;c.pins.dc=10;c.pins.reset=38;c.pins.busy=4;c.pins.extraCs[0]=-1;c.vcomMillivolts=-1;c.resetDurationMs=10;return c;}
  public:BoardDisplay():Storage(),Base(configuration(&this->boardIo)){}
 };
 #endif
-#if defined(CONFIG_IDF_TARGET_ESP32C3)
-template<>class BoardDisplay<BoardPresetId::SeeedXiao75Panel>:public detail::FixedBoardDisplay<GxEpd2Display<seeed_profiles::P_750_BW>,BoardPresetId::SeeedXiao75Panel> {
-  using Base=detail::FixedBoardDisplay<GxEpd2Display<seeed_profiles::P_750_BW>,BoardPresetId::SeeedXiao75Panel>;
-  static GxEpd2Config configuration(GxEpd2Io*io=nullptr){GxEpd2Config c;c.io=io;c.busClockHz=4000000;c.pins.clock=8;c.pins.mosi=10;c.pins.miso=9;c.pins.cs=3;c.pins.dc=5;c.pins.reset=2;c.pins.busy=4;c.pins.extraCs[0]=-1;c.vcomMillivolts=-1;c.resetDurationMs=10;c.pulldownReset=false;return c;}
+#if defined(CONFIG_IDF_TARGET_ESP32S3)
+template<>class BoardDisplay<BoardPresetId::SeeedXiao75Panel>:public detail::FixedBoardDisplay<NativeEpaperDisplay<seeed_profiles::P_750_BW>,BoardPresetId::SeeedXiao75Panel> {
+  using Base=detail::FixedBoardDisplay<NativeEpaperDisplay<seeed_profiles::P_750_BW>,BoardPresetId::SeeedXiao75Panel>;
+  static NativeEpaperConfig configuration(NativeEpaperIo*io=nullptr){NativeEpaperConfig c;c.io=io;c.busClockHz=4000000;c.pins.clock=8;c.pins.mosi=10;c.pins.miso=9;c.pins.cs=3;c.pins.dc=5;c.pins.reset=2;c.pins.busy=4;c.pins.extraCs[0]=-1;c.vcomMillivolts=-1;c.resetDurationMs=10;return c;}
  public:BoardDisplay():Base(configuration()){}
 };
 #endif

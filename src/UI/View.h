@@ -570,12 +570,15 @@ class View {
   bool inputText(const char *text);
   bool moveInputCursor(int32_t characters);
   bool backspaceInput();
-  bool deleteInput(); // Delete the UTF-8 character after the caret.
+  bool deleteInput(); // Clear pending Pinyin, or delete the UTF-8 character after the caret.
   bool clearInput();
-  bool keyboardKey(const char *key); // Current key ID, label or action name; "done" honors the field's enterAction.
-  bool commitTextInput(bool next=false); // Also honors Auto/Next/Done/Search on the field.
+  // Current key ID, label or action name. Escape clears pending Pinyin first.
+  // Pinyin also accepts "PageUp", "PageDown", "Shift+Space" and optional "1"–"6".
+  // "done" honors the field's enterAction.
+  bool keyboardKey(const char *key);
+  bool commitTextInput(bool next=false); // Accepts pending Pinyin first; otherwise honors Auto/Next/Done/Search.
   bool cancelTextInput();
-  bool hideTextInput(); // Retains draft until confirmation, cancellation or navigation.
+  bool hideTextInput(); // Retains draft and composition until confirmation, cancellation or navigation.
   bool keyboardVisible() const;
   Id inputTarget() const;
   const char *inputError() const;

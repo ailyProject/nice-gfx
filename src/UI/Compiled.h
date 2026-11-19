@@ -1,13 +1,21 @@
 #pragma once
 #include <stdint.h>
 #include <stddef.h>
+#include "../Core/PinyinConfig.h"
 
 // Shape motion and configurable pivots are versioned independently below.
 #define NICE_GFX_UI_SHAPE_MOTION_VERSION 1
 #define NICE_GFX_UI_PIVOT_MOTION_VERSION 1
 #define NICE_GFX_UI_VERTICAL_RANGE_VERSION 1
 #define NICE_GFX_UI_MEDIA_COLOR_KEY_VERSION 1
+#define NICE_GFX_UI_PINYIN_VERSION 3
 #define NICE_GFX_MEDIA_MONO1_VERSION 1
+
+#if NICE_GFX_ENABLE_PINYIN
+#include "Pinyin/Pinyin.h"
+#else
+namespace nice_gfx { namespace pinyin { struct Dictionary; } }
+#endif
 
 namespace nice_gfx { struct MonoFont; struct MonoIcon; }
 namespace nice_gfx { namespace htmlui {
@@ -135,6 +143,8 @@ struct InstrumentDesc {
 enum class InputFieldType : uint8_t { Text, Number, Password, Pin, Tel };
 enum class InputEnterAction : uint8_t { Auto, Done, Next, Search };
 enum class KeyboardTheme : uint8_t { Light, Dark };
+enum PinyinOption : uint8_t { PinyinDefaultChinese=1, PinyinChinesePunctuation=2, PinyinNumericShortcuts=4 };
+using PinyinDictionary = pinyin::Dictionary;
 // Number values and bounds use integer fixed point, like instrument values.
 // Value is a string so PINs, phone numbers and leading zeroes are preserved.
 struct InputFieldDesc {
@@ -145,9 +155,11 @@ struct InputFieldDesc {
   InputFieldType type;
   InputEnterAction enterAction;
   bool required, readOnly, hasMin, hasMax;
-  const nice_gfx::MonoFont *keyboardFont; // Optional 16px chrome font, compiled as a subset.
+  const nice_gfx::MonoFont *keyboardFont; // Optional chrome font with the glyphs used by this keyboard.
   uint16_t keyboardHeight; // Zero fills the screen; otherwise a bottom dock in pixels. Round screens stay fullscreen.
   KeyboardTheme keyboardTheme; // Light by default; the View API can override it across fields.
+  const PinyinDictionary *pinyin = nullptr; // Optional, for text fields.
+  uint8_t pinyinOptions = 0;
 };
 struct NodeDesc {
   uint16_t parent;

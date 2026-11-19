@@ -63,6 +63,9 @@
     if(softInput.node==i){softInput.visible=true;softInput.error.clear();buildKeyboard(softInput);refresh->invalidateAll();return true;}
     if(softInput.node>=0)softCancel();
     softInput=SoftInput{};softInput.node=i;softInput.descriptor=*inputDescriptor(i);softInput.theme=keyboardThemeOverride<0?softInput.descriptor.keyboardTheme:KeyboardTheme(keyboardThemeOverride);softInput.visible=true;softInput.draft=page().nodes[i].kind==Kind::Spinbox?inputNumberText(state()[i].value,softInput.descriptor.decimals):std::string(state()[i].text.c_str());softInput.cursor=softInput.draft.size();
+#if NICE_GFX_ENABLE_PINYIN
+    softInput.pinyin=(softInput.descriptor.pinyinOptions&PinyinDefaultChinese)&&pinyinAvailable(softInput.descriptor);
+#endif
     setFocus(i);inertia.active=animation.active=false;buildKeyboard(softInput);++inputEpoch;refresh->invalidateAll();return true;
   }
   bool inputDraftAllowed(InputTextView s,const InputFieldDesc &d) const {
@@ -111,13 +114,153 @@
     const bool changed=state()[i].text.set(text)||(d->type==InputFieldType::Number&&state()[i].value!=numeric);
     if(d->type==InputFieldType::Number)state()[i].value=numeric;if(changed)invalidate(i);return true;
   }
-  bool softInsert(const char *text) {
+  bool softInsert(const char *text
+#if NICE_GFX_ENABLE_PINYIN
+                  ,size_t consumeComposition=0,bool keepSpelling=false
+#endif
+  ) {
     if(softInput.node<0||!text||!inputAvailable(softInput.node))return false;
-    const auto &d=*inputDescriptor(softInput.node);if(strlen(text)>(d.maxBytes?d.maxBytes:256)){updateInputError("输入无效");return false;}
-    const std::string insertion(text);std::string next=softInput.draft;next.insert(softInput.cursor,insertion);
+    const auto &d=*inputDescriptor(softInput.node);
+    const size_t length=strlen(text);
+#if NICE_GFX_ENABLE_PINYIN
+    const size_t prefix=keepSpelling?consumeComposition:0;
+#else
+    constexpr size_t prefix=0;
+#endif
+    if(length+prefix>(d.maxBytes?d.maxBytes:256)){updateInputError("输入无效");return false;}
+    std::string next=softInput.draft;
+#if NICE_GFX_ENABLE_PINYIN
+    if(prefix)next.insert(softInput.cursor,softInput.composition.c_str(),prefix);
+#endif
+    next.insert(softInput.cursor+prefix,text,length);
     if(!inputDraftAllowed(next,*inputDescriptor(softInput.node))){updateInputError("输入无效");return false;}
-    if(next==softInput.draft)return true;softInput.draft.swap(next);softInput.cursor+=insertion.size();updateInputError("");
-    softInput.group=-1;dispatch(softInput.node,EventType::Input);if(buildKeyboard(softInput))invalidateKeyboardKeys();invalidateKeyboardField();return true;
+    if(!length&&!prefix)return true;softInput.draft.swap(next);softInput.cursor+=length+prefix;updateInputError("");
+    softInput.group=-1;
+#if NICE_GFX_ENABLE_PINYIN
+    if(consumeComposition){softInput.composition.consume(consumeComposition);resetPinyinMatch();refreshPinyin();}
+#endif
+    dispatch(softInput.node,EventType::Input);if(buildKeyboard(softInput))invalidateKeyboardKeys();invalidateKeyboardField();return true;
+  }
+  static SoftKey makeKeyboardKey(const char *id,const char *label,const char *value,const char *action) {
+    return {std::string(id),std::string(label),std::string(value),std::string(action),{}};
+  }
+#if NICE_GFX_ENABLE_PINYIN
+  static bool pinyinAvailable(const InputFieldDesc &d) {
+    return d.type==InputFieldType::Text&&pinyin::available(d.pinyin);
+  }
+  static const char *pinyinPunctuation(const SoftInput &k,char symbol) {
+    if(!k.pinyin||!(k.descriptor.pinyinOptions&PinyinChinesePunctuation))return nullptr;
+    static const char ascii[]=",.?!";
+    static const char *const chinese[]={"，","。","？","！"};
+    const char *mark=strchr(ascii,symbol);
+    return mark&&*mark?chinese[mark-ascii]:nullptr;
+  }
+  struct PinyinFlashReader {
+    static uint8_t read(const uint8_t *address) {return pgm_read_byte(address);}
+    static uint16_t read(const uint16_t *address) {return pgm_read_word(address);}
+    static uint32_t read(const uint32_t *address) {return pgm_read_dword(address);}
+  };
+  void resetPinyinMatch() {
+    auto &k=softInput;
+    k.pinyinPage=0;
+    k.pinyinMatch={};
+    if(!k.composition.empty()&&k.descriptor.pinyin)
+      k.pinyinMatch=pinyin::find<PinyinFlashReader>(*k.descriptor.pinyin,k.composition);
+  }
+  static void pinyinCandidateText(std::string &text,pinyin::Candidate value) {
+    pinyin::writeCandidate<PinyinFlashReader>(value,[&](char byte){text+=byte;});
+  }
+  void replacePinyinKeys(SoftInput &k) {
+    auto previous=std::move(k.pinyinKeys);
+    const Rect row=k.pinyinRow;
+    auto value=pinyin::candidate<PinyinFlashReader>(k.pinyinMatch.candidates(),k.pinyinPage);
+    if(k.composition.empty()||(!k.picker&&row.width<=0)||(!value&&!k.pinyinPage)){
+      if(previous)pinyinSpare=std::move(previous);
+      return;
+    }
+    if(pinyinSpare.use_count()==1)k.pinyinKeys=std::move(pinyinSpare);
+    else k.pinyinKeys=std::make_shared<PinyinKeys>();
+    auto &keys=*k.pinyinKeys;
+    keys.count=0;
+    if(previous)pinyinSpare=std::move(previous);
+    const int32_t navigation=std::min<int32_t>(22,row.width/5);
+    const int32_t body=row.width-2*navigation;
+    const int32_t slots=k.picker?6:clamp32(body/68,1,6);
+    k.pinyinStep=uint8_t(slots);
+    const auto append=[&](const char *id,const char *action,int32_t offset,int32_t width) -> std::string& {
+      auto &key=keys.items[keys.count++];
+      key.id=id;key.action=action;key.label.clear();
+      key.rect=k.picker?row:Rect{row.x+offset+2,row.y+2,std::max<int32_t>(0,width-4),std::max<int32_t>(0,row.height-4)};
+      return key.label;
+    };
+    if(k.pinyinPage)append("pinyin-prev","pinyin-page",0,navigation)='<';
+    int32_t offset=navigation;
+    char id[]="pinyin-candidate-0";
+    for(int32_t i=0;i<slots&&value;++i) {
+      const int32_t width=body/slots+(i<body%slots);
+      id[sizeof(id)-2]=char('0'+i);
+      auto &label=append(id,"pinyin-candidate",offset,width);
+      pinyinCandidateText(label,value);
+      offset+=width;
+      value=pinyin::candidate<PinyinFlashReader>(value,1);
+    }
+    if(value)append("pinyin-next","pinyin-page",row.width-navigation,navigation)='>';
+  }
+  enum class PinyinEdit { Spelling, RepeatBackspace, Page };
+  void refreshPinyin(PinyinEdit edit=PinyinEdit::Spelling) {
+    auto &k=softInput;
+    if(!k.visible)return;
+    const Rect label=k.labelRect;
+    const bool preserveBackspace=edit==PinyinEdit::RepeatBackspace;
+    if(buildKeyboard(k,preserveBackspace))invalidateKeyboardKeys();
+    else {
+      if(!(preserveBackspace&&keyboardPressed=="backspace"))releaseKeyboardPointer();
+      const auto previous=k.pinyinKeys;
+      const size_t count=previous?previous->count:0;
+      const int index=k.keyFocus-k.pinyinInsertAt;
+      replacePinyinKeys(k);
+      if(index>=0){
+        const size_t nextCount=k.pinyinKeys?k.pinyinKeys->count:0;
+        if(size_t(index)>=count)k.keyFocus+=int(nextCount)-int(count);
+        else {
+          remapKeyboardFocus(k,&(*previous)[index]);
+          if(keyInput)invalidateKeyboardKey(k.keyFocus);
+        }
+      }
+      const Rect row=k.pinyinRow;
+      if((previous||k.pinyinKeys)&&row.width>0&&row.height>0)
+        refresh->invalidate(DirtyRect(row.x,row.y,row.width,row.height));
+    }
+    if(edit!=PinyinEdit::Page){
+      if(label.width>0&&label.height>0)refresh->invalidate(DirtyRect(label.x,label.y,label.width,label.height));
+      else invalidateKeyboardField();
+    }
+  }
+  void clearPinyin() {
+    if(softInput.composition.empty())return;
+    softInput.composition.clear();resetPinyinMatch();refreshPinyin();
+  }
+  bool softInsertWithComposition(const char *text) {
+    return softInsert(text,softInput.composition.size(),true);
+  }
+  bool acceptPinyin(const char *candidate=nullptr,const char *punctuation=nullptr) {
+    const auto match=softInput.pinyinMatch;
+    if(candidate)return softInsert(candidate,match.consumed);
+    if(punctuation&&match.consumed!=softInput.composition.size())
+      return softInsertWithComposition(punctuation);
+    const auto value=pinyin::candidate<PinyinFlashReader>(match.candidates(),softInput.pinyinPage);
+    if(!value)return softInsertWithComposition(punctuation?punctuation:"");
+    std::string text;
+    pinyinCandidateText(text,value);
+    if(punctuation)text+=punctuation;
+    return softInsert(text.c_str(),match.consumed);
+  }
+#endif
+  bool softEscape() {
+#if NICE_GFX_ENABLE_PINYIN
+    if(!softInput.composition.empty()){clearPinyin();return true;}
+#endif
+    return softHide();
   }
   void invalidateKeyboardCursor(size_t previous) {
     const auto &k=softInput;if(!k.visible)return;const Style style=keyboardDraftStyle(k);const Rect field=keyboardTextRect(k);
@@ -141,12 +284,22 @@
     if(previous!=softInput.cursor)invalidateKeyboardCursor(previous);return true;
   }
   bool softBackspace() {
-    if(softInput.node<0||!inputAvailable(softInput.node))return false;if(!softInput.cursor)return true;
+    if(softInput.node<0||!inputAvailable(softInput.node))return false;
+#if NICE_GFX_ENABLE_PINYIN
+    if(!softInput.composition.empty()){
+      softInput.composition.backspace();resetPinyinMatch();updateInputError("");refreshPinyin(PinyinEdit::RepeatBackspace);return true;
+    }
+#endif
+    if(!softInput.cursor)return true;
     size_t previous=inputPrevious(softInput.draft,softInput.cursor);softInput.draft.erase(previous,softInput.cursor-previous);softInput.cursor=previous;updateInputError("");
     dispatch(softInput.node,EventType::Input);invalidateKeyboardField();return true;
   }
   bool keyboardBackspaceHeld() const {
-    return keyboardBackspaceRepeat&&keyboardPointer&&keyboardPressed=="backspace"&&softInput.visible&&inputEpoch==keyboardBackspaceEpoch&&softInput.cursor&&inputAvailable(softInput.node);
+    bool hasText=softInput.cursor!=0;
+#if NICE_GFX_ENABLE_PINYIN
+    hasText=hasText||!softInput.composition.empty();
+#endif
+    return keyboardBackspaceRepeat&&keyboardPointer&&keyboardPressed=="backspace"&&softInput.visible&&inputEpoch==keyboardBackspaceEpoch&&hasText&&inputAvailable(softInput.node);
   }
   void beginKeyboardBackspace(uint32_t now) {
     keyboardBackspaceRepeat=true;keyboardBackspacePaused=false;keyboardBackspaceStarted=keyboardBackspaceAt=now;keyboardBackspaceDelay=400;keyboardBackspaceEpoch=inputEpoch;
@@ -168,11 +321,19 @@
     processing=true;softBackspace();endProcessing();if(!keyboardBackspaceHeld())keyboardBackspaceRepeat=false;
   }
   bool softDelete() {
-    if(softInput.node<0||!inputAvailable(softInput.node))return false;if(softInput.cursor>=softInput.draft.size())return true;
+    if(softInput.node<0||!inputAvailable(softInput.node))return false;
+#if NICE_GFX_ENABLE_PINYIN
+    if(!softInput.composition.empty()){clearPinyin();updateInputError("");return true;}
+#endif
+    if(softInput.cursor>=softInput.draft.size())return true;
     const size_t end=inputFollowing(softInput.draft,softInput.cursor);softInput.draft.erase(softInput.cursor,end-softInput.cursor);updateInputError("");dispatch(softInput.node,EventType::Input);invalidateKeyboardField();return true;
   }
   bool softClear() {
-    if(softInput.node<0||!inputAvailable(softInput.node))return false;if(softInput.draft.empty()){updateInputError("");return true;}
+    if(softInput.node<0||!inputAvailable(softInput.node))return false;
+#if NICE_GFX_ENABLE_PINYIN
+    clearPinyin();
+#endif
+    if(softInput.draft.empty()){updateInputError("");return true;}
     softInput.draft.clear();softInput.cursor=0;updateInputError("");dispatch(softInput.node,EventType::Input);invalidateKeyboardField();return true;
   }
   bool softSign() {
@@ -197,11 +358,11 @@
     return {clamp32(key.rect.x+key.rect.width/2-width/2,k.rect.x+2,k.rect.x+k.rect.width-width-2),std::max<int32_t>(k.rect.y+2,key.rect.y-40),width,36};
   }
   void invalidateKeyboardKey(int index) {
-    if(!softInput.visible||!softInput.keys||index<0||index>=int(softInput.keys->size()))return;const auto &key=(*softInput.keys)[index];const Rect r=key.rect;refresh->invalidate(DirtyRect(r.x,r.y,r.width,r.height));
+    if(!softInput.visible||index<0||index>=int(softInput.keyCount()))return;const auto &key=softInput.keyAt(index);const Rect r=key.rect;refresh->invalidate(DirtyRect(r.x,r.y,r.width,r.height));
     if(keyboardPressed==key.id||snapshotKeyboard.pressed==key.id){Rect bubble=keyboardBubble(softInput,key);if(bubble.width>0){bubble=intersect({bubble.x-1,bubble.y-1,bubble.width+2,bubble.height+2},softInput.rect);refresh->invalidate(DirtyRect(bubble.x,bubble.y,bubble.width,bubble.height));}}
   }
   void invalidateKeyboardPressed() {
-    if(softInput.keys&&!keyboardPressed.empty())for(size_t i=0;i<softInput.keys->size();++i)if((*softInput.keys)[i].id==keyboardPressed){invalidateKeyboardKey(int(i));break;}
+    if(!keyboardPressed.empty())for(size_t i=0,count=softInput.keyCount();i<count;++i)if(softInput.keyAt(i).id==keyboardPressed){invalidateKeyboardKey(int(i));break;}
   }
   bool softHide() {if(softInput.node<0)return false;releaseKeyboardPointer();softInput.visible=false;refresh->invalidateAll();++inputEpoch;return true;}
   bool softCancel() {
@@ -212,6 +373,9 @@
   }
   bool softCommit(bool next) {
     const int i=softInput.node;if(i<0||!inputAvailable(i))return false;const auto &d=*inputDescriptor(i);int32_t numeric=state()[i].value;
+#if NICE_GFX_ENABLE_PINYIN
+    if(!softInput.composition.empty())return acceptPinyin();
+#endif
     releaseKeyboardPointer();
     const std::string draft=softInput.draft;
     updateInputError(inputValidationError(draft,d,true,numeric,&page().nodes[i]));
@@ -229,17 +393,29 @@
       left=std::max(left,int32_t(ceil(cx-chord)));right=std::min(right,int32_t(floor(cx+chord)));
     }return {left+3,y,std::max<int32_t>(0,right-left-6),height};
   }
-  bool buildKeyboard(SoftInput &k) {
+  bool buildKeyboard(SoftInput &k,bool preserveBackspace=false) {
     if(k.node<0||!k.visible)return false;const auto &d=*inputDescriptor(k.node);
-    const bool same=k.keys&&k.builtNode==k.node&&k.builtMode==k.mode&&k.builtGroup==k.group&&k.builtShift==k.shift&&k.builtRound==circularKeyboard;
+    bool same=k.keys&&k.builtNode==k.node&&k.builtMode==k.mode&&k.builtGroup==k.group&&k.builtShift==k.shift&&k.builtRound==circularKeyboard;
+#if NICE_GFX_ENABLE_PINYIN
+    same=same&&k.builtPinyin==k.pinyin;
+#endif
     if(same&&k.builtEpoch==inputLayoutEpoch)return false;
     const int following=k.builtNode==k.node&&k.builtEpoch==inputLayoutEpoch?k.builtNext:nextInput(k.node);
     if(same&&following==k.builtNext){k.builtEpoch=inputLayoutEpoch;return false;}
     // A different layout invalidates the contact, even if a key keeps its ID.
-    if(&k==&softInput)releaseKeyboardPointer();
-    const auto previousKeys=k.keys;const SoftKey *previousFocus=previousKeys&&k.keyFocus>=0&&k.keyFocus<int(previousKeys->size())?&(*previousKeys)[k.keyFocus]:nullptr;
-    std::vector<SoftKey> layoutKeys;++stats.keyboardLayouts;
+    if(&k==&softInput&&!(preserveBackspace&&keyboardPressed=="backspace"))releaseKeyboardPointer();
+    const auto previousKeys=k.keys;
+#if NICE_GFX_ENABLE_PINYIN
+    const auto previousPinyin=k.pinyinKeys;
+#endif
+    const SoftKey *previousFocus=k.builtNode==k.node&&k.keyFocus>=0&&k.keyFocus<int(k.keyCount())?&k.keyAt(k.keyFocus):nullptr;
+    SoftKeyList layoutKeys;++stats.keyboardLayouts;
     const bool numeric=d.type==InputFieldType::Number||d.type==InputFieldType::Pin||d.type==InputFieldType::Tel;
+#if NICE_GFX_ENABLE_PINYIN
+    const bool pinyinEnabled=pinyinAvailable(d),composing=pinyinEnabled&&k.pinyin&&!k.mode;
+#else
+    constexpr bool composing=false;
+#endif
     const int32_t width=std::min<int32_t>(page().width,640),height=circularKeyboard||!d.keyboardHeight?page().height:std::min<int32_t>(page().height,std::max<int32_t>(240,d.keyboardHeight));
     k.fullscreen=height==page().height;k.picker=page().width<120||height<200;
     const bool grouped=!numeric&&(k.picker||circularKeyboard||page().width<366);
@@ -255,24 +431,58 @@
     if(!k.picker)k.fieldRect.width=std::max<int32_t>(0,k.fieldRect.width-(secure?2:1)*controlStep);
     // Integer tenths keep weighted rows identical to the browser layout,
     // including the half-key inset on the home row and circular safe chords.
-    auto addRow=[&](int32_t y,int32_t h,const std::vector<SoftKey> &keys,const std::vector<int32_t> &weights,int32_t units,int32_t inset){Rect r=keyboardRow(y,h,width);if(r.width<=0||keys.empty())return;
+    auto addRow=[&](int32_t y,int32_t h,const std::vector<SoftKey> &keys,const uint8_t *weights,int32_t units,int32_t inset){Rect r=keyboardRow(y,h,width);if(r.width<=0||keys.empty())return;
       if(!units)units=int32_t(keys.size())*10;int32_t used=inset;
-      for(size_t n=0;n<keys.size();++n){SoftKey key=keys[n];const int32_t weight=n<weights.size()?weights[n]:10;
+      for(size_t n=0;n<keys.size();++n){SoftKey key=keys[n];const int32_t weight=weights?weights[n]:10;
         const int32_t x=r.x+int32_t(int64_t(used)*r.width/units),end=r.x+int32_t(int64_t(used+weight)*r.width/units);used+=weight;
         if(key.id=="empty")continue;key.rect={x+2,y+2,std::max<int32_t>(0,end-x-4),std::max<int32_t>(0,h-4)};layoutKeys.push_back(key);}
     };
     const bool next=d.enterAction==InputEnterAction::Next||(d.enterAction==InputEnterAction::Auto&&following>=0);
-    auto key=[](const char *id,const char *label,const char *value,const char *action){return SoftKey{std::string(id),std::string(label),std::string(value),std::string(action),{}};};
+    const auto key=makeKeyboardKey;
     const SoftKey done=key("done",d.enterAction==InputEnterAction::Search?"搜索":next?"下一项":"完成",next?"next":d.enterAction==InputEnterAction::Search?"search":"done","done");
     auto fieldControl=[&](const SoftKey &control,int32_t offset){SoftKey value=control;value.rect={fieldSpan.x+fieldSpan.width-offset,fieldSpan.y,controlWidth,fieldSpan.height};layoutKeys.push_back(value);};
     if(secure)fieldControl(key("reveal",k.reveal?"隐藏":"查看","","reveal"),controlWidth+controlStep);
     fieldControl(key("hide","收起","","hide"),controlWidth);
+#if NICE_GFX_ENABLE_PINYIN
+    k.pinyinInsertAt=uint8_t(layoutKeys.size());
+    k.pinyinRow={};
+#endif
     int32_t keysTop=titleY+titleHeight+draftHeight+4,bottom=top+height-(circularKeyboard?std::max<int32_t>(margin,height/10):margin);
-    struct Row {std::vector<SoftKey> keys;std::vector<int32_t> weights;int32_t units,inset;};std::vector<Row> rows;
+    // When present, the static weights table has one entry per key.
+    struct Row {std::vector<SoftKey> keys;const uint8_t *weights;int32_t units,inset;};std::vector<Row> rows;
     auto row=[&](const std::vector<SoftKey> &keys){rows.push_back({keys,{},0,0});};
-    auto letters=[&](const char *s){std::vector<SoftKey> values;const std::string text=s;for(size_t p=0;p<text.size();){const size_t following=inputFollowing(text,p);std::string c=text.substr(p,following-p),v=c;if(k.shift&&v[0]>='a'&&v[0]<='z')v[0]-=32;values.push_back({"char-"+c,v,v,"insert",{}});p=following;}return values;};
+    auto letters=[&](const char *s){std::vector<SoftKey> values;const std::string text=s;for(size_t p=0;p<text.size();){const size_t following=inputFollowing(text,p);std::string c=text.substr(p,following-p),v=c;if(k.shift&&v[0]>='a'&&v[0]<='z')v[0]-=32;
+#if NICE_GFX_ENABLE_PINYIN
+      const char *mark=v.size()==1?pinyinPunctuation(k,v[0]):nullptr;
+      values.push_back({"char-"+c,mark?std::string(mark):v,v,"insert",{}});
+#else
+      values.push_back({"char-"+c,v,v,"insert",{}});
+#endif
+      p=following;}return values;};
     const SoftKey empty=key("empty","","","insert"),backspace=key("backspace","退格","","backspace"),space=key("space","空格"," ","insert"),mode=key("mode",k.mode?"ABC":grouped?"123":"?123","","mode");
-    auto textFooter=[&](){rows.push_back({{mode,key("comma",",",",","insert"),space,key("period",".",".","insert"),done},{15,10,40,10,25},100,0});};
+    auto textFooter=[&](bool compact=false){
+      static constexpr uint8_t compactWeights[]={30,40,30},wideWeights[]={15,10,40,10,25};
+      Row footer{{},compact?compactWeights:wideWeights,100,0};
+      footer.keys.reserve(compact?4:6);
+      footer.keys.push_back(mode);
+#if NICE_GFX_ENABLE_PINYIN
+      if(pinyinEnabled){
+        static constexpr uint8_t compactPinyinWeights[]={22,22,28,28},widePinyinWeights[]={13,14,9,34,9,21};
+        footer.weights=compact?compactPinyinWeights:widePinyinWeights;
+        footer.keys.push_back(key("pinyin-toggle",k.pinyin?"中":"英","","pinyin-toggle"));
+      }
+#endif
+      const char *comma=",",*period=".";
+#if NICE_GFX_ENABLE_PINYIN
+      if(const char *mark=pinyinPunctuation(k,','))comma=mark;
+      if(const char *mark=pinyinPunctuation(k,'.'))period=mark;
+#endif
+      if(!compact)footer.keys.push_back(key("comma",comma,",","insert"));
+      footer.keys.push_back(space);
+      if(!compact)footer.keys.push_back(key("period",period,".","insert"));
+      footer.keys.push_back(done);
+      rows.push_back(std::move(footer));
+    };
     if(numeric&&height<360&&!k.picker){
       const bool sign=d.type==InputFieldType::Number&&(!d.hasMin||d.min<0),decimal=d.type==InputFieldType::Number&&d.decimals;
       if(d.type==InputFieldType::Tel||sign||decimal){
@@ -285,7 +495,10 @@
       const SoftKey first=d.type==InputFieldType::Tel?key("star","*","*","insert"):d.type==InputFieldType::Number&&d.decimals?key("decimal",".",".","insert"):empty;
       row({first,key("char-0","0","0","insert"),d.type==InputFieldType::Tel?key("hash","#","#","insert"):backspace});
       if(d.type==InputFieldType::Tel)row({key("plus","+","+","insert"),backspace,done});
-      else if(d.type==InputFieldType::Number&&(!d.hasMin||d.min<0))rows.push_back({{key("sign","±","","sign"),done},{10,20},30,0});
+      else if(d.type==InputFieldType::Number&&(!d.hasMin||d.min<0)){
+        static constexpr uint8_t weights[]={10,20};
+        rows.push_back({{key("sign","±","","sign"),done},weights,30,0});
+      }
       else row({done});
     }else if(grouped){
       if(k.mode){static const char *const pages[]={"123456","7890.-","@_/:,;","!?$%&+","()[]{}","=\"'\\#*"};const auto values=letters(pages[(k.mode-1)%6]);row({values[0],values[1],values[2]});row({values[3],values[4],values[5]});}
@@ -293,12 +506,14 @@
         if(k.group>=0){const auto values=letters(groups[k.group]);for(size_t r=0;r<2;++r){std::vector<SoftKey> keys;for(size_t c=0;c<3;++c){size_t index=r*3+c;keys.push_back(index<values.size()?values[index]:empty);}row(keys);}}
         else for(int r=0;r<2;++r){std::vector<SoftKey> keys;for(int c=0;c<3;++c){const int g=r*3+c;std::string label=labels[g];if(k.shift){label[0]-=32;label[2]-=32;}keys.push_back({"group-"+std::to_string(g),label,groups[g],"group",{}});}row(keys);}
       }
-      row({!k.mode&&k.group>=0?key("groups","返回","","groups"):empty,k.mode?key("symbols","#+=","","symbols-next"):key("shift",k.shift?"小写":"大写","","shift"),backspace});
-      rows.push_back({{mode,space,done},{30,40,30},100,0});
+      row({!k.mode&&k.group>=0?key("groups","返回","","groups"):empty,k.mode?key("symbols","#+=","","symbols-next"):composing?empty:key("shift",k.shift?"小写":"大写","","shift"),backspace});
+      textFooter(true);
     }else if(k.mode){const bool alternate=(k.mode-1)%2;
       row(letters(alternate?"[]{}#%^*+=":"1234567890"));row(letters(alternate?"_\\|~<>$&@:":"-/:;()$&@\""));
-      std::vector<SoftKey> third={key("symbols",alternate?"123":"#+=","","symbols-next")};const auto punctuation=letters(alternate?".,?!`":".,?!'");third.insert(third.end(),punctuation.begin(),punctuation.end());third.push_back(backspace);rows.push_back({third,{15,14,14,14,14,14,15},100,0});textFooter();
-    }else {row(letters("qwertyuiop"));rows.push_back({letters("asdfghjkl"),{},100,5});std::vector<SoftKey> third={key("shift",k.shift?"小写":"大写","","shift")};const auto last=letters("zxcvbnm");third.insert(third.end(),last.begin(),last.end());third.push_back(backspace);rows.push_back({third,{15,10,10,10,10,10,10,10,15},100,0});textFooter();
+      std::vector<SoftKey> third={key("symbols",alternate?"123":"#+=","","symbols-next")};const auto punctuation=letters(alternate?".,?!`":".,?!'");third.insert(third.end(),punctuation.begin(),punctuation.end());third.push_back(backspace);
+      static constexpr uint8_t weights[]={15,14,14,14,14,14,15};rows.push_back({std::move(third),weights,100,0});textFooter();
+    }else {row(letters("qwertyuiop"));rows.push_back({letters("asdfghjkl"),{},100,5});std::vector<SoftKey> third={composing?empty:key("shift",k.shift?"小写":"大写","","shift")};const auto last=letters("zxcvbnm");third.insert(third.end(),last.begin(),last.end());third.push_back(backspace);
+      static constexpr uint8_t weights[]={15,10,10,10,10,10,10,10,15};rows.push_back({std::move(third),weights,100,0});textFooter();
     }
     if(k.picker){
       Rect selected{},previous{},next{};
@@ -314,6 +529,9 @@
         if(width>=96){const int32_t navWidth=clamp32(span.width/4,16,32);previous={span.x,span.y,navWidth,span.height};next={span.x+span.width-navWidth,span.y,navWidth,span.height};selected={span.x+navWidth+4,span.y,std::max<int32_t>(0,span.width-2*(navWidth+4)),span.height};}
         else {const int32_t navHeight=clamp32(bodyHeight/4,16,32);previous={span.x,span.y,span.width,navHeight};next={span.x,span.y+span.height-navHeight,span.width,navHeight};selected={span.x,span.y+navHeight+4,span.width,std::max<int32_t>(0,span.height-2*(navHeight+4))};}
       }
+#if NICE_GFX_ENABLE_PINYIN
+      if(composing)k.pinyinRow=selected;
+#endif
       for(const auto &r:rows)for(const auto &item:r.keys)if(item.id!="empty")layoutKeys.push_back(item);
       for(auto &item:layoutKeys){item.rect=selected;
         if(item.action=="group"&&selected.width<36)item.label=item.label.substr(0,1)+"+";
@@ -322,10 +540,20 @@
       }
       SoftKey prev=key("picker-prev","","","picker-prev"),following=key("picker-next","","","picker-next");prev.rect=previous;following.rect=next;layoutKeys.push_back(prev);layoutKeys.push_back(following);
     }else {
-      const int32_t cap=std::min<int32_t>(480,grouped?width*14/10:numeric?width:width*65/100),available=bottom-keysTop,gridHeight=std::min(available,cap),offset=(available-gridHeight)/2;
+#if NICE_GFX_ENABLE_PINYIN
+      const int32_t candidatesHeight=composing?clamp32(width/9,24,40):0;
+#else
+      constexpr int32_t candidatesHeight=0;
+#endif
+      const int32_t cap=std::min<int32_t>(480,grouped?width*14/10:numeric?width:width*65/100),available=bottom-keysTop-candidatesHeight,gridHeight=std::min(available,cap),offset=(available-gridHeight)/2;
       titleY+=offset;k.labelRect=titleRow(titleY);k.fieldRect=keyboardRow(titleY+titleHeight,draftHeight,width);const Rect movedSpan=k.fieldRect;k.fieldRect.width=std::max<int32_t>(0,k.fieldRect.width-(secure?2:1)*controlStep);
       for(auto &control:layoutKeys){control.rect.y=k.fieldRect.y;control.rect.x=movedSpan.x+movedSpan.width-(control.id=="reveal"?controlWidth+controlStep:controlWidth);}
-      keysTop=titleY+titleHeight+draftHeight+4;bottom=keysTop+gridHeight;
+      keysTop=titleY+titleHeight+draftHeight+4;
+#if NICE_GFX_ENABLE_PINYIN
+      if(composing)k.pinyinRow=keyboardRow(keysTop,candidatesHeight,width);
+      keysTop+=candidatesHeight;
+#endif
+      bottom=keysTop+gridHeight;
       const int32_t rowHeight=std::max<int32_t>(8,gridHeight/std::max<int32_t>(1,int32_t(rows.size())));
       for(size_t r=0;r<rows.size();++r)addRow(keysTop+int32_t(r)*rowHeight,rowHeight,rows[r].keys,rows[r].weights,rows[r].units,rows[r].inset);
       if(!numeric&&!grouped&&!rows.empty()&&!rows.front().keys.empty()){
@@ -342,28 +570,43 @@
         }
       }
     }
-    k.keys=std::make_shared<const std::vector<SoftKey>>(std::move(layoutKeys));
+    k.keys=std::make_shared<const SoftKeyList>(std::move(layoutKeys));
+#if NICE_GFX_ENABLE_PINYIN
+    if(composing)replacePinyinKeys(k);
+    else k.pinyinKeys.reset();
+    k.builtPinyin=k.pinyin;
+#endif
+    remapKeyboardFocus(k,previousFocus);
+    k.builtNode=k.node;k.builtMode=k.mode;k.builtGroup=k.group;k.builtNext=following;k.builtShift=k.shift;k.builtReveal=k.reveal;k.builtRound=circularKeyboard;k.builtEpoch=inputLayoutEpoch;
+    return true;
+  }
+  static void remapKeyboardFocus(SoftInput &k,const SoftKey *previousFocus) {
+    const size_t count=k.keyCount();
     int mapped=-1;
-    if(k.builtNode==k.node&&previousFocus){
-      auto find=[&](int kind){for(size_t i=0;i<k.keys->size();++i){const auto &key=(*k.keys)[i];
+    if(previousFocus){
+      auto find=[&](int kind){for(size_t i=0;i<count;++i){const auto &key=k.keyAt(i);
         if(kind==0&&key.id==previousFocus->id)return int(i);
-        if(kind==1&&key.action==previousFocus->action&&key.value==previousFocus->value)return int(i);
+        if(kind==1&&key.action==previousFocus->action&&key.value==previousFocus->value){
+#if NICE_GFX_ENABLE_PINYIN
+          if((key.action=="pinyin-candidate"||key.action=="pinyin-page")&&key.label!=previousFocus->label)continue;
+#endif
+          return int(i);
+        }
         if(kind==2&&previousFocus->action=="group"&&!previousFocus->value.empty()&&key.id=="char-"+previousFocus->value.substr(0,1))return int(i);
         if(kind==2&&previousFocus->action=="insert"&&previousFocus->value.size()==1&&key.action=="group"){char letter=previousFocus->value[0];if(letter>='A'&&letter<='Z')letter+=32;if(key.value.find(letter)!=std::string::npos)return int(i);}
       }return -1;};
       for(int kind=0;kind<3&&mapped<0;++kind)mapped=find(kind);
     }
-    if(mapped<0)for(size_t i=0;i<k.keys->size();++i){const auto &key=(*k.keys)[i];if(key.action=="group"||(key.action=="insert"&&!key.value.empty())){mapped=int(i);break;}}
+    if(mapped<0)for(size_t i=0;i<count;++i){const auto &key=k.keyAt(i);if(key.action=="group"||(key.action=="insert"&&!key.value.empty())){mapped=int(i);break;}}
     k.keyFocus=mapped<0?0:mapped;
-    k.keyFocus=clamp32(k.keyFocus,0,int32_t(k.keys->size())-(k.picker?3:1));
-    k.builtNode=k.node;k.builtMode=k.mode;k.builtGroup=k.group;k.builtNext=following;k.builtShift=k.shift;k.builtReveal=k.reveal;k.builtRound=circularKeyboard;k.builtEpoch=inputLayoutEpoch;return true;
+    k.keyFocus=clamp32(k.keyFocus,0,int32_t(count)-(k.picker?3:1));
   }
   int keyboardHit(const SoftInput &k,int32_t px,int32_t py) const {
     if(circularKeyboard){const int64_t dx=2LL*px-page().width,dy=2LL*py-page().height,r=std::min(page().width,page().height)-8;if(dx*dx+dy*dy>r*r)return -1;}
-    if(k.keys)for(size_t i=0;i<k.keys->size();++i){if(k.picker&&i+2<k.keys->size()&&int(i)!=k.keyFocus)continue;const Rect key=(*k.keys)[i].rect;if(key.width<=0||key.height<=0)continue;Rect touch={key.x-2,key.y-2,key.width+4,key.height+4};const Rect safe=keyboardRow(touch.y,touch.height,std::min<int32_t>(page().width,640));touch=intersect(touch,safe);if(contains(touch,px,py))return int(i);}return -1;
+    for(size_t i=0,count=k.keyCount();i<count;++i){if(k.picker&&i+2<count&&int(i)!=k.keyFocus)continue;const Rect key=k.keyAt(i).rect;if(key.width<=0||key.height<=0)continue;Rect touch={key.x-2,key.y-2,key.width+4,key.height+4};const Rect safe=keyboardRow(touch.y,touch.height,std::min<int32_t>(page().width,640));touch=intersect(touch,safe);if(contains(touch,px,py))return int(i);}return -1;
   }
   bool softPickerStep(int32_t delta) {
-    auto &k=softInput;if(!k.picker||!k.keys||k.keys->size()<=2)return false;const int32_t count=int32_t(k.keys->size())-2;
+    auto &k=softInput;const int32_t count=int32_t(k.keyCount())-2;if(!k.picker||count<=0)return false;
     invalidateKeyboardKey(k.keyFocus);keyboardBackspaceRepeat=keyboardBackspacePaused=false;k.keyFocus=((k.keyFocus+delta)%count+count)%count;invalidateKeyboardKey(k.keyFocus);return true;
   }
   static bool keyboardLabelMatches(const SoftInput &k,const SoftKey &key,const char *label) {
@@ -376,30 +619,71 @@
     if(action=="picker-prev"||action=="picker-next")return softPickerStep(action=="picker-prev"?-1:1);
     if(action=="done")return softCommit(value=="next");if(action=="hide")return softHide();
     if(action=="backspace")return softBackspace();if(action=="sign")return softSign();
-    if(action=="insert")return softInsert(value.c_str());
+#if NICE_GFX_ENABLE_PINYIN
+    if(action=="pinyin-candidate")return acceptPinyin(key.label.c_str());
+    if(action=="pinyin-page"){
+      const size_t step=softInput.pinyinStep,page=softInput.pinyinPage;
+      softInput.pinyinPage=key.id=="pinyin-next"?page+step:page-std::min(page,step);
+      refreshPinyin(PinyinEdit::Page);return true;
+    }
+    if(action=="pinyin-toggle"){
+      const int node=softInput.node;
+      if(!softInput.composition.empty()&&!softInsertWithComposition(""))return false;
+      if(softInput.node!=node)return true;
+      softInput.pinyin=!softInput.pinyin;softInput.mode=0;softInput.group=-1;softInput.shift=false;
+      refreshPinyin();if(softInput.visible)refresh->invalidateAll();return true;
+    }
+#endif
+    if(action=="insert"){
+#if NICE_GFX_ENABLE_PINYIN
+      if(value.size()==1)if(const char *mark=pinyinPunctuation(softInput,value[0]))
+        return acceptPinyin(nullptr,mark);
+      if(softInput.pinyin&&!softInput.mode){
+        if(key.id=="space"&&!softInput.composition.empty())return acceptPinyin();
+        if(value.size()==1&&pinyin::Composition::accepts(value[0])){
+          if(!softInput.composition.push(value[0])){updateInputError("输入无效");return false;}
+          resetPinyinMatch();softInput.group=-1;
+          updateInputError("");refreshPinyin();return true;
+        }
+        return softInsertWithComposition(value.c_str());
+      }
+#endif
+      return softInsert(value.c_str());
+    }
     if(action=="group"){static const char *const groups[]={"abcd","efgh","ijkl","mnop","qrst","uvwxyz"};for(int g=0;g<6;++g)if(value==groups[g])softInput.group=g;}
     else if(action=="groups")softInput.group=-1;
     else if(action=="shift")softInput.shift=!softInput.shift;
-    else if(action=="mode"){softInput.mode=softInput.mode?0:1;softInput.group=-1;}
+    else if(action=="mode"){
+#if NICE_GFX_ENABLE_PINYIN
+      const int node=softInput.node;
+      if(!softInput.composition.empty()&&!softInsertWithComposition(""))return false;
+      if(softInput.node!=node)return true;
+#endif
+      softInput.mode=softInput.mode?0:1;softInput.group=-1;
+#if NICE_GFX_ENABLE_PINYIN
+      if(softInput.pinyin&&softInput.visible)refresh->invalidateAll();
+#endif
+    }
     else if(action=="symbols"||action=="symbols-next")softInput.mode=softInput.mode%(softInput.picker||circularKeyboard||page().width<366?6:2)+1;
     else if(action=="reveal"){
       softInput.reveal=!softInput.reveal;
       if(softInput.visible){const Rect field=softInput.fieldRect;refresh->invalidate(DirtyRect(field.x,field.y,field.width,field.height));
-        if(softInput.keys)for(size_t i=0;i<softInput.keys->size();++i)if((*softInput.keys)[i].action=="reveal"){invalidateKeyboardKey(int(i));break;}}
+        for(size_t i=0,count=softInput.keyCount();i<count;++i)if(softInput.keyAt(i).action=="reveal"){invalidateKeyboardKey(int(i));break;}}
       return true;
     }
     else return false;
     if(buildKeyboard(softInput))invalidateKeyboardKeys();
-    if(softInput.picker&&(action=="mode"||action=="group"||action=="groups"||action=="symbols"||action=="symbols-next")&&softInput.keys)
-      for(size_t i=0;i+2<softInput.keys->size();++i){const auto &item=(*softInput.keys)[i];if(item.action=="group"||(item.action=="insert"&&!item.value.empty()&&item.value!=" ")){softInput.keyFocus=int(i);invalidateKeyboardKeys();break;}}
+    if(softInput.picker&&(action=="mode"||action=="group"||action=="groups"||action=="symbols"||action=="symbols-next"))
+      for(size_t i=0,count=softInput.keyCount();i+2<count;++i){const auto &item=softInput.keyAt(i);if(item.action=="group"||(item.action=="insert"&&!item.value.empty()&&item.value!=" ")){softInput.keyFocus=int(i);invalidateKeyboardKeys();break;}}
     invalidateKeyboardField();return true;
   }
   bool softKeyAction(InputAction action) {
-    if(action==InputAction::Back||action==InputAction::Home)return softHide();
-    if(action==InputAction::Confirm||action==InputAction::Activate){buildKeyboard(softInput);if(softInput.keys&&!softInput.keys->empty())softPress((*softInput.keys)[softInput.keyFocus]);return true;}
+    if(action==InputAction::Back)return softEscape();
+    if(action==InputAction::Home)return softHide();
+    if(action==InputAction::Confirm||action==InputAction::Activate){buildKeyboard(softInput);if(softInput.keyCount())softPress(softInput.keyAt(softInput.keyFocus));return true;}
     const bool previous=action==InputAction::Previous||action==InputAction::Up||action==InputAction::Left;
     const bool next=action==InputAction::Next||action==InputAction::Down||action==InputAction::Right;
-    if(previous||next){if(buildKeyboard(softInput))invalidateKeyboardKeys();if(softInput.picker)return softPickerStep(previous?-1:1);const int count=softInput.keys?int(softInput.keys->size()):0;invalidateKeyboardKey(softInput.keyFocus);if(count)softInput.keyFocus=(softInput.keyFocus+(previous?count-1:1))%count;invalidateKeyboardKey(softInput.keyFocus);}
+    if(previous||next){if(buildKeyboard(softInput))invalidateKeyboardKeys();if(softInput.picker)return softPickerStep(previous?-1:1);const int count=int(softInput.keyCount());invalidateKeyboardKey(softInput.keyFocus);if(count)softInput.keyFocus=(softInput.keyFocus+(previous?count-1:1))%count;invalidateKeyboardKey(softInput.keyFocus);}
     return true; // Modal input consumes every physical binding, including routes.
   }
   static int32_t inputGlyphAdvance(const Style &style,uint16_t code,bool compact=false) {
@@ -428,7 +712,11 @@
     auto &frame=keyboardTextFrame;frame.draft.clear();frame.title.clear();frame.cursor=0;frame.titleFontSize=1;
     const auto &k=snapshotKeyboard;if(!k.visible||k.node<0)return;
     const auto &d=k.descriptor;const NodeDesc &n=rasterFrame.current.page->nodes[k.node];
-    if(!k.error.empty())frame.title=k.error;else{frame.title=d.label?d.label:n.text?n.text:"";if(d.unit&&*d.unit){frame.title+=" (";frame.title+=d.unit;frame.title+=")";}}
+    if(!k.error.empty())frame.title=k.error;
+#if NICE_GFX_ENABLE_PINYIN
+    else if(!k.composition.empty())frame.title=k.composition.c_str();
+#endif
+    else {frame.title=d.label?d.label:n.text?n.text:"";if(d.unit&&*d.unit){frame.title+=" (";frame.title+=d.unit;frame.title+=")";}}
     Style style=styleFor(*rasterFrame.current.page,rasterFrame.current.values,k.node);if(d.keyboardFont)style.font=d.keyboardFont;
     if(style.font){
       // Prepare title fitting once, so DMA tiles share the same typography and
@@ -449,6 +737,14 @@
     }
     style.fontSize=k.picker||k.rect.height<300?1:2;
     const Rect field=keyboardTextRect(k);if(!style.font||field.width<=0)return;
+#if NICE_GFX_ENABLE_PINYIN
+    if(!k.labelRect.height&&!k.composition.empty()){
+      const int32_t cell=std::max<int32_t>(1,inputGlyphAdvance(style,'n',true));
+      const size_t fit=size_t(std::max<int32_t>(0,field.width/cell-1));
+      frame.draft=k.composition.c_str()+k.composition.size()-std::min(k.composition.size(),fit);
+      frame.cursor=frame.draft.size();return;
+    }
+#endif
     const bool masked=keyboardMasked(k);const size_t cursor=std::min(k.cursor,k.draft.size());size_t start=cursor;
     const int32_t reserve=keyboardCaretReserve(style,field);int32_t pixels=0;
     // Walk back only as far as this field can display. Long drafts and masked
@@ -559,20 +855,41 @@
     canvas.setViewport(tile.x,tile.y,tile.width,tile.height,false);canvas.fillRect(k.rect.x,k.rect.y,k.rect.width,k.rect.height,style.trackColor);canvas.drawFastHLine(k.rect.x,k.rect.y,k.rect.width,style.borderColor);
     const Rect labelClip=intersect(k.labelRect,tile);if(labelClip.width>0&&labelClip.height>0){
       canvas.setViewport(labelClip.x,labelClip.y,labelClip.width,labelClip.height,false);
-      Style statusStyle=style;statusStyle.fontSize=keyboardTextFrame.titleFontSize;statusStyle.color=k.error.empty()?muted:color(dark?0xfca5a5:0xdc2626);inputDrawLine(keyboardTextFrame.title,statusStyle,keyboardTitleTextRect(k),true,SIZE_MAX,true);
+      Style statusStyle=style;statusStyle.fontSize=keyboardTextFrame.titleFontSize;
+      statusStyle.color=k.error.empty()?muted:color(dark?0xfca5a5:0xdc2626);
+#if NICE_GFX_ENABLE_PINYIN
+      if(k.error.empty()&&!k.composition.empty())statusStyle.color=style.fillColor;
+#endif
+      inputDrawLine(keyboardTextFrame.title,statusStyle,keyboardTitleTextRect(k),true,SIZE_MAX,true);
     }
     const Rect fieldClip=intersect(k.fieldRect,tile);if(fieldClip.width>0&&fieldClip.height>0){
       canvas.setViewport(fieldClip.x,fieldClip.y,fieldClip.width,fieldClip.height,false);Style fieldStyle=style;fieldStyle.radius=8;fieldStyle.fontSize=k.picker||k.rect.height<300?1:2;rounded(k.fieldRect,fieldBackground,!k.error.empty()&&!k.labelRect.height?color(dark?0xfca5a5:0xdc2626):style.borderColor,fieldStyle);
       const Rect field=keyboardTextRect(k);
-      if(k.draft.empty()&&d.placeholder&&*d.placeholder){Style hintStyle=fieldStyle;hintStyle.color=placeholder;inputDrawLine(d.placeholder,hintStyle,field,false,SIZE_MAX,true);}
+#if NICE_GFX_ENABLE_PINYIN
+      const bool previewComposition=!k.labelRect.height&&!k.composition.empty();
+      if(previewComposition)fieldStyle.color=style.fillColor;
+#else
+      constexpr bool previewComposition=false;
+#endif
+      if(!previewComposition&&k.draft.empty()&&d.placeholder&&*d.placeholder){Style hintStyle=fieldStyle;hintStyle.color=placeholder;inputDrawLine(d.placeholder,hintStyle,field,false,SIZE_MAX,true);}
       inputDrawLine(keyboardTextFrame.draft,fieldStyle,field,false,keyboardTextFrame.cursor,true,0,false,&fieldClip);
     }
-    if(k.keys)for(size_t i=0;i<k.keys->size();++i){if(k.picker&&i+2<k.keys->size()&&int(i)!=k.keyFocus)continue;const auto &key=(*k.keys)[i];Rect clip=intersect(key.rect,tile);if(clip.width<=0||clip.height<=0)continue;canvas.setViewport(clip.x,clip.y,clip.width,clip.height,false);
-      const bool primary=key.action=="done",function=key.action!="insert";const uint16_t background=key.id==k.pressed?style.pressedColor:primary?style.fillColor:function?auxiliary:style.background;Style keyStyle=style;keyStyle.color=primary&&key.id!=k.pressed?0xffff:style.color;
+    const size_t keyCount=k.keyCount();
+    for(size_t i=0;i<keyCount;++i){if(k.picker&&i+2<keyCount&&int(i)!=k.keyFocus)continue;const auto &key=k.keyAt(i);Rect clip=intersect(key.rect,tile);if(clip.width<=0||clip.height<=0)continue;canvas.setViewport(clip.x,clip.y,clip.width,clip.height,false);
+      const bool primary=key.action=="done";
+      bool function=key.action!="insert";
+#if NICE_GFX_ENABLE_PINYIN
+      function=function&&key.action!="pinyin-candidate";
+#endif
+      const uint16_t background=key.id==k.pressed?style.pressedColor:primary?style.fillColor:function?auxiliary:style.background;
+      Style keyStyle=style;keyStyle.color=primary&&key.id!=k.pressed?0xffff:style.color;
+#if NICE_GFX_ENABLE_PINYIN
+      if(key.id=="pinyin-toggle"&&k.pinyin)keyStyle.color=style.fillColor;
+#endif
       if(displayPolicy.monochrome)keyStyle.color=DisplayPolicy::foregroundOn(background);
       rounded(key.rect,background,snapshotKeyInput&&int(i)==k.keyFocus?style.fillColor:style.borderColor,style);
       if(displayPolicy.monochrome&&snapshotKeyInput&&int(i)==k.keyFocus&&key.rect.width>2&&key.rect.height>2)canvas.drawRoundRect(key.rect.x+1,key.rect.y+1,key.rect.width-2,key.rect.height-2,std::max<int32_t>(0,style.radius-1),DisplayPolicy::foregroundOn(background));
       if(!paintKeyboardIcon(key,k,keyStyle.color,background))inputDrawLine(key.label,keyboardKeyTextStyle(key,keyStyle),key.rect,true,SIZE_MAX,true);
     }
-    if(k.keys&&!k.pressed.empty())for(const auto &key:*k.keys)if(key.id==k.pressed){const Rect bubble=keyboardBubble(k,key),clip=intersect(bubble,tile);if(clip.width>0&&clip.height>0){canvas.setViewport(clip.x,clip.y,clip.width,clip.height,false);Style bubbleStyle=style;bubbleStyle.radius=6;if(style.font&&style.font->height<=16)bubbleStyle.fontSize=2;rounded(bubble,fieldBackground,style.fillColor,bubbleStyle);inputDrawLine(key.value,bubbleStyle,bubble,true);}break;}
+    if(!k.pressed.empty())for(size_t i=0;i<keyCount;++i){const auto &key=k.keyAt(i);if(key.id==k.pressed){const Rect bubble=keyboardBubble(k,key),clip=intersect(bubble,tile);if(clip.width>0&&clip.height>0){canvas.setViewport(clip.x,clip.y,clip.width,clip.height,false);Style bubbleStyle=style;bubbleStyle.radius=6;if(style.font&&style.font->height<=16)bubbleStyle.fontSize=2;rounded(bubble,fieldBackground,style.fillColor,bubbleStyle);inputDrawLine(key.label,bubbleStyle,bubble,true);}break;}}
   }
